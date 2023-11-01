@@ -136,19 +136,27 @@ class DSpace:
         prefix_xml += '</dublin_core>'
         return prefix_xml
 
-    def create_dir(self):
+    def create_dir(self, overwrite: bool = False):
         """
             Erstellt das item im archive_directory. Benötigt daher den Ordner
             "archive_directory", existiert dieser noch nicht, wird er neu
             erstellt.
+            :param overwrite: If true, it overwrites the currently existing files.
         """
         local_path = self.path
         if 'archive_directory' not in os.listdir(local_path):
             os.mkdir(local_path + 'archive_directory')
         local_path += 'archive_directory/'
-        if 'item_%s' % self.element_id in os.listdir(local_path):
-            raise KeyError('The item with the element_id "%s" exists already in "%s"' % (self.element_id, self.path))
-        os.mkdir(local_path + 'item_%s' % self.element_id)
+        exists_error = FileExistsError(f'The item with the element_id "{self.element_id}" exists already'
+                                       f'in "{self.path}"')
+        if f'item_{self.element_id}' in os.listdir(local_path) and not overwrite:
+            raise exists_error
+        else:
+            try:
+                os.mkdir(f'{local_path}item_{self.element_id}')
+            except FileExistsError:
+                if not overwrite:
+                    raise exists_error
         local_path += 'item_%s/' % self.element_id
         header = '<?xml version="1.0" encoding="UTF-8"?>\n'
         with open(local_path + 'dublin_core.xml', 'w', encoding='utf8') as f:
@@ -191,6 +199,3 @@ class DSpace:
                 contents_text += str(i) + '\n'
             content_file = contents_text
         return dc_file + '\n\n' + other_prefix + relation_file + '\n\n' + content_file
-
-
-# Es fehlen noch die Funktionen zum Hinzufügen von Contents (Bitstream-files)
