@@ -1,6 +1,5 @@
 import os
 import re
-from typing import List
 from .ContentFile import ContentFile
 from .Relation import Relation
 from .Relation import export_relations
@@ -8,23 +7,23 @@ from .Relation import export_relations
 
 class DSpace:
     """
-        Diese Klasse dient dem Import von Items und deren Meta_Daten in DSpace-Systeme.
+    This class helps to import and update items and there metadata via simple-archive-format in DSpace-Systems.
     """
     path: str
     metadata: dict  # {prefix: [{element: '', qualifier: '', value:''}, ...], ...}
     element_id: int
     relations: list
-    contents: List[ContentFile]
+    contents: list[ContentFile]
     handle: str
 
     def __init__(self, element_id: int, path: str = '', schema: list = None, entity: str = '', handle: str = ''):
         """
-            Erstellt ein neues Objekt der Klasse.
+        Creates a new Object of the class DSpace.
 
-            :param element_id: Die ID des elements. Wird zur Benennung des Ordners benötigt.
-            :param path: Der Pfad unterdem die Import-Daten gespeichert werden.
-            :param schema: Eine Liste mit weiteren Metadaten Schemata abgesehen von dublin_core.
-            :param handle: Der Handle des objects, wenn vorhanden.
+        :param element_id: The ID of an element. It is needed to name the folders.
+        :param path: The path, where the saf-packages should be saved.
+        :param schema: A list of further metadata-schemas additionally to dublin-core.
+        :param handle: The handle of the object, if existing.
         """
         self.path = path
         self.metadata = {}
@@ -40,14 +39,14 @@ class DSpace:
         self.contents = []
         self.handle = handle
 
-    def add_dc_value(self, element: str, value, qualifier: str = 'none', language: str = None):
+    def add_dc_value(self, element: str, value: str, qualifier: str = 'none', language: str = None):
         """
-            Fügt ein neues dc Metadatenfeld inklusive Inhalt hinzu.
+        Creates a new dc- metadata field with the given value.
 
-            :param element: Der Typ des Metadatenfeldes. Zum Beispiel 'title'
-            :param value: Der Wert des Metadatenfeldes.
-            :param qualifier: Der Qualifier des Feldes. Default: None
-            :param language: The language of the metadata field.
+        :param element: Type of the metadata-field. For example 'title'.
+        :param value: The value of the metadata-field.
+        :param qualifier: The qualifier of the field. Default: None
+        :param language: The language of the metadata field. Default: None.
         """
         if type(value) is list:
             for i in value:
@@ -57,14 +56,13 @@ class DSpace:
 
     def add_metadata(self, element: str, value: str, prefix: str, qualifier: str = 'none', language: str = None):
         """
-            Fügt ein neues allgemeines Metadatenfeld inklusive Inhalt hinzu. Das
-            Schema wird durch den prefix spezifiziert.
+        Creates a new metadata field with the given value. The schema is specified through the prefix parameter.
 
-            :param element: Der Typ des Metadatenfeldes. Zum Beispiel 'title'
-            :param value: Der Wert des Metadatenfeldes.
-            :param prefix: Der prefix des Metadatenschemas.
-            :param qualifier: Der Qualifier des Feldes. Default: None
-            :param language: The language of the metadata field.
+        :param element: Type of the metadata-field. For example 'title'.
+        :param value: The value of the metadata-field.
+        :param prefix: The prefix of the schema, which should be used.
+        :param qualifier: The qualifier of the field. Default: None
+        :param language: The language of the metadata field.
         """
         try:
             if type(value) is list:
@@ -77,34 +75,33 @@ class DSpace:
                 self.metadata[prefix].append({'element': element, 'qualifier': qualifier, 'value': value,
                                               'language': language})
         except KeyError:
-            raise KeyError('The prefix %s doesn\'t exist.' % prefix)
+            raise KeyError(f"The prefix '{prefix}' doesn't exist.")
 
     def add_relation(self, relation_type: str, handle: str):
         """
-            Fügt eine neue Beziehung zu dem Datensatz hinzu.
+        Creates a new relationship to the item.
 
-            :param relation_type: Die Bezeichnung der Beziehung.
-            :param handle: Die eindeutige Bezeichnung für das Objekt der Beziehung.
+        :param relation_type: The name of the relationship.
+        :param handle: The identifier of the related object.
         """
         self.relations.append(Relation(relation_type, handle))
 
-    def add_content(self, content_file: str, path: str, description: str = '', w: int = 0, server: str = ''):
+    def add_content(self, content_file: str, path: str, description: str = '', width: int = 0, server: str = ''):
         """
-            Fügt zusätzliche Content-Files zum Dokument hinzu.
+        Adds additional content-files to the item.
 
-            :param content_file: Der Name des hinzuzufügenden Dokumentes.
-            :param path: Der Pfad unter dem das Dokument zu finden ist.
-            :param description: Eine Beschreibung zu dem Content-File.
-            :param w: Die Breite eines Bildes. Nur relevant, wenn es sich um ein jpg handelt und dies verkleinert werden
-            soll.
-            :param server: Enthält den Namen des Servers, auf welchem das Bild liegt. Ist leer, falls das Bild lokal
-            vorliegt
+        :param content_file: The name of the document, which should be added.
+        :param path: The path where to find the document.
+        :param description: A description of the content file.
+        :param width: The width of an image. Only needed, if the file is a jpg, wich should be reduced.
+        :param server: Contains the name of the server on which the image is stored, if so. Stays empty in case of a
+         local image.
         """
-        cf = None
-        if re.search(r'\.jpg', content_file) or re.search(r'\.tif[f]?', content_file):
+
+        if re.search(r'\.jpg', content_file) or re.search(r'\.tiff?', content_file):
             cf = ContentFile('images', content_file, path, server=server)
             name = content_file.split('.')[0]
-            cf.add_iiif('Digitalisat-%s' % name, name, w=w)
+            cf.add_iiif('Digitalisat-%s' % name, name, w=width)
             cf.add_description(description)
             self.contents.append(cf)
         else:
@@ -114,9 +111,9 @@ class DSpace:
 
     def dc_schema(self) -> str:
         """
-            Creates the content of the file dublin_core.xml
+        Creates the content of the file dublin_core.xml
 
-            :return: Ein String im xml-Format.
+        :return: Ein String im xml-Format.
         """
         return self.prefix_schema('dc')
 
@@ -140,10 +137,9 @@ class DSpace:
 
     def create_dir(self, overwrite: bool = False):
         """
-            Erstellt das item im archive_directory. Benötigt daher den Ordner
-            "archive_directory", existiert dieser noch nicht, wird er neu
-            erstellt.
-            :param overwrite: If true, it overwrites the currently existing files.
+        Creates the item in folder named 'archive_directory'. If the folder doesn't exist yet. It will be created.
+
+        :param overwrite: If true, it overwrites the currently existing files.
         """
         local_path = self.path
         if 'archive_directory' not in os.listdir(local_path):
@@ -201,3 +197,11 @@ class DSpace:
                 contents_text += str(i) + '\n'
             content_file = contents_text
         return dc_file + '\n\n' + other_prefix + relation_file + '\n\n' + content_file
+
+    def __len__(self) -> int:
+        """
+        Counts the number of metadata fields for the given item.
+
+        :return: The number as an integer value.
+        """
+        return sum(len(m) for m in self.metadata.values())
