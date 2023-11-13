@@ -40,21 +40,22 @@ class DSpace:
         self.contents = []
         self.handle = handle
 
-    def add_dc_value(self, element: str, value, qualifier: str = 'none'):
+    def add_dc_value(self, element: str, value, qualifier: str = 'none', language: str = None):
         """
             Fügt ein neues dc Metadatenfeld inklusive Inhalt hinzu.
 
             :param element: Der Typ des Metadatenfeldes. Zum Beispiel 'title'
             :param value: Der Wert des Metadatenfeldes.
             :param qualifier: Der Qualifier des Feldes. Default: None
+            :param language: The language of the metadata field.
         """
         if type(value) is list:
             for i in value:
-                self.add_metadata(element, i, 'dc', qualifier)
+                self.add_metadata(element, i, 'dc', qualifier, language)
         else:
-            self.add_metadata(element, value, 'dc', qualifier)
+            self.add_metadata(element, value, 'dc', qualifier, language)
 
-    def add_metadata(self, element: str, value: str, prefix: str, qualifier: str = 'none'):
+    def add_metadata(self, element: str, value: str, prefix: str, qualifier: str = 'none', language: str = None):
         """
             Fügt ein neues allgemeines Metadatenfeld inklusive Inhalt hinzu. Das
             Schema wird durch den prefix spezifiziert.
@@ -63,15 +64,18 @@ class DSpace:
             :param value: Der Wert des Metadatenfeldes.
             :param prefix: Der prefix des Metadatenschemas.
             :param qualifier: Der Qualifier des Feldes. Default: None
+            :param language: The language of the metadata field.
         """
         try:
             if type(value) is list:
                 for i in value:
-                    self.metadata[prefix].append({'element': element, 'qualifier': qualifier, 'value': i})
+                    self.metadata[prefix].append({'element': element, 'qualifier': qualifier, 'value': i,
+                                                  'language': language})
             elif value == '':
                 return
             else:
-                self.metadata[prefix].append({'element': element, 'qualifier': qualifier, 'value': value})
+                self.metadata[prefix].append({'element': element, 'qualifier': qualifier, 'value': value,
+                                              'language': language})
         except KeyError:
             raise KeyError('The prefix %s doesn\'t exist.' % prefix)
 
@@ -110,29 +114,27 @@ class DSpace:
 
     def dc_schema(self) -> str:
         """
-            Erstellt den Inhalt der Datei dublin_core.xml.
+            Creates the content of the file dublin_core.xml
 
             :return: Ein String im xml-Format.
         """
-        dc_xml = '<dublin_core>\n'
-        for m in self.metadata['dc']:
-            dc_xml += '\t<dcvalue element="{}" qualifier="{}">{}</dcvalue>\n'.format(m['element'], m['qualifier'],
-                                                                                     m['value'])
-        dc_xml += '</dublin_core>'
-        return dc_xml
+        return self.prefix_schema('dc')
 
     def prefix_schema(self, prefix: str) -> str:
         """
-            Erstellt den Inhalt der Dateien metadata_[prefix].xml
+            Creates the content of the files metadata_[prefix].xml
 
-            :param prefix: Der Präfix des Schemas, das erstellt werden soll.
+            :param prefix: The prefix of the schema which should be created.
         """
         if prefix not in self.metadata.keys():
-            raise KeyError('Prefix "%s" does\'nt exist!')
-        prefix_xml = '<dublin_core schema="{}">\n'.format(prefix)
+            raise KeyError(f'The Prefix "{prefix}" does\'nt exist!')
+        schema = '' if prefix == 'dc' else f' schema="{prefix}"'
+        prefix_xml = f'<dublin_core{schema}>\n'
         for m in self.metadata[prefix]:
-            prefix_xml += '\t<dcvalue element="{}" qualifier="{}">{}</dcvalue>\n'.format(m['element'], m['qualifier'],
-                                                                                         m['value'])
+            lang = f' language="{m["language"]}"' if m["language"] is not None else ''
+            prefix_xml += (f'\t<dcvalue element="{m["element"]}" qualifier="{m["qualifier"]}"{lang}>'
+                           f'{m["value"]}'
+                           '</dcvalue>\n')
         prefix_xml += '</dublin_core>'
         return prefix_xml
 
