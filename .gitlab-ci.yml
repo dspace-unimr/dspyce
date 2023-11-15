@@ -6,6 +6,6 @@ pages:
       - pip install pydoc-markdown
       - pip install mkdocs-material
     script:
-      - pydoc-markdown -I src -m saf.relation.py --render-toc > Relation.md
+      - pydoc-markdown -I src -m pydspace.saf.relation --render-toc > Relation.md
     only:
       - main
