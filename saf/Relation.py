@@ -1,3 +1,16 @@
+# saf/Relation.py
+"""
+This module contains the python class Relation representing the Relation between DSpace-Entities.
+And the following function:
+ - `export_relations(relations: list)` - Returns a list of relationships in a string.
+
+Example:
+        >>> from saf.Relation import export_relations
+        >>> export_relations([Relation('any_relation', '123456789/12'), Relation('different_relation', '123456789/13')])
+        relation.any_relation 123456789/12\nrelation.different_relation 123456789/13\n
+"""
+
+
 class Relation:
     """
         Die Klasse Relation repräsentiert Beziehungen zwischen unterschiedlichen
@@ -24,7 +37,7 @@ class Relation:
         return str(self) + '\n' + str(other)
 
 
-def export_relations(relations: list) -> str:
+def export_relations(relations: list[Relation]) -> str:
     """
         Erhält eine Liste von Relations und gibt den Inhalt der Export-Datei
         relationships zurück.

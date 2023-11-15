@@ -1,0 +1,16 @@
+image: python:3.11-slim
+
+pages:
+    stage: deploy
+    before_script:
+      - pip install mkdocs
+      - pip install mkdocs-material
+      - pip install mkdocstrings
+    script:
+      - mkdocs build
+      - mv site public
+    artifacts:
+      paths:
+        - public
+      only:
+        - master
