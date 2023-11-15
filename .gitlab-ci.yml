@@ -6,6 +6,7 @@ pages:
       - pip install mkdocs
       - pip install mkdocs-material
       - pip install mkdocstrings
+      - pip install mkdocstrings-python
     script:
       - mkdocs build
       - mv site public
