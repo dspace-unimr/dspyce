@@ -1,6 +1,6 @@
 # saf/__init__.py
 """
-Module for creating saf packages for DSpace item-imports and -updates.
+Python package for creating saf packages for DSpace item-imports and -updates.
 
 """
 

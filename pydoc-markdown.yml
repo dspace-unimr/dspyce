@@ -1,0 +1,8 @@
+loaders:
+  - type: python
+    packages:
+      - saf
+renderer:
+  type: markdown
+  render_toc: true
+  filename: saf/README.md

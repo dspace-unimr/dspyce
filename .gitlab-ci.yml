@@ -4,8 +4,7 @@ pages:
     stage: deploy
     before_script:
       - pip install pydoc-markdown
-      - pip install mkdocs-material
     script:
-      - pydoc-markdown -I src -m saf.relation --render-toc > Relation.md
+      - pydoc-markdown --dump
     only:
       - main
