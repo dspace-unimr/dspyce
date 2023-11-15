@@ -3,15 +3,9 @@ image: python:3.11-slim
 pages:
     stage: deploy
     before_script:
-      - pip install mkdocs
+      - pip install pydoc-markdown
       - pip install mkdocs-material
-      - pip install mkdocstrings
-      - pip install mkdocstrings-python
     script:
-      - mkdocs build
-      - mv site public
-    artifacts:
-      paths:
-        - public
+      - pydoc-markdown -I src -m saf.relation --render-toc > Relation.md
     only:
       - main
