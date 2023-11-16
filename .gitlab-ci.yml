@@ -5,6 +5,6 @@ pydocs:
     before_script:
       - pip install pydoc-markdown
     script:
-      - pydoc-markdown > saf/README.md
+      - pydoc-markdown -p saf '\{renderer: \{type: markdown, descriptive_class_title: false, render_toc: true\}\}' > saf.md
     only:
       - main

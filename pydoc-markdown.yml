@@ -5,4 +5,3 @@ loaders:
 renderer:
   type: markdown
   render_toc: true
-  filename: saf/README.md
