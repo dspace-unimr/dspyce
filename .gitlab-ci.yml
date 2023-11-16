@@ -6,9 +6,10 @@ pydocs:
       - pip install pydoc-markdown
     script:
       - pydoc-markdown -p saf --render-toc > saf.md
+      - mv saf.md doc/
     only:
       - main
     artifacts:
       name: '$CI\_JOB\_NAME'
       paths:
-      - saf
+      - doc
