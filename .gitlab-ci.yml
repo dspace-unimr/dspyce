@@ -8,3 +8,7 @@ pydocs:
       - pydoc-markdown -p saf --render-toc > saf.md
     only:
       - main
+    artifacts:
+      name: '$CI\_JOB\_NAME'
+      paths:
+      - saf
