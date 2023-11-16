@@ -4,6 +4,7 @@ pydocs:
     stage: deploy
     before_script:
       - pip install pydoc-markdown
+      - mkdir doc
     script:
       - pydoc-markdown -p saf --render-toc > saf.md
       - mv saf.md doc/
