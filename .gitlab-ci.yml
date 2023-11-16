@@ -5,6 +5,6 @@ pydocs:
     before_script:
       - pip install pydoc-markdown
     script:
-      - pydoc-markdown
+      - pydoc-markdown > saf/README.md
     only:
       - main
