@@ -1,56 +1,46 @@
-import os
-from typing import List
-from PIL import Image, ImageOps
+from PIL import Image
 
 
 class ContentFile:
     """
-        Eine Klasse zum Verwalten eines Content-Files des DSPACE-Ordners.
+        A class for managing content files in the saf-packages.
     """
     content_type: str
     file_name: str
     path: str
-    file: (bytes, str)
+    file: bytes | str
     description: str
-    permissions: List[dict]
+    permissions: list[dict]
     iiif: dict
     show: bool
-    server: str
 
-    def __init__(self, content_type: str, name: str, path: str, content: (str | bytes) = '', show: bool = True,
-                 server: str = ''):
+    def __init__(self, content_type: str, name: str, path: str, content: str | bytes = '', show: bool = True):
+        """
+        Creates a new ContentFile object.
+
+        :param content_type: The type of content file. Must be one off: ('relations', 'licenses', 'images', 'contents',
+        'handle', 'other')
+        :param name: The name of the bitstream.
+        :param path: The path, where the file is currently stored.
+        :param content: The content of the file, if it shouldn't be loaded from the system.
+        :param show: If the bitstream should be listed in the saf-contentfile. Default: True - if the type is relations
+        or handle the default is False.
+        """
         types = ('relations', 'licenses', 'images', 'contents', 'handle', 'other')
         if content_type not in types:
-            raise KeyError('Content-Type %s doesn\'t exist. Value must be from %s' % (content_type, types))
+            raise KeyError(f'Content-Type {content_type} does not exist. Value must be one of {types}')
         self.content_type = content_type
         self.file_name = name
         self.path = path
         if len(self.path) > 0 and self.path[-1] != '/':
             self.path += '/'
-        self.server = server
         if content_type == 'relations':
             self.file = content
         elif content != '':
             self.file = content
         else:
-            if server == '':
-                with open(self.path + self.file_name, 'rb') as f:
-                    self.file = f.read()
-            else:
-                try:
-                    os.mkdir('tmp')
-                except FileExistsError:
-                    pass
-                os.system(f'scp {server}:{path + name} ./tmp/')
-                if server == 'vhrz675':
-                    im = ImageOps.invert(Image.open('./tmp/' + name))
-                    os.remove(f'./tmp/{name}')
-                    im.save('./tmp/' + name)
-                    im.close()
-                print(f'Server: "{server}"')
-                with open('./tmp/' + name, 'rb') as f:
-                    self.file = f.read()
-                self.path = './tmp/'
+            with open(self.path + self.file_name, 'rb') as f:
+                self.file = f.read()
 
         self.permissions = []
         self.iiif = {}
@@ -73,26 +63,26 @@ class ContentFile:
 
     def add_description(self, description):
         """
-            Fügt eine Beschreibung für das ContentFile hinzu.
+            Creates a description to the content-file.
 
-            :param description: String der die Beschreibung enthält.
+            :param description: String which provides the description..
         """
         self.description = description
 
     def add_permission(self, rw: str, group_name: str):
         """
-            Fügt Zugriffs-Informationen zu einem ContentFile hinzu.
+            Add access information to the ContentFile.
 
-            :param rw: Art des Zugriffs r-read, w-write.
-            :param group_name: Gruppe, der der Zugriff gewährt wird.
+            :param rw: Access-type r-read, w-write.
+            :param group_name: Group to which the access will be provided.
         """
         if rw not in ('r', 'w'):
-            raise ValueError('Permission type must be "r" or "w". Got %s instead!' % rw)
+            raise ValueError(f'Permission type must be "r" or "w". Got {rw} instead!')
         self.permissions.append({'type': rw, 'group': group_name})
 
     def add_iiif(self, label: str, toc: str, w: int = 0):
         """
-            Fügt, wenn nötig IIIF-Informationen dem Bitstream hinzu.
+            Add, if necessary IIIF-information for the bitstream.
 
             :param label: is the label that will be used for the image in the viewer.
             :param toc: is the label that will be used for a table of contents entry in the viewer.
@@ -108,14 +98,9 @@ class ContentFile:
 
     def create_file(self, path: str):
         """
-            Erstellt das entsprechende bitstream-file.
+            Creates the need bitstream-file in the archive-directory based on the path information.
 
-            :param path: Der Pfad unter dem das entsprechende Dokument gespeichert werden soll.
+            :param path: The path, where the bitstream shall be saved.
         """
         with open(path+self.file_name, 'wb' if type(self.file) is bytes else 'w') as f:
             f.write(self.file)
-        if self.server != '':
-            try:
-                os.remove(f'./tmp/{self.file_name}')
-            except FileNotFoundError:
-                pass
