@@ -17,22 +17,22 @@ Example:
 
 class Relation:
     """
-        Die Klasse Relation repräsentiert Beziehungen zwischen unterschiedlichen
-        DSPACE-Entitäten. Sie speichert Beziehungstyp (relation_key), und handle.
+        The class Relation represents the relation between different DSPACE-entities. It stores the relation-type
+        (relation_key) and id of the related Item.
     """
     relation_key: str
     handle: str
 
-    def __init__(self, relation_key: str, handle: str):
+    def __init__(self, relation_key: str, related_item: str):
         """
-            Erstellt ein neues Objekt der Klasse Relation, welches genau eine
-            Beziehung repräsentiert.
+            Creates a new object of the class relation, which represents exactly
+            one DSpace-Relation
 
-            :param relation_key: Der Beziehungstyp, bzw. die Bezeichnung.
-            :param handle: Der Handle, der Entität zu der die Beziehung beschreiben wird.
+            :param relation_key: The relation-type, aka the name.
+            :param related_item: The handle/uuid/item-saf-id of the entity, to which the item is related.
         """
         self.relation_key = relation_key
-        self.handle = handle
+        self.handle = related_item
 
     def __str__(self):
         return "relation.{} {}".format(self.relation_key, self.handle)
@@ -43,13 +43,10 @@ class Relation:
 
 def export_relations(relations: list[Relation]) -> str:
     """
-        Erhält eine Liste von Relations und gibt den Inhalt der Export-Datei
-        relationships zurück.
+        Creates a list of relationships separated by line-breaks. It can be used to create the relationship-file in a
+        saf-package.
 
-        :param relations: Eine Liste mit Objekten der Klasse "Relation"
-        :return: Den Inhalt der Datei "relationships" als string.
+        :param relations: A list of objects of the class "Relation"
+        :return: The line-break separated list of relationships as a string.
     """
-    rel_txt = ""
-    for r in relations:
-        rel_txt += str(r) + '\n'
-    return rel_txt
+    return '\n'.join([str(r) for r in relations])
