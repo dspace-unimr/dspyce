@@ -19,6 +19,7 @@
     * [\_\_len\_\_](#saf.DSpace.DSpace.__len__)
 * [saf.ContentFile](#saf.ContentFile)
   * [ContentFile](#saf.ContentFile.ContentFile)
+    * [\_\_init\_\_](#saf.ContentFile.ContentFile.__init__)
     * [add\_description](#saf.ContentFile.ContentFile.add_description)
     * [add\_permission](#saf.ContentFile.ContentFile.add_permission)
     * [add\_iiif](#saf.ContentFile.ContentFile.add_iiif)
@@ -56,25 +57,25 @@ And the following function:
 class Relation()
 ```
 
-Die Klasse Relation repräsentiert Beziehungen zwischen unterschiedlichen
-DSPACE-Entitäten. Sie speichert Beziehungstyp (relation_key), und handle.
+The class Relation represents the relation between different DSPACE-entities. It stores the relation-type
+(relation_key) and id of the related Item.
 
 <a id="saf.Relation.Relation.__init__"></a>
 
 #### \_\_init\_\_
 
 ```python
-def __init__(relation_key: str, handle: str)
+def __init__(relation_key: str, related_item: str)
 ```
 
-Erstellt ein neues Objekt der Klasse Relation, welches genau eine
+Creates a new object of the class relation, which represents exactly
 
-Beziehung repräsentiert.
+one DSpace-Relation
 
 **Arguments**:
 
-- `relation_key`: Der Beziehungstyp, bzw. die Bezeichnung.
-- `handle`: Der Handle, der Entität zu der die Beziehung beschreiben wird.
+- `relation_key`: The relation-type, aka the name.
+- `related_item`: The handle/uuid/item-saf-id of the entity, to which the item is related.
 
 <a id="saf.Relation.export_relations"></a>
 
@@ -84,17 +85,17 @@ Beziehung repräsentiert.
 def export_relations(relations: list[Relation]) -> str
 ```
 
-Erhält eine Liste von Relations und gibt den Inhalt der Export-Datei
+Creates a list of relationships separated by line-breaks. It can be used to create the relationship-file in a
 
-relationships zurück.
+saf-package.
 
 **Arguments**:
 
-- `relations`: Eine Liste mit Objekten der Klasse "Relation"
+- `relations`: A list of objects of the class "Relation"
 
 **Returns**:
 
-Den Inhalt der Datei "relationships" als string.
+The line-break separated list of relationships as a string.
 
 <a id="saf.DSpace"></a>
 
@@ -285,7 +286,31 @@ The number as an integer value.
 class ContentFile()
 ```
 
-Eine Klasse zum Verwalten eines Content-Files des DSPACE-Ordners.
+A class for managing content files in the saf-packages.
+
+<a id="saf.ContentFile.ContentFile.__init__"></a>
+
+#### \_\_init\_\_
+
+```python
+def __init__(content_type: str,
+             name: str,
+             path: str,
+             content: str | bytes = '',
+             show: bool = True)
+```
+
+Creates a new ContentFile object.
+
+**Arguments**:
+
+- `content_type`: The type of content file. Must be one off: ('relations', 'licenses', 'images', 'contents',
+'handle', 'other')
+- `name`: The name of the bitstream.
+- `path`: The path, where the file is currently stored.
+- `content`: The content of the file, if it shouldn't be loaded from the system.
+- `show`: If the bitstream should be listed in the saf-contentfile. Default: True - if the type is relations
+or handle the default is False.
 
 <a id="saf.ContentFile.ContentFile.add_description"></a>
 
@@ -295,11 +320,11 @@ Eine Klasse zum Verwalten eines Content-Files des DSPACE-Ordners.
 def add_description(description)
 ```
 
-Fügt eine Beschreibung für das ContentFile hinzu.
+Creates a description to the content-file.
 
 **Arguments**:
 
-- `description`: String der die Beschreibung enthält.
+- `description`: String which provides the description..
 
 <a id="saf.ContentFile.ContentFile.add_permission"></a>
 
@@ -309,12 +334,12 @@ Fügt eine Beschreibung für das ContentFile hinzu.
 def add_permission(rw: str, group_name: str)
 ```
 
-Fügt Zugriffs-Informationen zu einem ContentFile hinzu.
+Add access information to the ContentFile.
 
 **Arguments**:
 
-- `rw`: Art des Zugriffs r-read, w-write.
-- `group_name`: Gruppe, der der Zugriff gewährt wird.
+- `rw`: Access-type r-read, w-write.
+- `group_name`: Group to which the access will be provided.
 
 <a id="saf.ContentFile.ContentFile.add_iiif"></a>
 
@@ -324,7 +349,7 @@ Fügt Zugriffs-Informationen zu einem ContentFile hinzu.
 def add_iiif(label: str, toc: str, w: int = 0)
 ```
 
-Fügt, wenn nötig IIIF-Informationen dem Bitstream hinzu.
+Add, if necessary IIIF-information for the bitstream.
 
 **Arguments**:
 
@@ -340,9 +365,9 @@ Fügt, wenn nötig IIIF-Informationen dem Bitstream hinzu.
 def create_file(path: str)
 ```
 
-Erstellt das entsprechende bitstream-file.
+Creates the need bitstream-file in the archive-directory based on the path information.
 
 **Arguments**:
 
-- `path`: Der Pfad unter dem das entsprechende Dokument gespeichert werden soll.
+- `path`: The path, where the bitstream shall be saved.
 
