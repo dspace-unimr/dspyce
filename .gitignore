@@ -1,5 +1,5 @@
 .idea/
 __pycache__/
 venv/
-.pydoc-markdown.yml
+pydoc-markdown.yml
 .gitlab-ci.yml
