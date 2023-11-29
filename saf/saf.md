@@ -219,7 +219,8 @@ Creates a new relationship to the item.
 def add_content(content_file: str,
                 path: str,
                 description: str = '',
-                width: int = 0)
+                width: int = 0,
+                iiif_toc: str = '')
 ```
 
 Adds additional content-files to the item.
@@ -230,8 +231,7 @@ Adds additional content-files to the item.
 - `path`: The path where to find the document.
 - `description`: A description of the content file.
 - `width`: The width of an image. Only needed, if the file is a jpg, wich should be reduced.
-- `server`: Contains the name of the server on which the image is stored, if so. Stays empty in case of a
-local image.
+- `iiif_toc`: A toc information for an iiif-specific bitstream.
 
 <a id="saf.DSpace.DSpace.dc_schema"></a>
 

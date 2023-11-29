@@ -1,6 +1,7 @@
 import os
 import re
 from .ContentFile import ContentFile
+from .IIIFContent import IIIFContent
 from .Relation import Relation
 from .Relation import export_relations
 
@@ -86,7 +87,7 @@ class DSpace:
         """
         self.relations.append(Relation(relation_type, handle))
 
-    def add_content(self, content_file: str, path: str, description: str = '', width: int = 0):
+    def add_content(self, content_file: str, path: str, description: str = '', width: int = 0, iiif_toc: str = ''):
         """
         Adds additional content-files to the item.
 
@@ -94,14 +95,13 @@ class DSpace:
         :param path: The path where to find the document.
         :param description: A description of the content file.
         :param width: The width of an image. Only needed, if the file is a jpg, wich should be reduced.
-        :param server: Contains the name of the server on which the image is stored, if so. Stays empty in case of a
-         local image.
+        :param iiif_toc: A toc information for an iiif-specific bitstream.
         """
 
         if re.search(r'\.jpg', content_file) or re.search(r'\.tiff?', content_file):
-            cf = ContentFile('images', content_file, path)
+            cf = IIIFContent('images', content_file, path)
             name = content_file.split('.')[0]
-            cf.add_iiif('Digitalisat-%s' % name, name, w=width)
+            cf.add_iiif(description, name if iiif_toc == '' else iiif_toc, w=width)
             cf.add_description(description)
             self.contents.append(cf)
         else:
