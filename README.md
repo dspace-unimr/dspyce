@@ -4,4 +4,4 @@ The package pydspace helps to communicate with dspace interfaces. Currently, the
 
 The following class diagramm is the basis of the package:
 
-![pydspace.sv](https://gitlab.hrz.uni-marburg.de/dspace7/pydspace/-/wikis/uploads/4f20023b9df7832ee98a109fd9c27193/pydspace.svg)
+![pydspace.sv](https://gitlab.hrz.uni-marburg.de/dspace7/pydspace/-/wikis/uploads/1acc907ff46319bc2838e3aa658413b9/pydspace.svg)
