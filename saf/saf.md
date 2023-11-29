@@ -17,12 +17,28 @@
     * [prefix\_schema](#saf.DSpace.DSpace.prefix_schema)
     * [create\_dir](#saf.DSpace.DSpace.create_dir)
     * [\_\_len\_\_](#saf.DSpace.DSpace.__len__)
+* [saf.IIIFContent](#saf.IIIFContent)
+  * [IIIFContent](#saf.IIIFContent.IIIFContent)
+    * [iiif](#saf.IIIFContent.IIIFContent.iiif)
+    * [\_\_init\_\_](#saf.IIIFContent.IIIFContent.__init__)
+    * [\_\_str\_\_](#saf.IIIFContent.IIIFContent.__str__)
+    * [add\_iiif](#saf.IIIFContent.IIIFContent.add_iiif)
 * [saf.ContentFile](#saf.ContentFile)
+  * [DEFAULT\_BUNDLE](#saf.ContentFile.DEFAULT_BUNDLE)
   * [ContentFile](#saf.ContentFile.ContentFile)
+    * [content\_type](#saf.ContentFile.ContentFile.content_type)
+    * [file\_name](#saf.ContentFile.ContentFile.file_name)
+    * [path](#saf.ContentFile.ContentFile.path)
+    * [file](#saf.ContentFile.ContentFile.file)
+    * [description](#saf.ContentFile.ContentFile.description)
+    * [permissions](#saf.ContentFile.ContentFile.permissions)
+    * [show](#saf.ContentFile.ContentFile.show)
+    * [bundle](#saf.ContentFile.ContentFile.bundle)
+    * [primary](#saf.ContentFile.ContentFile.primary)
     * [\_\_init\_\_](#saf.ContentFile.ContentFile.__init__)
+    * [\_\_str\_\_](#saf.ContentFile.ContentFile.__str__)
     * [add\_description](#saf.ContentFile.ContentFile.add_description)
     * [add\_permission](#saf.ContentFile.ContentFile.add_permission)
-    * [add\_iiif](#saf.ContentFile.ContentFile.add_iiif)
     * [create\_file](#saf.ContentFile.ContentFile.create_file)
 
 <a id="saf"></a>
@@ -203,8 +219,7 @@ Creates a new relationship to the item.
 def add_content(content_file: str,
                 path: str,
                 description: str = '',
-                width: int = 0,
-                server: str = '')
+                width: int = 0)
 ```
 
 Adds additional content-files to the item.
@@ -274,9 +289,92 @@ Counts the number of metadata fields for the given item.
 
 The number as an integer value.
 
+<a id="saf.IIIFContent"></a>
+
+# saf.IIIFContent
+
+<a id="saf.IIIFContent.IIIFContent"></a>
+
+## IIIFContent Objects
+
+```python
+class IIIFContent(ContentFile)
+```
+
+A class for managing iiif-specific content files in the saf-packages.
+
+<a id="saf.IIIFContent.IIIFContent.iiif"></a>
+
+#### iiif
+
+A dictonary containing the IIIF-specific information. The keys must be: 'label', 'toc', 'w', 'h'
+
+<a id="saf.IIIFContent.IIIFContent.__init__"></a>
+
+#### \_\_init\_\_
+
+```python
+def __init__(content_type: str,
+             name: str,
+             path: str,
+             content: str | bytes = '',
+             bundle: str = DEFAULT_BUNDLE,
+             primary: bool = False,
+             show: bool = True)
+```
+
+Creates a new IIIF-ContentFile object.
+
+**Arguments**:
+
+- `content_type`: The type of content file. Must be one of: 'images'
+- `name`: The name of the bitstream.
+- `path`: The path, where the file is currently stored.
+- `content`: The content of the file, if it shouldn't be loaded from the system.
+- `bundle`: The bundle, where the bitstream should be placed in. The default is ORIGINAL.
+- `primary`: Primary is used to specify the primary bitstream.
+- `show`: If the bitstream should be listed in the saf-content file. Default: True - if the type is relations
+or handle the default is False.
+
+<a id="saf.IIIFContent.IIIFContent.__str__"></a>
+
+#### \_\_str\_\_
+
+```python
+def __str__()
+```
+
+Provides all information about the DSpace IIIF-Content file.
+
+**Returns**:
+
+A SAF-ready information string which can be used for the content-file.
+
+<a id="saf.IIIFContent.IIIFContent.add_iiif"></a>
+
+#### add\_iiif
+
+```python
+def add_iiif(label: str, toc: str, w: int = 0)
+```
+
+Add  IIIF-information for the bitstream.
+
+**Arguments**:
+
+- `label`: is the label that will be used for the image in the viewer.
+- `toc`: is the label that will be used for a table of contents entry in the viewer.
+- `w`: is the image width to reduce it. Default 0
+
 <a id="saf.ContentFile"></a>
 
 # saf.ContentFile
+
+<a id="saf.ContentFile.DEFAULT_BUNDLE"></a>
+
+#### DEFAULT\_BUNDLE
+
+The name of default bundle which is used in DSpace.
 
 <a id="saf.ContentFile.ContentFile"></a>
 
@@ -288,6 +386,61 @@ class ContentFile()
 
 A class for managing content files in the saf-packages.
 
+<a id="saf.ContentFile.ContentFile.content_type"></a>
+
+#### content\_type
+
+The type of the content file. Must be one off: ('relations', 'licenses', 'images', 'contents',
+'handle', 'other')
+
+<a id="saf.ContentFile.ContentFile.file_name"></a>
+
+#### file\_name
+
+The name of the file.
+
+<a id="saf.ContentFile.ContentFile.path"></a>
+
+#### path
+
+The path, where the file can be found.
+
+<a id="saf.ContentFile.ContentFile.file"></a>
+
+#### file
+
+The file itself, if is should not be loaded from file-system.
+
+<a id="saf.ContentFile.ContentFile.description"></a>
+
+#### description
+
+A possible description of the bitstream.
+
+<a id="saf.ContentFile.ContentFile.permissions"></a>
+
+#### permissions
+
+Permission which group shall have access to this file.
+
+<a id="saf.ContentFile.ContentFile.show"></a>
+
+#### show
+
+If the file should be accessible for users or only provides information for the item import.
+
+<a id="saf.ContentFile.ContentFile.bundle"></a>
+
+#### bundle
+
+The bundle where to store the file. The default is set to the variable DEFAULT_BUNDLE.
+
+<a id="saf.ContentFile.ContentFile.primary"></a>
+
+#### primary
+
+If the bitstream shall be the primary bitstream for the item.
+
 <a id="saf.ContentFile.ContentFile.__init__"></a>
 
 #### \_\_init\_\_
@@ -297,6 +450,8 @@ def __init__(content_type: str,
              name: str,
              path: str,
              content: str | bytes = '',
+             bundle: str = DEFAULT_BUNDLE,
+             primary: bool = False,
              show: bool = True)
 ```
 
@@ -309,8 +464,24 @@ Creates a new ContentFile object.
 - `name`: The name of the bitstream.
 - `path`: The path, where the file is currently stored.
 - `content`: The content of the file, if it shouldn't be loaded from the system.
-- `show`: If the bitstream should be listed in the saf-contentfile. Default: True - if the type is relations
+- `bundle`: The bundle, where the bitstream should be placed in. The default is ORIGINAL.
+- `primary`: Primary is used to specify the primary bitstream.
+- `show`: If the bitstream should be listed in the saf-content file. Default: True - if the type is relations
 or handle the default is False.
+
+<a id="saf.ContentFile.ContentFile.__str__"></a>
+
+#### \_\_str\_\_
+
+```python
+def __str__()
+```
+
+Provides all information about the DSpace-Content file.
+
+**Returns**:
+
+A SAF-ready information string which can be used for the content-file.
 
 <a id="saf.ContentFile.ContentFile.add_description"></a>
 
@@ -324,7 +495,7 @@ Creates a description to the content-file.
 
 **Arguments**:
 
-- `description`: String which provides the description..
+- `description`: String which provides the description.
 
 <a id="saf.ContentFile.ContentFile.add_permission"></a>
 
@@ -341,33 +512,17 @@ Add access information to the ContentFile.
 - `rw`: Access-type r-read, w-write.
 - `group_name`: Group to which the access will be provided.
 
-<a id="saf.ContentFile.ContentFile.add_iiif"></a>
-
-#### add\_iiif
-
-```python
-def add_iiif(label: str, toc: str, w: int = 0)
-```
-
-Add, if necessary IIIF-information for the bitstream.
-
-**Arguments**:
-
-- `label`: is the label that will be used for the image in the viewer.
-- `toc`: is the label that will be used for a table of contents entry in the viewer.
-- `w`: is the image width to reduce it. Default 0
-
 <a id="saf.ContentFile.ContentFile.create_file"></a>
 
 #### create\_file
 
 ```python
-def create_file(path: str)
+def create_file(save_path: str)
 ```
 
 Creates the need bitstream-file in the archive-directory based on the path information.
 
 **Arguments**:
 
-- `path`: The path, where the bitstream shall be saved.
+- `save_path`: The path, where the bitstream shall be saved.
 
