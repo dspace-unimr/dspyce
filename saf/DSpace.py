@@ -86,7 +86,7 @@ class DSpace:
         """
         self.relations.append(Relation(relation_type, handle))
 
-    def add_content(self, content_file: str, path: str, description: str = '', width: int = 0, server: str = ''):
+    def add_content(self, content_file: str, path: str, description: str = '', width: int = 0):
         """
         Adds additional content-files to the item.
 
@@ -99,7 +99,7 @@ class DSpace:
         """
 
         if re.search(r'\.jpg', content_file) or re.search(r'\.tiff?', content_file):
-            cf = ContentFile('images', content_file, path, server=server)
+            cf = ContentFile('images', content_file, path)
             name = content_file.split('.')[0]
             cf.add_iiif('Digitalisat-%s' % name, name, w=width)
             cf.add_description(description)
