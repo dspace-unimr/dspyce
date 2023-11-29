@@ -63,9 +63,19 @@ class MetaData:
         :param other: The MetaData object to compare it with.
         :return: True, if the names are identical
         """
-        other: MetaData
-        return (self.schema == other.schema and self.element == other.element and self.qualifier == other.qualifier and
-                self.language == other.language)
+        if isinstance(other, MetaData):
+            return (self.schema == other.schema and self.element == other.element and self.qualifier == other.qualifier and
+                    self.language == other.language)
+        elif isinstance(other, str):
+            field = other.split('.')
+            if len(field) == 3:
+                return self.schema == field[0] and self.element == [1] and self.qualifier == field[2]
+            elif len(field) == 2:
+                return self.schema == field[0] and self.element == [1] and self.qualifier is None
+            else:
+                raise TypeError(f'Could not parse tag "{other}"')
+        else:
+            return False
 
     def add_value(self, value):
         """
@@ -121,3 +131,15 @@ class MetaDataList(list):
             super().__add__(other)
         else:
             raise TypeError('The type of the other list must correspond to MetadataList')
+
+    def get(self, tag: str):
+        """
+        Returns the value of a given metadata field.
+
+        :param tag: The name of the metadata field. <schema>.<element>.<qualifier>
+        :return: The value of the metadata field, or None if it doesn't exist.
+        """
+        for i in self:
+            if i.is_field(tag):
+                return i.value
+        return None
