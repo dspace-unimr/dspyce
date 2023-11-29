@@ -143,3 +143,11 @@ class MetaDataList(list):
             if i.is_field(tag):
                 return i.value
         return None
+
+    def get_schemas(self) -> list[str]:
+        """
+        Creates a list of used schemas in the metadata list.
+
+        :return: A list of schema names a strings.
+        """
+        return [i.schema for i in self]

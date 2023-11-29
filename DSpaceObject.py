@@ -6,8 +6,22 @@ class DSpaceObject:
     The class DSpaceObject represents an Object in a DSpace repository, such as Items, Collections, Communities.
     """
 
+    uuid: str
+    """The uuid of the DSpaceObject"""
+    handle: str
+    """The handle of the Object"""
     metadata: MetaDataList
     """The metadata provided for the object."""
+
+    def __init__(self, uuid: str = '', handle: str = ''):
+        """
+        Creates a new object of the class DSpaceObject
+
+        :param uuid: The uuid of the DSpaceObject. Default is ''
+        :param handle: The handle of the DSpaceObject. Default is ''
+        """
+        self.uuid = uuid
+        self.handle = handle
 
     def add_dc_value(self, element: str, qualifier: str | None, value: str, language: str = None):
         """
@@ -32,3 +46,11 @@ class DSpaceObject:
         """
         self.metadata.append(MetaData(prefix, element, qualifier, value, language))
 
+    def __eq__(self, other):
+        if self.uuid == '' and other.uuid == '':
+            raise ValueError('Can not compare objects without a uuid')
+        return self.uuid == other.uuid
+
+    def __str__(self):
+        data = '\t'.join(self.metadata)
+        return f'DSpace object with the uuid {self.uuid}:\n{data}'

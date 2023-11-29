@@ -43,7 +43,7 @@ class ContentFile:
         :param show: If the bitstream should be listed in the saf-content file. Default: True - if the type is relations
         or handle the default is False.
         """
-        types = ('relations', 'licenses', 'images', 'contents', 'handle', 'other')
+        types = ('relations', 'licenses', 'images', 'contents', 'handle', 'collections', 'other')
         if content_type not in types:
             raise KeyError(f'Content-Type {content_type} does not exist. Value must be one of {types}')
         self.content_type = content_type
@@ -61,7 +61,7 @@ class ContentFile:
         self.bundle = bundle
         self.primary = primary
         self.show = show
-        if self.content_type in ('relations', 'handle'):
+        if self.content_type in ('relations', 'handle', 'collections'):
             self.show = False
 
     def __str__(self):
@@ -100,16 +100,3 @@ class ContentFile:
         if rw not in ('r', 'w'):
             raise ValueError(f'Permission type must be "r" or "w". Got {rw} instead!')
         self.permissions.append({'type': rw, 'group': group_name})
-
-    def create_file(self, save_path: str):
-        """
-            Creates the need bitstream-file in the archive-directory based on the path information.
-
-            :param save_path: The path, where the bitstream shall be saved.
-        """
-        if self.file is None:
-            with open(self.path + self.file_name, 'rb') as f:
-                self.file = f.read()
-
-        with open(save_path+self.file_name, 'wb' if type(self.file) is bytes else 'w') as f:
-            f.write(self.file)
