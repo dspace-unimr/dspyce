@@ -84,3 +84,11 @@ class Item(DSpaceObject):
             for p in permissions:
                 cf.add_permission(p[0], p[1])
         self.contents.append(cf)
+
+    def enable_entity(self, entity_type: str):
+        """
+        Enables an item to be a dspace-entity by providing an entity-type.
+
+        :param entity_type: The type of the entity.
+        """
+        self.add_metadata('dspace', 'entity', 'type', entity_type)
