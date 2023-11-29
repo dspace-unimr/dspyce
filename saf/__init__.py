@@ -7,7 +7,7 @@ Module for creating saf packages for DSpace item-imports and -updates.
 from Item import Item
 from Relation import Relation
 from bitstreams.ContentFile import ContentFile
-from MetaData import MetaDataList
+from metadata import MetaDataList
 import os
 
 

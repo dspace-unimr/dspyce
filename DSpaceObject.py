@@ -1,4 +1,4 @@
-from MetaData import MetaDataList, MetaData
+from metadata import MetaDataList, MetaData
 
 
 class DSpaceObject:
