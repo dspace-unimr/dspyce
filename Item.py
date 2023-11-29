@@ -1,8 +1,8 @@
 from Collection import Collection
 from DSpaceObject import DSpaceObject
 from Relation import Relation
-from ContentFile import ContentFile, DEFAULT_BUNDLE
-from IIIFContent import IIIFContent
+from bitstreams import ContentFile, DEFAULT_BUNDLE
+from bitstreams import IIIFContent
 
 
 class Item(DSpaceObject):

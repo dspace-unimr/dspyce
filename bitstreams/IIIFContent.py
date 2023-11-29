@@ -1,4 +1,4 @@
-from ContentFile import ContentFile, DEFAULT_BUNDLE
+from bitstreams.ContentFile import ContentFile, DEFAULT_BUNDLE
 from PIL import Image
 import warnings
 

@@ -1,5 +1,4 @@
-DEFAULT_BUNDLE: str = 'ORIGINAL'
-"""The name of default bundle which is used in DSpace."""
+from . import DEFAULT_BUNDLE
 
 
 class ContentFile:
