@@ -3,7 +3,6 @@ from .DSpaceObject import DSpaceObject
 from .Relation import Relation
 from .bitstreams import ContentFile
 from .bitstreams import IIIFContent
-from .metadata import MetaDataList
 
 
 class Item(DSpaceObject):
@@ -23,6 +22,8 @@ class Item(DSpaceObject):
         super().__init__(uuid, handle)
         self.collections = collections if type(collections) is list else (
             [collections] if type[collections] is Collection else [])
+        self.relations = []
+        self.contents = []
 
     def is_entity(self) -> bool:
         """

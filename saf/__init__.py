@@ -4,10 +4,10 @@ Module for creating saf packages for DSpace item-imports and -updates.
 
 """
 
-from Item import Item
-from Relation import Relation
-from bitstreams.ContentFile import ContentFile
-from metadata import MetaDataList
+from ..Item import Item
+from ..Relation import Relation
+from ..bitstreams.ContentFile import ContentFile
+from ..metadata import MetaDataList
 import os
 
 
@@ -66,13 +66,16 @@ def create_saf_package(item: Item, element_id: int, path: str, overwrite: bool =
         schema = '' if prefix == 'dc' else f' schema="{prefix}"'
         prefix_xml = f'<dublin_core{schema}>\n'
         for m in filter(lambda x: x.schema == prefix, metadata):
-            lang = f' language="{m.language}"' if m.language is not None else ''
-            prefix_xml += (f'\t<dcvalue element="{m.element}" qualifier="{m.qualifier}"{lang}>'
-                           f'{m.value}'
-                           '</dcvalue>\n')
+            value = [m.value] if type(m.value) is not list else m.value
+            for v in value:
+                lang = f' language="{m.language}"' if m.language is not None else ''
+                prefix_xml += (f'\t<dcvalue element="{m.element}" qualifier="{m.qualifier}"{lang}>'
+                               f'{v}'
+                               '</dcvalue>\n')
         prefix_xml += '</dublin_core>'
         return prefix_xml
 
+    path += '/' if len(path) > 0 and path[-1] != '/' else ('./' if len(path) == 0 else '')
     if 'archive_directory' not in os.listdir(path):
         os.mkdir(path + 'archive_directory')
     path += 'archive_directory/'
@@ -104,3 +107,25 @@ def create_saf_package(item: Item, element_id: int, path: str, overwrite: bool =
         item.contents.append(ContentFile('collections', 'collections', '',
                                          '\n'.join([c.handle for c in item.collections]), show=False))
     create_bitstreams(item.contents, save_path=path)
+
+
+def saf_packages(items: list[Item], path: str, overwrite: bool = False):
+    """
+    Creates a list of saf packages based on a given item list and writes them down in the filesystem.
+
+    :param items: The list of items to create the packages from.
+    :param path: The path in the filesystem where to store the packages.
+    :param overwrite: If true, it overwrites the currently existing files.
+    """
+    n = 0
+    show_progress = len(items) >= 1000
+    print('Start process!')
+    for item in items:
+        create_saf_package(item, n, path, overwrite)
+        if show_progress and n % 100 == 0:
+            print(f'\tCreated {n} saf packages.')
+        n += 1
+    print('Finished')
+
+
+saf_packages = saf_packages
