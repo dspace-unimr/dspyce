@@ -10,8 +10,10 @@ class RestAPI:
     """The password of the user communicating with the endpoint."""
     session: requests.sessions.Session
     """The active session."""
+    authenticated: bool = False
+    """Provides information about the authentication status."""
 
-    def __init__(self, api_endpoint: str, username: str, password: str):
+    def __init__(self, api_endpoint: str, username: str = None, password: str = None):
         """
         Creates a new object of the RestAPI class using
         """
@@ -19,7 +21,8 @@ class RestAPI:
         self.api_endpoint = api_endpoint
         self.username = username
         self.password = password
-        self.authenticate_api()
+        if username is not None and password is not None:
+            self.authenticated = self.authenticate_api()
 
     def update_csrf_token(self, req: requests.models.Request | requests.models.Response):
         """
