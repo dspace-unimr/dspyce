@@ -3,7 +3,7 @@ from .Item import Item
 from .Collection import Collection
 from .Community import Community
 from .Relation import Relation
-import saf
+from .saf import *
 
 
 def item_from_dict(item_dict: dict, parse_lists: bool = True) -> Item:
