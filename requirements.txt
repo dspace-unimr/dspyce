@@ -1,4 +1,2 @@
 Pillow~=10.1.0
-dspace_rest_client~=0.1.8
-pysolr~=3.9.0
 requests~=2.31.0
