@@ -1,4 +1,5 @@
-from ..bitstreams import ContentFile, DEFAULT_BUNDLE
+from ..bitstreams import ContentFile
+from ..bitstreams.Bundle import Bundle
 from PIL import Image
 import warnings
 
@@ -13,8 +14,8 @@ class IIIFContent(ContentFile):
         A dictonary containing the IIIF-specific information. The keys must be: 'label', 'toc', 'w', 'h'
     """
 
-    def __init__(self, content_type: str, name: str, path: str, content: str | bytes = '', bundle: str = DEFAULT_BUNDLE,
-                 primary: bool = False, show: bool = True):
+    def __init__(self, content_type: str, name: str, path: str, content: str | bytes = '',
+                 bundle: str | Bundle = Bundle.DEFAULT_BUNDLE, primary: bool = False, show: bool = True):
         """
         Creates a new IIIF-ContentFile object.
 

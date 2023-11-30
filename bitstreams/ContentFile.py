@@ -1,5 +1,4 @@
-DEFAULT_BUNDLE: str = 'ORIGINAL'
-"""The name of default bundle which is used in DSpace."""
+from ..bitstreams.Bundle import Bundle
 
 
 class ContentFile:
@@ -23,13 +22,13 @@ class ContentFile:
     """Permission which group shall have access to this file."""
     show: bool
     """If the file should be accessible for users or only provides information for the item import."""
-    bundle: str
+    bundle: Bundle
     """The bundle where to store the file. The default is set to the variable DEFAULT_BUNDLE."""
     primary: bool
     """If the bitstream shall be the primary bitstream for the item."""
 
-    def __init__(self, content_type: str, name: str, path: str, content: str | bytes = '', bundle: str = DEFAULT_BUNDLE,
-                 primary: bool = False, show: bool = True):
+    def __init__(self, content_type: str, name: str, path: str, content: str | bytes = '',
+                 bundle: str | Bundle = Bundle.DEFAULT_BUNDLE, primary: bool = False, show: bool = True):
         """
         Creates a new ContentFile object.
 
@@ -58,7 +57,12 @@ class ContentFile:
             self.file = None
         self.permissions = []
         self.description = ''
-        self.bundle = bundle if bundle != '' else DEFAULT_BUNDLE
+        bundle = bundle if str(bundle) != '' else Bundle.DEFAULT_BUNDLE
+        if type(bundle) is not Bundle:
+            self.bundle = Bundle(name=bundle)
+        else:
+            self.bundle = bundle
+
         self.primary = primary
         self.show = show
         if self.content_type in ('relations', 'handle', 'collections'):
@@ -71,8 +75,8 @@ class ContentFile:
         :return: A SAF-ready information string which can be used for the content-file.
         """
         export_name = self.file_name
-        if self.bundle != '' and self.bundle != DEFAULT_BUNDLE:
-            export_name += f'\tbundle:{self.bundle}'
+        if self.bundle.name != '' and self.bundle.name != Bundle.DEFAULT_BUNDLE:
+            export_name += f'\tbundle:{self.bundle.name}'
         if self.description != '':
             export_name += f'\tdescription:{self.description}'
         if len(self.permissions) > 0:
