@@ -1,5 +1,5 @@
-from DSpaceObject import DSpaceObject
-from Community import Community
+from . import DSpaceObject
+from . import Community
 
 
 class Collection(DSpaceObject):

@@ -1,4 +1,4 @@
-from bitstreams.ContentFile import ContentFile, DEFAULT_BUNDLE
+from ..bitstreams import ContentFile, DEFAULT_BUNDLE
 from PIL import Image
 import warnings
 
@@ -61,6 +61,6 @@ class IIIFContent(ContentFile):
         width, height = img.size
         if w != 0 and w < width:
             scale = int(width/w)
-            self.file = img.reduce(scale).tobytes()
+            super().file = img.reduce(scale).tobytes()
         img.close()
         self.iiif = {'label': label, 'toc': toc, 'w': width, 'h': height}

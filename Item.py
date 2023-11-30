@@ -1,8 +1,9 @@
-from Collection import Collection
-from DSpaceObject import DSpaceObject
-from Relation import Relation
-from bitstreams import ContentFile, DEFAULT_BUNDLE
-from bitstreams import IIIFContent
+from .Collection import Collection
+from .DSpaceObject import DSpaceObject
+from .Relation import Relation
+from .bitstreams import ContentFile
+from .bitstreams import IIIFContent
+from .metadata import MetaDataList
 
 
 class Item(DSpaceObject):
@@ -29,7 +30,7 @@ class Item(DSpaceObject):
 
         :return: True, if the Item is an entity.
         """
-        return self.metadata.get('dspace.entity.type') is not None
+        return super().metadata.get('dspace.entity.type') is not None
 
     def add_collection(self, c: Collection, primary: bool = False):
         """
@@ -55,7 +56,7 @@ class Item(DSpaceObject):
             raise TypeError('Could not add relations to a non entity item.')
         self.relations.append(Relation(relation_type, identifier))
 
-    def add_content(self, content_file: str, path: str, description: str = '', bundle: str = DEFAULT_BUNDLE,
+    def add_content(self, content_file: str, path: str, description: str = '', bundle: str = '',
                     permissions: list[tuple[str, str]] = None, iiif: bool = False, width: int = 0, iiif_toc: str = ''):
         """
         Adds additional content-files to the item.
@@ -72,11 +73,11 @@ class Item(DSpaceObject):
         """
 
         if iiif:
-            cf = IIIFContent('images', content_file, path)
+            cf = IIIFContent('images', content_file, path, bundle=bundle)
             name = content_file.split('.')[0]
             cf.add_iiif(description, name if iiif_toc == '' else iiif_toc, w=width)
         else:
-            cf = ContentFile('other', content_file, path)
+            cf = ContentFile('other', content_file, path, bundle=bundle)
 
         if description != '':
             cf.add_description(description)
@@ -91,4 +92,4 @@ class Item(DSpaceObject):
 
         :param entity_type: The type of the entity.
         """
-        self.add_metadata('dspace', 'entity', 'type', entity_type)
+        super().add_metadata('dspace', 'entity', 'type', entity_type)

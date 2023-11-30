@@ -1,4 +1,4 @@
-from metadata import MetaDataList, MetaData
+from .metadata import MetaDataList, MetaData
 
 
 class DSpaceObject:
@@ -22,6 +22,7 @@ class DSpaceObject:
         """
         self.uuid = uuid
         self.handle = handle
+        self.metadata = MetaDataList([])
 
     def add_dc_value(self, element: str, qualifier: str | None, value: str, language: str = None):
         """
@@ -52,5 +53,6 @@ class DSpaceObject:
         return self.uuid == other.uuid
 
     def __str__(self):
-        data = '\t'.join(self.metadata)
+        self.metadata.sort()
+        data = '\n'.join(f'\t{str(m)}' for m in self.metadata)
         return f'DSpace object with the uuid {self.uuid}:\n{data}'

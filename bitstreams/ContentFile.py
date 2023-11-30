@@ -1,4 +1,5 @@
-from . import DEFAULT_BUNDLE
+DEFAULT_BUNDLE: str = 'ORIGINAL'
+"""The name of default bundle which is used in DSpace."""
 
 
 class ContentFile:
@@ -57,7 +58,7 @@ class ContentFile:
             self.file = None
         self.permissions = []
         self.description = ''
-        self.bundle = bundle
+        self.bundle = bundle if bundle != '' else DEFAULT_BUNDLE
         self.primary = primary
         self.show = show
         if self.content_type in ('relations', 'handle', 'collections'):

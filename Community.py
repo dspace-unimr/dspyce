@@ -1,4 +1,4 @@
-from DSpaceObject import DSpaceObject
+from . import DSpaceObject
 
 
 class Community(DSpaceObject):

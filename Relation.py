@@ -1,4 +1,4 @@
-from Item import Item
+from . import Item
 # Relation.py
 """
 This module contains the python class Relation representing the Relation between DSpace-Entities.
