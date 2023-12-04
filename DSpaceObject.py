@@ -8,12 +8,16 @@ class DSpaceObject:
 
     uuid: str
     """The uuid of the DSpaceObject"""
+    name: str
+    """The name of the DSpaceObject, if existing"""
     handle: str
     """The handle of the Object"""
     metadata: MetaDataList
     """The metadata provided for the object."""
+    parse_metadata_label = parse_metadata_label
+    """Static function for parsing dspace-metadata labels."""
 
-    def __init__(self, uuid: str = '', handle: str = ''):
+    def __init__(self, uuid: str = '', handle: str = '', name: str = ''):
         """
         Creates a new object of the class DSpaceObject
 
@@ -22,6 +26,7 @@ class DSpaceObject:
         """
         self.uuid = uuid
         self.handle = handle
+        self.name = name
         self.metadata = MetaDataList([])
 
     def add_dc_value(self, element: str, qualifier: str | None, value: str, language: str = None):
@@ -56,3 +61,18 @@ class DSpaceObject:
         self.metadata.sort()
         data = '\n'.join(f'\t{str(m)}' for m in self.metadata)
         return f'DSpace object with the uuid {self.uuid}:\n{data}'
+
+
+def parse_metadata_label(label: str) -> tuple[str, str, str | None]:
+    """
+    Parses a dspace metadata label string from the format <schema>.<element>.<qualifier>
+    :param label:
+    :return:
+    """
+    label = label.split('.')
+    if len(label) == 2:
+        return label[0], label[1], None
+    elif len(label) == 3:
+        return label[0], label[1], label[2]
+    else:
+        raise KeyError(f'Could not parse dspace-metadata label "{label}"')
