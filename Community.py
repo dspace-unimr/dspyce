@@ -2,11 +2,14 @@ from . import DSpaceObject
 
 
 class Community(DSpaceObject):
+    parent_community: DSpaceObject | None
     sub_communities: list[DSpaceObject]
 
-    def __init__(self, uuid: str = '', handle: str = '', name: str = '', sub_communities: list[DSpaceObject] = None):
+    def __init__(self, uuid: str = '', handle: str = '', name: str = '', parent_community: DSpaceObject = None,
+                 sub_communities: list[DSpaceObject] = None):
         super().__init__(uuid, handle, name)
         self.sub_communities = sub_communities if sub_communities is not None else []
+        self.parent_community = parent_community
 
     def is_subcommunity_of(self, other) -> bool:
         """
