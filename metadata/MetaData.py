@@ -64,8 +64,8 @@ class MetaData:
         :return: True, if the names are identical
         """
         if isinstance(other, MetaData):
-            return (self.schema == other.schema and self.element == other.element and self.qualifier == other.qualifier and
-                    self.language == other.language)
+            return (self.schema == other.schema and self.element == other.element and self.qualifier == other.qualifier
+                    and self.language == other.language)
         elif isinstance(other, str):
             field = other.split('.')
             if len(field) == 3:
@@ -88,3 +88,11 @@ class MetaData:
             self.value.append(value)
         else:
             self.value = [self.value, value]
+
+    def get_tag(self) -> str:
+        """
+        Creates the corresponding classical metadata tag, based on <schema>.<element>.<qualifier>
+        :return: The tag as a string.
+        """
+        qualifier = '' if self.qualifier is None else f'.{self.qualifier}'
+        return f'{self.schema}.{self.element}{qualifier}'
