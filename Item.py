@@ -10,16 +10,18 @@ class Item(DSpaceObject):
     relations: list[Relation]
     contents: list[ContentFile]
 
-    def __init__(self, uuid: str = '', handle: str = '', collections: Collection | list[Collection] = None):
+    def __init__(self, uuid: str = '', handle: str = '', name: str = '',
+                 collections: Collection | list[Collection] = None):
         """
         Creates a new object of the Item class.
 
         :param uuid: The uuid of the Item.
         :param handle: The handle of the Item.
+        :param name: The name of the DSpace Item.
         :param collections: Collections connected to this item. The first collection in the list will be the owning
         collection.
         """
-        super().__init__(uuid, handle)
+        super().__init__(uuid, handle, name)
         self.collections = collections if type(collections) is list else (
             [collections] if type[collections] is Collection else [])
         self.relations = []

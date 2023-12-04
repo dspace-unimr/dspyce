@@ -4,8 +4,8 @@ from . import DSpaceObject
 class Community(DSpaceObject):
     sub_communities: list[DSpaceObject]
 
-    def __init__(self, uuid: str = '', handle: str = '', sub_communities: list[DSpaceObject] = None):
-        super().__init__(uuid, handle)
+    def __init__(self, uuid: str = '', handle: str = '', name: str = '', sub_communities: list[DSpaceObject] = None):
+        super().__init__(uuid, handle, name)
         self.sub_communities = sub_communities if sub_communities is not None else []
 
     def is_subcommunity_of(self, other) -> bool:
