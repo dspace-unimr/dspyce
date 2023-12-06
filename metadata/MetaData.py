@@ -31,7 +31,7 @@ class MetaData:
             raise TypeError(f'Can not use = between type(Metadata) and type({type(other)})')
         other: MetaData
         return (self.schema == other.schema and self.element == other.element and self.qualifier == other.qualifier
-                and self.value == other.value)
+                and self.value == other.value and self.language == other.language)
 
     def __gt__(self, other):
         if type(other) is not MetaData:
@@ -94,5 +94,4 @@ class MetaData:
         Creates the corresponding classical metadata tag, based on <schema>.<element>.<qualifier>
         :return: The tag as a string.
         """
-        qualifier = '' if self.qualifier is None else f'.{self.qualifier}'
-        return f'{self.schema}.{self.element}{qualifier}'
+        return f'{self.schema}.{self.element}.{self.qualifier}'.strip('.')
