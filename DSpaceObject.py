@@ -14,8 +14,6 @@ class DSpaceObject:
     """The handle of the Object"""
     metadata: MetaDataList
     """The metadata provided for the object."""
-    parse_metadata_label = parse_metadata_label
-    """Static function for parsing dspace-metadata labels."""
 
     def __init__(self, uuid: str = '', handle: str = '', name: str = ''):
         """
