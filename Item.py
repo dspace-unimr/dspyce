@@ -9,9 +9,12 @@ class Item(DSpaceObject):
     collections: list[Collection]
     relations: list[Relation]
     contents: list[ContentFile]
+    in_archive: bool = True
+    discoverable: bool = True
+    withdrawn: bool = False
 
     def __init__(self, uuid: str = '', handle: str = '', name: str = '',
-                 collections: Collection | list[Collection] = None):
+                 collections: Collection | list[Collection] | str = None):
         """
         Creates a new object of the Item class.
 
@@ -19,12 +22,18 @@ class Item(DSpaceObject):
         :param handle: The handle of the Item.
         :param name: The name of the DSpace Item.
         :param collections: Collections connected to this item. The first collection in the list will be the owning
-        collection.
+        collection. Just a uuid can also be provided.
         """
         super().__init__(uuid, handle, name)
-        self.collections = collections if type(collections) is list else (
-            [collections] if type[collections] is Collection else [])
-        self.relations = []
+        if type(collections) is str:
+            self.collections = [Collection(uuid=collections, community=None)]
+        elif type(collections) is Collection:
+            self.collections = [collections]
+        elif collections is None:
+            self.collections = []
+        else:
+            self.collections = collections
+            self.relations = []
         self.contents = []
 
     def is_entity(self) -> bool:
@@ -33,7 +42,7 @@ class Item(DSpaceObject):
 
         :return: True, if the Item is an entity.
         """
-        return super().metadata.get('dspace.entity.type') is not None
+        return self.metadata.get('dspace.entity.type') is not None
 
     def add_collection(self, c: Collection, primary: bool = False):
         """
@@ -95,4 +104,12 @@ class Item(DSpaceObject):
 
         :param entity_type: The type of the entity.
         """
-        super().add_metadata('dspace', 'entity', 'type', entity_type)
+        self.add_metadata('dspace', 'entity', 'type', entity_type)
+
+    def get_owning_collection(self) -> Collection | None:
+        """
+        Provides the owning collection of the item, if existing.
+
+        :return: The collection object of the owning collection or None.
+        """
+        return None if self.collections is None else self.collections[0]
