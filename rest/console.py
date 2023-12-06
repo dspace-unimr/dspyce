@@ -1,4 +1,4 @@
-from .Rest import RestAPI
+from .RestAPI import RestAPI
 from getpass import getpass
 
 

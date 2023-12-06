@@ -1,4 +1,6 @@
 import requests
+from .. import DSpaceObject, Item, Community, Collection
+from .converter import object_to_json
 
 
 class RestAPI:
@@ -21,6 +23,7 @@ class RestAPI:
         self.api_endpoint = api_endpoint
         self.username = username
         self.password = password
+        self.req_headers = {'Content-type': 'application/json', 'User-Agent': 'Python REST Client'}
         if username is not None and password is not None:
             self.authenticated = self.authenticate_api()
 
@@ -57,3 +60,37 @@ class RestAPI:
             print('The authentication did not work.')
             return False
 
+    def add_object(self, object_type: str, obj: DSpaceObject):
+        """
+
+        :param object_type:
+        :param obj:
+        :return:
+        """
+        if not self.authenticated:
+            raise ConnectionRefusedError('Authentication needed.')
+        params = {}
+        match object_type:
+            case 'Item':
+                obj: Item
+                add_url = f'{self.api_endpoint}/core/items'
+                params = {'owningCollection': obj.get_owning_collection().uuid}
+            case 'Community':
+                obj: Community
+                if obj.parent_community is None:
+                    add_url = f'{self.api_endpoint}/core/communities'
+                else:
+                    add_url = f'{self.api_endpoint}/core/communities'
+                    params = {'parent': obj.parent_community.uuid}
+            case 'Collection':
+                obj: Collection
+                add_url = f'{self.api_endpoint}/core/collections'
+                params = {'parent': obj.community.uuid}
+            case _:
+                raise ValueError(f'Object type {object_type} is not allowed as a parameter!')
+        req = self.session.post(add_url)
+        self.update_csrf_token(req)
+        obj_json = object_to_json(obj)
+        print(f'Adding object in "{add_url}" with params ({params}):\n{obj_json}')
+        resp = self.session.post(add_url, json=obj_json, headers=self.req_headers, params=params)
+        return resp.json()
