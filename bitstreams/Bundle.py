@@ -22,3 +22,17 @@ class Bundle:
 
     def __str__(self):
         return self.name
+
+    def __eq__(self, other) -> bool:
+        """
+        Check if two bundle objects are equal
+
+        :param other: The other bundle object to compare with.
+        :return: True, if the two bundles have the same name.
+        """
+        if not isinstance(other, Bundle):
+            raise TypeError(f'Can not compare type Bundle to "{type(other)}"')
+        if self.uuid is None or other.uuid is None:
+            return self.name == other.name
+        else:
+            return self.uuid == other.uuid and self.name == other.name

@@ -1,8 +1,7 @@
 from .Collection import Collection
 from .DSpaceObject import DSpaceObject
 from .Relation import Relation
-from .bitstreams import ContentFile
-from .bitstreams import IIIFContent
+from .bitstreams import ContentFile, IIIFContent, Bundle
 
 
 class Item(DSpaceObject):
@@ -113,3 +112,6 @@ class Item(DSpaceObject):
         :return: The collection object of the owning collection or None.
         """
         return None if self.collections is None else self.collections[0]
+
+    def get_bundles(self) -> set[Bundle]:
+        return {c.bundle for c in self.contents}
