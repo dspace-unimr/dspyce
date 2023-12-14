@@ -1,6 +1,21 @@
 from .metadata import MetaDataList, MetaData
 
 
+def parse_metadata_label(label: str) -> tuple[str, str, str | None]:
+    """
+    Parses a dspace metadata label string from the format <schema>.<element>.<qualifier>
+    :param label:
+    :return:
+    """
+    label = label.split('.')
+    if len(label) == 2:
+        return label[0], label[1], None
+    elif len(label) == 3:
+        return label[0], label[1], label[2]
+    else:
+        raise KeyError(f'Could not parse dspace-metadata label "{label}"')
+
+
 class DSpaceObject:
     """
     The class DSpaceObject represents an Object in a DSpace repository, such as Items, Collections, Communities.
@@ -65,18 +80,3 @@ class DSpaceObject:
         self.metadata.sort()
         data = '\n'.join(f'\t{str(m)}' for m in self.metadata)
         return f'DSpace object with the uuid {self.uuid}:\n{data}'
-
-
-def parse_metadata_label(label: str) -> tuple[str, str, str | None]:
-    """
-    Parses a dspace metadata label string from the format <schema>.<element>.<qualifier>
-    :param label:
-    :return:
-    """
-    label = label.split('.')
-    if len(label) == 2:
-        return label[0], label[1], None
-    elif len(label) == 3:
-        return label[0], label[1], label[2]
-    else:
-        raise KeyError(f'Could not parse dspace-metadata label "{label}"')

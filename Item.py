@@ -113,8 +113,15 @@ class Item(DSpaceObject):
         """
         return None if self.collections is None else self.collections[0]
 
-    def get_bundles(self) -> set[Bundle]:
-        return {c.bundle for c in self.contents}
+    def get_bundles(self) -> list[Bundle]:
+        """
+        Returns the bundles used by this item.
+        """
+        bundles = []
+        for c in self.contents:
+            if c.bundle not in bundles:
+                bundles.append(c.bundle)
+        return bundles
 
     def get_dspace_object_type(self) -> str:
         return 'Item'
