@@ -11,7 +11,7 @@ class IIIFContent(ContentFile):
 
     iiif: dict[str, str | int]
     """
-        A dictonary containing the IIIF-specific information. The keys must be: 'label', 'toc', 'w', 'h'
+        A dictionary containing the IIIF-specific information. The keys must be: 'label', 'toc', 'w', 'h'
     """
 
     def __init__(self, content_type: str, name: str, path: str, content: str | bytes = '',
@@ -29,7 +29,7 @@ class IIIFContent(ContentFile):
         or handle the default is False.
         """
         if content_type != 'images':
-            raise TypeError('If you use a IIIFContentfile object to create saf content files, the content_type must be'
+            raise TypeError('If you use a IIIFContent object to create saf content files, the content_type must be'
                             '"images", if you want another content type, please use the super-class `ContentFile`.'
                             f'\n\t"{content_type}" is not allowed here!')
         super().__init__(content_type, name, path, content, bundle, primary, show)
