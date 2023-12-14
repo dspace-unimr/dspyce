@@ -9,16 +9,20 @@ class Bundle:
     """The default bundle name."""
     name: str
     """The bundle name."""
+    description: str
+    """A bundle description if existing."""
 
-    def __init__(self, name: str = DEFAULT_BUNDLE, uuid: str = None):
+    def __init__(self, name: str = DEFAULT_BUNDLE, description: str = '', uuid: str = None):
         """
         Creates a new bundle object.
 
         :param name: The bundle name.
+        :param description: A description if existing.
         :param uuid: The uuid of the bundle, if known.
         """
         self.name = name
         self.uuid = uuid
+        self.description = description
 
     def __str__(self):
         return self.name

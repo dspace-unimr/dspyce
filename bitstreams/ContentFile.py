@@ -26,6 +26,8 @@ class ContentFile:
     """The bundle where to store the file. The default is set to the variable DEFAULT_BUNDLE."""
     primary: bool
     """If the bitstream shall be the primary bitstream for the item."""
+    uuid: str
+    """A uuid if the ContentFile already exists in a DSPace-Instance."""
 
     def __init__(self, content_type: str, name: str, path: str, content: str | bytes = '',
                  bundle: str | Bundle = Bundle.DEFAULT_BUNDLE, primary: bool = False, show: bool = True):
