@@ -1,4 +1,5 @@
 from .. import DSpaceObject, Item, Community, Collection
+from ..DSpaceObject import parse_metadata_label
 
 
 def json_to_object(json_content: dict) -> DSpaceObject:
@@ -13,9 +14,9 @@ def json_to_object(json_content: dict) -> DSpaceObject:
     handle = json_content['handle']
     metadata = json_content['metadata']
     doc_type = json_content['type']
-    _links = {link: json_content['links'][link]['href'] if ('href' in json_content['links'][link].keys()
-                                                            ) else json_content['links'][link]
-              for link in json_content['links'].keys()}
+    _links = {link: json_content['_links'][link]['href'] if ('href' in json_content['_links'][link].keys()
+                                                            ) else json_content['_links'][link]
+              for link in json_content['_links'].keys()}
     match doc_type:
         case 'Community':
             obj = Community(uuid, handle=handle, name=name)
@@ -26,7 +27,7 @@ def json_to_object(json_content: dict) -> DSpaceObject:
         case _:
             obj = DSpaceObject(uuid, handle, name)
     for m in metadata.keys():
-        prefix, element, qualifier = DSpaceObject.parse_metadata_label(m)
+        prefix, element, qualifier = parse_metadata_label(m)
         for v in metadata[m]:
             value = v['value']
             lang = v['language'] if 'language' in v.keys() else None
@@ -43,8 +44,7 @@ def object_to_json(obj: DSpaceObject) -> dict:
     uuid = obj.uuid
     handle = obj.handle
     name = obj.name
-    obj_type = 'community' if type(obj) is Community else ('collection' if type(obj) is Collection else (
-        'item' if type(obj) is Item else None))
+    obj_type = obj.get_dspace_object_type().lower()
     metadata = {}
     for m in obj.metadata:
         value = m.value if type(m.value) is list else [m.value]
