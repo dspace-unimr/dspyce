@@ -115,3 +115,6 @@ class Item(DSpaceObject):
 
     def get_bundles(self) -> set[Bundle]:
         return {c.bundle for c in self.contents}
+
+    def get_dspace_object_type(self) -> str:
+        return 'Item'

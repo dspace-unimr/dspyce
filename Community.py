@@ -21,3 +21,6 @@ class Community(DSpaceObject):
             raise TypeError('The given object must be of the type "Community".')
         else:
             return self in other.sub_communities
+
+    def get_dspace_object_type(self) -> str:
+        return 'Community'

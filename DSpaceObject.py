@@ -50,6 +50,12 @@ class DSpaceObject:
         """
         self.metadata.append(MetaData(prefix, element, qualifier, value, language))
 
+    def get_dspace_object_type(self) -> str:
+        """
+        This Function serves mainly to be overwritten by subclasses to get the type of DSpaceObject.
+        """
+        pass
+
     def __eq__(self, other):
         if self.uuid == '' and other.uuid == '':
             raise ValueError('Can not compare objects without a uuid')

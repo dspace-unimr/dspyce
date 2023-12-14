@@ -11,3 +11,6 @@ class Collection(DSpaceObject):
 
     def get_parent_community(self) -> Community:
         return self.community
+
+    def get_dspace_object_type(self) -> str:
+        return 'Collection'
