@@ -69,9 +69,9 @@ class MetaData:
         elif isinstance(other, str):
             field = other.split('.')
             if len(field) == 3:
-                return self.schema == field[0] and self.element == [1] and self.qualifier == field[2]
+                return self.schema == field[0] and self.element == field[1] and self.qualifier == field[2]
             elif len(field) == 2:
-                return self.schema == field[0] and self.element == [1] and self.qualifier is None
+                return self.schema == field[0] and self.element == field[1] and self.qualifier == ''
             else:
                 raise TypeError(f'Could not parse tag "{other}"')
         else:
