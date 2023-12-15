@@ -49,7 +49,8 @@ class RestAPI:
             # Success post request
             return resp.json()
         else:
-            raise requests.exceptions.RequestException(f'Could not post content: \n{json_data}\nWith params: {params}')
+            raise requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
+                                                       f'Could not post content: \n{json_data}\nWith params: {params}')
 
     def authenticate_api(self) -> bool:
         """
