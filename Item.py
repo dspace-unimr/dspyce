@@ -140,3 +140,23 @@ class Item(DSpaceObject):
 
     def get_dspace_object_type(self) -> str:
         return 'Item'
+
+    def __str__(self):
+        """
+        Creates a string representation of the item object.
+        """
+        obj_str = super().__str__()
+        obj_str = obj_str.replace('DSpace object', 'DSpace item')
+        if len(self.relations) > 0:
+            obj_str += '\n\tRelations:'
+            for r in self.relations:
+                obj_str += f'\n\t\t{r}'
+        if len(self.contents) > 0:
+            obj_str += '\n\tBitstreams:'
+            for c in self.contents:
+                obj_str += f'\n\t\t{c}'
+        if len(self.collections) > 0:
+            obj_str += '\n\tCollections:'
+            for c in self.collections:
+                obj_str += f'\n\t\t{c.uuid}'
+        return obj_str
