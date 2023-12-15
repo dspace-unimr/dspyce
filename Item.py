@@ -65,7 +65,7 @@ class Item(DSpaceObject):
         """
         if not self.is_entity():
             raise TypeError('Could not add relations to a non entity item.')
-        self.relations.append(Relation(relation_type, identifier))
+        self.relations.append(Relation(relation_type, (self, Item(uuid=identifier))))
 
     def add_content(self, content_file: str, path: str, description: str = '', bundle: str = '',
                     permissions: list[tuple[str, str]] = None, iiif: bool = False, width: int = 0, iiif_toc: str = ''):

@@ -71,6 +71,19 @@ class DSpaceObject:
         """
         pass
 
+    def get_identifier(self) -> str:
+        """
+        Returns the identifier of this object. Preferably this will be the uuid, but if this, does not exist, it uses
+        the handle.
+        :return: The identifier as a string.
+        """
+        if self.uuid != '':
+            return self.uuid
+        elif self.handle != '':
+            return self.handle
+        else:
+            return ''
+
     def __eq__(self, other):
         if self.uuid == '' and other.uuid == '':
             raise ValueError('Can not compare objects without a uuid')

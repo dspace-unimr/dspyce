@@ -13,7 +13,8 @@ def export_relations(relations: list[Relation]) -> str:
         :param relations: A list of objects of the class "Relation"
         :return: The line-break separated list of relationships as a string.
     """
-    return '\n'.join([str(r).replace(':', ' ') for r in relations])
+    relation_strings = list(map(lambda x: ''.join(str(x).split(':')[1:]), relations))
+    return '\n'.join([r.replace(':', ' ') for r in relation_strings])
 
 
 def create_bitstreams(bitstreams: list[ContentFile], save_path: str):
