@@ -13,7 +13,7 @@ def export_relations(relations: list[Relation]) -> str:
         :param relations: A list of objects of the class "Relation"
         :return: The line-break separated list of relationships as a string.
     """
-    relation_strings = list(map(lambda x: ''.join(str(x).split(':')[1:]), relations))
+    relation_strings = list(map(lambda x: ':'.join(str(x).split(':')[1:]), relations))
     return '\n'.join([r.replace(':', ' ') for r in relation_strings])
 
 
@@ -100,7 +100,7 @@ def create_saf_package(item: Item, element_id: int, path: str, overwrite: bool =
         item.contents.append(ContentFile('handle', 'handle', '', item.handle, show=False))
     if len(item.collections) > 0:
         item.contents.append(ContentFile('collections', 'collections', '',
-                                         '\n'.join([c.handle for c in item.collections]), show=False))
+                                         content='\n'.join([c.get_identifier() for c in item.collections]), show=False))
     create_bitstreams(item.contents, save_path=path)
 
 

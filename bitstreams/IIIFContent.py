@@ -41,7 +41,7 @@ class IIIFContent(ContentFile):
 
         :return: A SAF-ready information string which can be used for the content-file.
         """
-        export_name = str(super)
+        export_name = super().__str__()
         if len(self.iiif.keys()) > 0:
             export_name += '\tiiif-label:{}\tiiif-toc:{}\tiiif-width:{}\tiiif-height:{}'.format(
                 self.iiif['label'], self.iiif['toc'], self.iiif['w'], self.iiif['h'])

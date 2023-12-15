@@ -90,7 +90,8 @@ class Item(DSpaceObject):
         :param bundle: The bundle where the item is stored in.
         :param permissions: Add permissions to a content file. This variable expects a list of tuples containing the
         permission-type and the group name to which it is granted to.
-        :param iiif: If the bitstream should be treated as an iiif-specific file.
+        :param iiif: If the bitstream should be treated as an iiif-specific file. If true also "dspace.iiif.enabled"
+        will be set to "true".
         :param width: The width of an image. Only needed, if the file is a jpg, wich should be reduced and iiif is True.
         :param iiif_toc: A toc information for an iiif-specific bitstream.
         """
@@ -99,6 +100,8 @@ class Item(DSpaceObject):
             cf = IIIFContent('images', content_file, path, bundle=bundle)
             name = content_file.split('.')[0]
             cf.add_iiif(description, name if iiif_toc == '' else iiif_toc, w=width)
+            if self.metadata.get('dspace.iiif.enabled') is None:
+                self.add_metadata('dspace', 'iiif', 'enabled', 'true', 'en')
         else:
             cf = ContentFile('other', content_file, path, bundle=bundle)
 
