@@ -21,7 +21,7 @@ class Item(DSpaceObject):
         :param handle: The handle of the Item.
         :param name: The name of the DSpace Item.
         :param collections: Collections connected to this item. The first collection in the list will be the owning
-        collection. Just a uuid can also be provided.
+        collection. Just an uuid can also be provided.
         """
         super().__init__(uuid, handle, name)
         if type(collections) is str:

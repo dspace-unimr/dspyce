@@ -54,7 +54,7 @@ def create_saf_package(item: Item, element_id: int, path: str, overwrite: bool =
         Creates the content of the files metadata_[prefix].xml
 
         :param prefix: The prefix of the schema which should be created.
-        :param metadata: The metadata list containing all metadatafields.
+        :param metadata: The metadata list containing all metadata fields.
         """
         if prefix not in metadata.get_schemas():
             raise KeyError(f'The Prefix "{prefix}" does\'nt exist!')
