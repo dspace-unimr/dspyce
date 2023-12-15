@@ -1,8 +1,9 @@
+import os
+
 from ..Item import Item
 from ..Relation import Relation
 from ..bitstreams.ContentFile import ContentFile
 from ..metadata import MetaDataList
-import os
 
 
 def export_relations(relations: list[Relation]) -> str:

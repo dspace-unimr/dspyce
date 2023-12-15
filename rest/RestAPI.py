@@ -1,5 +1,6 @@
 import requests
-from .. import DSpaceObject, Item, Community, Collection, Relation
+from .. import DSpaceObject, Item, Community, Collection
+from ..Relation import Relation
 from .converter import object_to_json, json_to_object
 from ..bitstreams import Bundle, ContentFile, IIIFContent
 import json

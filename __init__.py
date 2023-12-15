@@ -1,55 +1,81 @@
+import re
+
 from .DSpaceObject import DSpaceObject
 from .Item import Item
 from .Collection import Collection
 from .Community import Community
-from .Relation import Relation
 from .saf import *
 from .rest import *
 
 
-def item_from_dict(item_dict: dict, parse_lists: bool = True) -> Item:
+def from_dict(obj_dict: dict, obj_type: str = None) -> DSpaceObject | Item | Community | Collection:
     """
-    Creates a DSpace Item based on a given dict. The keys must correspond exactly to the metadata fields.
+    Creates a new DSpaceObject from a given dictionary.
+    Example for dict:
+        {
+          'uuid': <uuid>,
 
-    :param item_dict: The dict to create the item from.
-    :param parse_lists: Checks if string values should be parsed as list, if written in the same schema.
-    :return: The item as an Item object.
+          'handle': <handle>,
+
+          'name': <name>,
+
+          '<dc.[...]>': <value>,
+
+          '<[metadata-tag]>': <value> | list[<value>] | dict[lang: list[<value>]], # A list of metadata tags.
+
+          'relation.<relation-name>': <uuid>, # A number of relationships with the connected uuids for items.
+
+          'parent_community': <uuid>, # for possible parent communities if the obj_type is collection or community
+
+          'collection': <uuid>, # A owning collection if the object is an Item.
+        }
+
+    >>> from_dict({'uuid': 'lkj-123-123-jlkjld', 'name': 'example',}, 'item')
+    DSpaceObject('lkj-123-123-jlkjld', name='item')
+
+    :param obj_dict: The dictionary containing the object information.
+    :param obj_type: The type of DspaceObject. Must be one of (community, item, collection).
+    :return: A DSpaceObject.
     """
-    def is_list(p: str) -> list | None:
-        """
-        Small function to determine, if a string ist writen in a list format.
+    obj = None
+    match obj_type:
+        case None:
+            obj = DSpaceObject(obj_dict['uuid'] if 'uuid' in obj_dict.keys() else '',
+                               obj_dict['handle'] if 'handle' in obj_dict.keys() else '',
+                               obj_dict['name'] if 'name' in obj_dict.keys() else '')
+        case 'item':
+            obj = Item(obj_dict['uuid'] if 'uuid' in obj_dict.keys() else '',
+                       obj_dict['handle'] if 'handle' in obj_dict.keys() else '',
+                       obj_dict['name'] if 'name' in obj_dict.keys() else '')
+            if 'collection' in obj_dict.keys():
+                obj.collections = [Collection(obj_dict['collection'])]
+            relationships = filter(lambda x: re.search(r'^relation.', x), obj_dict.keys())
+            for r in relationships:
+                obj.add_relation(r.split('.')[1], obj_dict[r])
 
-        :param p: The string to search through.
-        :return: List, if list format is found else None
-        """
-        if len(p) == 0 or p[0] != '[' or p[-1] != ']':
-            return None
-        p = p[1:-1]
-        lst = p.split(', ')
-        if len(lst) == 1:
-            return None
-        return list(map(lambda x: x.strip("'").strip('"'), lst))
-
-    uuid = item_dict['uuid'] if 'uuid' in item_dict.keys() else ''
-    handle = item_dict['handle'] if 'handle' in item_dict.keys() else ''
-    collection = item_dict['collection'] if 'collection' in item_dict.keys() else ''
-    item = Item(uuid, handle, collection)
-    for m in filter(lambda x: x not in ('uuid', 'handle'), item_dict.keys()):
-        field = m.split('.')
-        if len(field) == 2:
-            prefix = field[0]
-            element = field[1]
-            qualifier = None
-        elif len(field) == 3:
-            prefix = field[0]
-            element = field[1]
-            qualifier = field[2]
+        case 'community':
+            obj = Community(obj_dict['uuid'] if 'uuid' in obj_dict.keys() else '',
+                            obj_dict['handle'] if 'handle' in obj_dict.keys() else '',
+                            obj_dict['name'] if 'name' in obj_dict.keys() else '')
+            if 'parent_community' in obj_dict.keys():
+                obj.parent_community = Community(obj_dict['parent_community'])
+        case 'collection':
+            obj = Collection(obj_dict['uuid'] if 'uuid' in obj_dict.keys() else '',
+                             obj_dict['handle'] if 'handle' in obj_dict.keys() else '',
+                             obj_dict['name'] if 'name' in obj_dict.keys() else '')
+            if 'parent_community' in obj_dict.keys():
+                obj.parent_community = Community(obj_dict['parent_community'])
+    for key in filter(lambda x: re.search(r'[a-zA-Z0-9\-]\.[a-zA-Z0-9\-](\.[a-zA-Z0-9\-])?', x),
+                      obj_dict.keys()):
+        tag = key.split('.')
+        schema, element, qualifier = parse_metadata_label(tag)
+        if type(obj_dict[key]) is not list and type(obj_dict[key]) is not dict:
+            obj.add_metadata(schema, element, qualifier, value=obj_dict[key])
+        elif type(obj_dict[key]) is list:
+            for o in obj_dict[key]:
+                obj.add_metadata(schema, element, qualifier, value=o)
         else:
-            raise KeyError(f'Could not parse metadata field label "{m}"')
-        if parse_lists and type(item_dict[m]) is str:
-            tmp = is_list(item_dict[m])
-            value = item_dict[m] if tmp is None else tmp
-        else:
-            value = item_dict[m]
-        item.add_metadata(prefix, element, qualifier, value)
-    return item
+            val = obj_dict[key]
+            for lang in val.keys():
+                obj.add_metadata(schema, element, qualifier, value=val[''], language=lang if lang != '' else None)
+    return obj

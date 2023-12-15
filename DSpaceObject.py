@@ -4,8 +4,14 @@ from .metadata import MetaDataList, MetaData
 def parse_metadata_label(label: str) -> tuple[str, str, str | None]:
     """
     Parses a dspace metadata label string from the format <schema>.<element>.<qualifier>
-    :param label:
-    :return:
+
+    >>> parse_metadata_label('dc.type')
+    ('dc', 'type', None)
+    >>> parse_metadata_label('dspace.entity.type')
+    ('dspace, 'entity', 'type')
+
+    :param label: The metadata label to parse.
+    :return: A tuple containing prefix, element and qualifier of a label.
     """
     label = label.split('.')
     if len(label) == 2:
@@ -95,3 +101,19 @@ class DSpaceObject:
         self.metadata.sort()
         data = '\n'.join(f'\t{str(m)}' for m in self.metadata)
         return f'DSpace object with the uuid {self.uuid}:\n{data}'
+
+    def to_dict(self) -> dict:
+        """
+            Converts the curent item object to a dictionary object containing all available metadata.
+        """
+        dict_obj = {'uuid': self.uuid, 'handle': self.handle, 'name': self.name}
+        for m in self.metadata:
+            m: MetaData
+            tag = m.get_tag()
+            value = m.value
+            if m.language is not None:
+                value = {m.language: value}
+                if tag in dict_obj.keys():
+                    value.update(dict_obj[tag] if type(dict_obj) is dict else {'': dict_obj[tag]})
+            dict_obj[tag] = value
+        return dict_obj
