@@ -2,7 +2,7 @@ from .. import DSpaceObject, Item, Community, Collection
 from ..DSpaceObject import parse_metadata_label
 
 
-def json_to_object(json_content: dict) -> DSpaceObject | Item | Community | Collection:
+def json_to_object(json_content: dict) -> DSpaceObject | Item | Community | Collection | None:
     """
     Converts a dict based on REST-format in to a DSpace Object.
 
@@ -20,7 +20,8 @@ def json_to_object(json_content: dict) -> DSpaceObject | Item | Community | Coll
     #        _links[link] = json_content['_links'][link]['href']
     #    elif type(json_content['_links'][link]) is list:
     #        _links[link] = {li['name']: li['href'] for li in json_content['_links'][link]}
-
+    if json_content is None:
+        return None
     match doc_type:
         case 'community':
             obj = Community(uuid, handle=handle, name=name)

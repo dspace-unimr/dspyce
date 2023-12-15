@@ -41,6 +41,8 @@ class DSpaceObject:
         self.handle = handle
         self.name = name
         self.metadata = MetaDataList([])
+        if name != '':
+            self.add_dc_value('title', None, name)
 
     def add_dc_value(self, element: str, qualifier: str | None, value: str, language: str = None):
         """

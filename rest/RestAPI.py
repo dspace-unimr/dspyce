@@ -43,11 +43,13 @@ class RestAPI:
     def post_api(self, url: str, json_data: dict, params: dict) -> dict:
         req = self.session.post(url)
         self.update_csrf_token(req)
-        print(f'Adding object in "{url}" with params ({params}):\n{json_data}')
+        # print(f'Adding object in "{url}" with params ({params}):\n{json_data}')
         resp = self.session.post(url, json=json_data, headers=self.req_headers, params=params)
         if resp.status_code in (201, 200):
             # Success post request
-            return resp.json()
+            json_resp = resp.json()
+            print(f'\tSuccessfully added object with uuid: {json_resp["uuid"]}')
+            return json_resp
         else:
             raise requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
                                                        f'Could not post content: \n{json_data}\nWith params: {params}')
@@ -74,11 +76,12 @@ class RestAPI:
             print('The authentication did not work.')
             return False
 
-    def add_object(self, obj: DSpaceObject) -> DSpaceObject:
+    def add_object(self, obj: DSpaceObject) -> DSpaceObject | Collection | Item | Community:
         """
+        Creates a new object in the DSpace Instance.
 
-        :param obj:
-        :return:
+        :param obj: The object to create.
+        :return: The newly created object.
         """
         if not self.authenticated:
             raise ConnectionRefusedError('Authentication needed.')
@@ -183,24 +186,56 @@ class RestAPI:
         headers.update({'Content-Type': 'text/uri-list', 'User-Agent': self.req_headers['User-Agent']})
         resp = self.session.post(add_url, f'{item_url}/{uuid_1} \n {item_url}/{uuid_2}', headers=headers)
 
-        print(headers)
-
         if resp.status_code in (201, 200):
             # Success post request
-            print(f'Created relationship: {relation}')
+            print(f'\t\tCreated relationship: {relation}')
             return resp.json()
         else:
             raise requests.exceptions.RequestException(f'{resp.status_code}: Could not post relation: \n{relation}\n'
                                                        f'Got headers: {resp.headers}')
 
-    def add_item(self, item: Item) -> Item:
+    def add_community(self, community: Community | DSpaceObject, create_tree: bool = True) -> Collection:
+        """
+        Creates a new community in the DSpace instance and its owning community if create_tree is True.
+
+        :param community: The collection object to create in DSpace.
+        :param create_tree: If the owning communities shall be created as well.
+        :return: Returns the newly created Community.
+        """
+        parent_community = community.parent_community
+        if parent_community is not None and parent_community.uuid == '' and create_tree:
+            community.parent_community = self.add_community(parent_community, create_tree)
+
+        return self.add_object(community)
+
+    def add_collection(self, collection: Collection, create_tree: bool = True) -> Collection:
+        """
+        Creates a new collection in the DSpace instance and its owning communities if create_tree is True.
+
+        :param collection: The collection object to create in DSpace.
+        :param create_tree: If the owning communities shall be created as well.
+        :return: Returns the newly created Collection.
+        """
+        community = collection.community
+        if community.uuid == '' and create_tree:
+            collection.community = self.add_community(community, create_tree)
+
+        return self.add_object(collection)
+
+    def add_item(self, item: Item, create_tree: bool = True) -> Item:
         """
         Adds an item object to DSpace including files and relations. Based on the add_object method.
 
         :param item: The item to push into DSpace.
+        :param create_tree: Creates the owning collections and communities above this item if not yet existing.
         :return: An item object including the new uuid.
         """
         bitstreams = item.contents
+        collection_list = item.collections
+        if create_tree:
+            if collection_list[0].uuid == '':
+                col: Collection = self.add_collection(collection_list[0], create_tree)
+                collection_list[0] = col
         dso = self.add_object(item)
         bundles = {i.name: i for i in [self.add_bundle(b, dso.uuid) for b in item.get_bundles()]}
         for b in bitstreams:
@@ -210,14 +245,18 @@ class RestAPI:
         if len(relations) > 0:
             relation_types = {r.relation_key: r.relation_type for r in self.get_relations_by_type(
                 item.get_entity_type())}
-            relations = list(map(lambda x: Relation(x.relation_key, x.items, relation_types[x.relation_key]),
-                                 relations))
+            try:
+                relations = list(map(lambda x: Relation(x.relation_key, x.items, relation_types[x.relation_key]),
+                                     relations))
+            except KeyError as e:
+                print(f'Could not find relation in the list: {relation_types}')
+                raise e
         for r in relations:
             self.add_relationship(r)
 
         return item
 
-    def get_api(self, endpoint: str) -> dict:
+    def get_api(self, endpoint: str) -> dict | None:
         """
         Performs a get request to the api based on a given string endpoint returns the JSON response if successfully.
 
@@ -230,8 +269,11 @@ class RestAPI:
         json_resp = req.json()
         if req.status_code in (201, 200):
             return json_resp
+        elif req.status_code == 404:
+            print('Object behind "{url}" does not exists')
+            return None
         else:
-            raise requests.exceptions.RequestException(f'Could not get item with ID "{uuid}" from {url}')
+            raise requests.exceptions.RequestException(f'Could not get item with from endpoint: {url}')
 
     def get_dso(self, uuid: str, endpoint: str) -> DSpaceObject | Item | Collection | Community:
         """
@@ -309,7 +351,8 @@ class RestAPI:
         url = f'core/items/{item_uuid}/owningCollection'
         owning_collection = json_to_object(self.get_api(url))
         mapped_collections = self.get_api(f'core/items/{item_uuid}/mappedCollections')['_embedded']['mappedCollections']
-        return [owning_collection] + [json_to_object(m) for m in mapped_collections]
+        return [owning_collection] + list(filter(lambda x: x is not None,
+                                                 [json_to_object(m) for m in mapped_collections]))
 
     def get_item(self, uuid: str, get_related: bool = True) -> Item:
         """
