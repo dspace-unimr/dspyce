@@ -32,7 +32,7 @@ class Item(DSpaceObject):
             self.collections = []
         else:
             self.collections = collections
-            self.relations = []
+        self.relations = []
         self.contents = []
 
     def is_entity(self) -> bool:
@@ -76,7 +76,7 @@ class Item(DSpaceObject):
         :return: None
         """
         if not self.is_entity():
-            raise TypeError('Could not add relations to a non entity item.')
+            raise TypeError('Could not add relations to a non entity item for item:\n' + str(self))
         self.relations.append(Relation(relation_type, (self, Item(uuid=identifier))))
 
     def add_content(self, content_file: str, path: str, description: str = '', bundle: str = '',
