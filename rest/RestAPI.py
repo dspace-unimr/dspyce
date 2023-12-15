@@ -216,6 +216,36 @@ class RestAPI:
 
         return item
 
+    def get_api(self, endpoint: str) -> dict:
+        """
+        Performs a get request to the api based on a given string endpoint returns the JSON response if successfully.
+
+        :param endpoint: The endpoint information: aka https://self.api_endpoint/<endpoint>
+        :return: The json response as a dict.
+        """
+        url = f'{self.api_endpoint}/{endpoint}'
+        req = self.session.get(url)
+        self.update_csrf_token(req)
+        json_resp = req.json()
+        if req.status_code in (201, 200):
+            return json_resp
+        else:
+            raise requests.exceptions.RequestException(f'Could not get item with ID "{uuid}" from {url}')
+
+    def get_dso(self, uuid: str, endpoint: str) -> DSpaceObject | Item | Collection | Community:
+        """
+        Retrieves a DSpace object from the api based on its uuid and the endpoint information.
+
+        :param uuid: The uuid of the object.
+        :param endpoint: The endpoint string. Must be one of ('items', 'collections', 'communities')
+        :return: Returns a DSpace object
+        """
+        url = f'core/{endpoint}/{uuid}'
+        if endpoint not in ('items', 'collections', 'communities'):
+            raise ValueError(f"The endpoint '{endpoint}' does not exist. endpoint must be one of"
+                             "('items', 'collections', 'communities')")
+        return json_to_object(self.get_api(url))
+
     def get_relations_by_type(self, entity_type: str) -> list[Relation]:
         """
         Parses the REST API and returns a list of relationships, which have the given entity on the left or right side.
@@ -236,6 +266,64 @@ class RestAPI:
             return rel_list
         else:
             raise requests.exceptions.RequestException(f'Could not parse response with header: {req.headers}')
+
+    def get_item_relationships(self, item_uuid: str) -> list[Relation]:
+        """
+        Retrieves a list of relationships of DSpace entity from the api.
+
+        :param item_uuid: The uuid of the item to retrieve the relationships for.
+        :return: A list of relation objects.
+        """
+        url = f'{self.api_endpoint}/core/items/{item_uuid}/relationships'
+        req = self.session.get(url)
+        self.update_csrf_token(req)
+        json_resp = req.json()
+        relations = []
+        if req.status_code in (201, 200):
+            rel_list = json_resp['_embedded']['relationships']
+            for r in rel_list:
+                left_item = r['_links']['leftItem']['href'].split('/')[-1]
+                right_item = r['_links']['rightItem']['href'].split('/')[-1]
+                direction = 'leftwardType' if item_uuid == right_item else 'rightwardType'
+                # Retrieve the type information:
+                type_req = self.session.get(r['_links']['relationshipType']['href'])
+                rel_key = type_req.json()[direction]
+                rel_type = type_req.json()['id']
+                # Set the correct item order.
+                left_item = self.get_item(left_item, False)
+                right_item = self.get_item(right_item, False)
+                items = (left_item, right_item) if direction == 'rightwardType' else (right_item, left_item)
+                relations.append(Relation(rel_key, items, rel_type))
+            return relations
+        else:
+            return []
+
+    def get_item_collections(self, item_uuid: str) -> list[Collection]:
+        """
+        Retrieves a list of collections from the REST-API based on the uuid of an item. The first will be the owning
+        collection.
+
+        :param item_uuid: The uuid of the item.
+        """
+        url = f'core/items/{item_uuid}/owningCollection'
+        owning_collection = json_to_object(self.get_api(url))
+        mapped_collections = self.get_api(f'core/items/{item_uuid}/mappedCollections')['_embedded']['mappedCollections']
+        return [owning_collection] + [json_to_object(m) for m in mapped_collections]
+
+    def get_item(self, uuid: str, get_related: bool = True) -> Item:
+        """
+        Retrieves a DSpace-Item by its uuid from the API.
+
+        :param uuid: The uuid of the item to get.
+        :param get_related: If true, also retrieves related items from the API.
+        :return: An object of the class Item.
+        """
+        dso: Item
+        dso = self.get_dso(uuid, 'items')
+        if get_related:
+            dso.relations = self.get_item_relationships(dso.uuid)
+        dso.collections = self.get_item_collections(uuid)
+        return dso
 
     def update_metadata(self, obj: DSpaceObject):
         if obj.uuid == '' and obj.handle == '':

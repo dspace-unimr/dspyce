@@ -5,7 +5,7 @@ from . import Community
 class Collection(DSpaceObject):
     community: Community
 
-    def __init__(self, community: Community = None, uuid: str = '', handle: str = '', name: str = ''):
+    def __init__(self, uuid: str = '', handle: str = '', name: str = '', community: Community = None, ):
         super().__init__(uuid, handle, name)
         self.community = community
 

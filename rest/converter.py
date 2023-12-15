@@ -2,7 +2,7 @@ from .. import DSpaceObject, Item, Community, Collection
 from ..DSpaceObject import parse_metadata_label
 
 
-def json_to_object(json_content: dict) -> DSpaceObject:
+def json_to_object(json_content: dict) -> DSpaceObject | Item | Community | Collection:
     """
     Converts a dict based on REST-format in to a DSpace Object.
 
@@ -14,15 +14,19 @@ def json_to_object(json_content: dict) -> DSpaceObject:
     handle = json_content['handle']
     metadata = json_content['metadata']
     doc_type = json_content['type']
-    _links = {link: json_content['_links'][link]['href'] if ('href' in json_content['_links'][link].keys()
-                                                             ) else json_content['_links'][link]
-              for link in json_content['_links'].keys()}
+    # _links = {}
+    # for link in json_content['_links'].keys():
+    #    if type(json_content['_links'][link]) is dict and 'href' in json_content['_links'][link].keys():
+    #        _links[link] = json_content['_links'][link]['href']
+    #    elif type(json_content['_links'][link]) is list:
+    #        _links[link] = {li['name']: li['href'] for li in json_content['_links'][link]}
+
     match doc_type:
-        case 'Community':
+        case 'community':
             obj = Community(uuid, handle=handle, name=name)
-        case 'Collection':
+        case 'collection':
             obj = Collection(uuid, handle=handle, name=name)
-        case 'Item':
+        case 'item':
             obj = Item(uuid, handle=handle, name=name)
         case _:
             obj = DSpaceObject(uuid, handle, name)
