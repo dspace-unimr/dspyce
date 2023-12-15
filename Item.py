@@ -43,6 +43,18 @@ class Item(DSpaceObject):
         """
         return self.metadata.get('dspace.entity.type') is not None
 
+    def get_entity_type(self) -> str | None:
+        """
+        Checks if the item is a DSpace-Entity and returns the value of dspace.entity.type if true, if not it returns
+        None.
+
+        :return: The entity type as a string, if existing, else None.
+        """
+        if self.is_entity():
+            return self.metadata.get('dspace.entity.type')
+        else:
+            return None
+
     def add_collection(self, c: Collection, primary: bool = False):
         """
         Adds an owning collection to the item. If primary is True, the collection will be set as the owning collection.
