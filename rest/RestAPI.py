@@ -67,7 +67,7 @@ class RestAPI:
         # Check if authentication was successfully:
         auth_status = self.session.get(auth_url.replace('login', 'status')).json()
         if 'authenticated' in auth_status and auth_status['authenticated'] is True:
-            print(f'The authentication as "{self.username}" was successfull')
+            print(f'The authentication as "{self.username}" was successfully')
             return True
         else:
             print('The authentication did not work.')
@@ -134,7 +134,8 @@ class RestAPI:
             raise ConnectionRefusedError('Authentication needed.')
         add_url = f'{self.api_endpoint}/core/bundles/{bundle.uuid}/bitstreams'
         obj_json = {'name': bitstream.file_name, 'metadata': {'dc.title': [{'value': bitstream.file_name}],
-                    'dc.description': [{'value': bitstream.description}]}, 'bundleName': bundle.name}
+                                                              'dc.description': [{'value': bitstream.description}]},
+                    'bundleName': bundle.name}
         if isinstance(bitstream, IIIFContent):
             bitstream: IIIFContent
             obj_json['metadata']['iiif.label'] = [{'value': bitstream.iiif['label']}]
@@ -159,8 +160,37 @@ class RestAPI:
             print('\n')
             raise e
 
-    def add_relationship(self, item: Item, relation: Relation):
-        pass
+    def add_relationship(self, relation: Relation) -> dict:
+        """
+        Creates a new relationship between to items based on the information in the Relation object.
+
+        :param relation: The relation to create.
+        """
+        if not self.authenticated:
+            raise ConnectionRefusedError('Authentication needed.')
+        add_url = f'{self.api_endpoint}/core/relationships?relationshipType={relation.relation_type}'
+        if relation.items[0] is None or relation.items[1] is None:
+            raise ValueError(f'Could not create Relation because of missing item information in relation: {relation}')
+        uuid_1 = relation.items[0].uuid
+        uuid_2 = relation.items[1].uuid
+        if uuid_1 == '' or uuid_2 == '':
+            raise ValueError(f'Relation via RestAPI can only be created by using item-uuids, but found: {relation}')
+        req = self.session.post(add_url)
+        self.update_csrf_token(req)
+        item_url = f'{self.api_endpoint}/core/items'
+        headers = self.session.headers
+        headers.update({'Content-Type': 'text/uri-list', 'User-Agent': self.req_headers['User-Agent']})
+        resp = self.session.post(add_url, f'{item_url}/{uuid_1} \n {item_url}/{uuid_2}', headers=headers)
+
+        print(headers)
+
+        if resp.status_code in (201, 200):
+            # Success post request
+            print(f'Created relationship: {relation}')
+            return resp.json()
+        else:
+            raise requests.exceptions.RequestException(f'{resp.status_code}: Could not post relation: \n{relation}\n'
+                                                       f'Got headers: {resp.headers}')
 
     def add_item(self, item: Item) -> Item:
         """
@@ -170,13 +200,42 @@ class RestAPI:
         :return: An item object including the new uuid.
         """
         bitstreams = item.contents
-        relations = item.relations if item.is_entity() else []
         dso = self.add_object(item)
         bundles = {i.name: i for i in [self.add_bundle(b, dso.uuid) for b in item.get_bundles()]}
         for b in bitstreams:
             self.add_bitstream(b, bundles[b.bundle.name])
         item.uuid = dso.uuid
+        relations = item.relations if item.is_entity() else []
+        if len(relations) > 0:
+            relation_types = {r.relation_key: r.relation_type for r in self.get_relations_by_type(
+                item.get_entity_type())}
+            relations = list(map(lambda x: Relation(x.relation_key, x.items, relation_types[x.relation_key]),
+                                 relations))
+        for r in relations:
+            self.add_relationship(r)
+
         return item
+
+    def get_relations_by_type(self, entity_type: str) -> list[Relation]:
+        """
+        Parses the REST API and returns a list of relationships, which have the given entity on the left or right side.
+
+        :param entity_type: The entity_type to look for.
+        :return: Return s a list of relations.
+        """
+        add_url = f'{self.api_endpoint}/core/relationshiptypes/search/byEntityType?type={entity_type}'
+        req = self.session.get(add_url)
+        self.update_csrf_token(req)
+        json_resp = req.json()
+        if req.status_code in (201, 200):
+            rel_dict = json_resp['_embedded']['relationshiptypes']
+            rel_list = []
+            for r in rel_dict:
+                rel_list.append(Relation(r['leftwardType'], relation_type=r['id']))
+                rel_list.append(Relation(r['rightwardType'], relation_type=r['id']))
+            return rel_list
+        else:
+            raise requests.exceptions.RequestException(f'Could not parse response with header: {req.headers}')
 
     def update_metadata(self, obj: DSpaceObject):
         if obj.uuid == '' and obj.handle == '':

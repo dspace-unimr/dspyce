@@ -1,1 +1,1 @@
-from ..rest import RestAPI
+from ..rest.RestAPI import RestAPI

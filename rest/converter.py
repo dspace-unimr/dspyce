@@ -15,7 +15,7 @@ def json_to_object(json_content: dict) -> DSpaceObject:
     metadata = json_content['metadata']
     doc_type = json_content['type']
     _links = {link: json_content['_links'][link]['href'] if ('href' in json_content['_links'][link].keys()
-                                                            ) else json_content['_links'][link]
+                                                             ) else json_content['_links'][link]
               for link in json_content['_links'].keys()}
     match doc_type:
         case 'Community':
@@ -76,5 +76,3 @@ def object_to_json(obj: DSpaceObject) -> dict:
         json_object['handle'] = obj.handle
     json_object['metadata'] = metadata
     return json_object
-
-
