@@ -160,3 +160,13 @@ class Item(DSpaceObject):
             for c in self.collections:
                 obj_str += f'\n\t\t{c.uuid}'
         return obj_str
+
+    def get_related(self) -> list[DSpaceObject]:
+        """
+        If this Item is an entity. This method will return a list of related items. If not the list will be empty.
+
+        :return: A list of DSpaceObjects (Items)
+        """
+        if not self.is_entity():
+            return []
+        return [r.items[1] for r in self.relations]
