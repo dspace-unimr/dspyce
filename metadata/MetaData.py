@@ -24,7 +24,7 @@ class MetaData:
         self.element = element
         self.qualifier = qualifier if qualifier is not None else ''
         self.value = value
-        self.language = language
+        self.language = language if language != '' else None
 
     def __eq__(self, other):
         if type(other) is not MetaData:

@@ -257,21 +257,24 @@ class RestAPI:
 
         return item
 
-    def get_api(self, endpoint: str) -> dict | None:
+    def get_api(self, endpoint: str, params: dict = None) -> dict | None:
         """
         Performs a get request to the api based on a given string endpoint returns the JSON response if successfully.
 
         :param endpoint: The endpoint information: aka https://self.api_endpoint/<endpoint>
+        :param params: A list of additional parameters to pass to the endpoint.
         :return: The json response as a dict.
         """
+        endpoint = endpoint if endpoint[0] != '/' else endpoint[1:]
         url = f'{self.api_endpoint}/{endpoint}'
-        req = self.session.get(url)
+        req = self.session.get(url, params=params if params is not None else {})
         self.update_csrf_token(req)
         json_resp = req.json()
         if req.status_code in (201, 200):
             return json_resp
         elif req.status_code == 404:
-            print('Object behind "{url}" does not exists')
+            print(req.json())
+            print(f'Object behind "{url}" does not exists')
             return None
         else:
             raise requests.exceptions.RequestException(f'Could not get item with from endpoint: {url}')
@@ -288,7 +291,12 @@ class RestAPI:
         if endpoint not in ('items', 'collections', 'communities'):
             raise ValueError(f"The endpoint '{endpoint}' does not exist. endpoint must be one of"
                              "('items', 'collections', 'communities')")
-        return json_to_object(self.get_api(url))
+        try:
+            obj = json_to_object(self.get_api(url))
+        except TypeError:
+            obj = None
+            print('An object could not be found!')
+        return obj
 
     def get_relations_by_type(self, entity_type: str) -> list[Relation]:
         """
@@ -350,25 +358,71 @@ class RestAPI:
         :param item_uuid: The uuid of the item.
         """
         url = f'core/items/{item_uuid}/owningCollection'
-        owning_collection = json_to_object(self.get_api(url))
+        get_result = self.get_api(url)
+        if get_result is None:
+            print('Problems with getting owning Collection!')
+            return []
+        owning_collection = json_to_object(get_result)
         mapped_collections = self.get_api(f'core/items/{item_uuid}/mappedCollections')['_embedded']['mappedCollections']
         return [owning_collection] + list(filter(lambda x: x is not None,
                                                  [json_to_object(m) for m in mapped_collections]))
 
-    def get_item(self, uuid: str, get_related: bool = True) -> Item:
+    def get_item(self, uuid: str, get_related: bool = True, pre_downloaded_item: Item = None) -> Item | None:
         """
         Retrieves a DSpace-Item by its uuid from the API.
 
         :param uuid: The uuid of the item to get.
         :param get_related: If true, also retrieves related items from the API.
+        :param pre_downloaded_item: If a pre downloaded item is provided (aka blank dso), then only additional
+        information such as relationships, owning collection, bundles and bitstreams will be provided.
         :return: An object of the class Item.
         """
         dso: Item
-        dso = self.get_dso(uuid, 'items')
+        dso = self.get_dso(uuid, 'items') if pre_downloaded_item is None else pre_downloaded_item
+        if dso is None:
+            print(f'The item with uuid "{uuid}" could not be found.')
+            return None
         if get_related:
             dso.relations = self.get_item_relationships(dso.uuid)
         dso.collections = self.get_item_collections(uuid)
         return dso
+
+    def get_items_in_scope(self, scope_uuid: str, query: str = '', size: int = -1, page: int = -1,
+                           full_item: bool = True) -> list[Item]:
+        """
+        Returns a list of DSpace items in a given collection or community. Can be further reduced by query parameter.
+
+        :param scope_uuid: The uuid of the collection to retrieve the items from.
+        :param query: Additional query parameters for the request.
+        :param size: The number of objects per page. Use -1 to select the default.
+        :param page: The page to retrieve if a paginated list is returned. Use -1 to retrieve all.
+        :param full_item: If the full item information should be downloaded (Including relationships, bundles and
+        bitstreams. This can be slower due to additional api calls).
+        :return: A list of Item objects.
+        """
+        query_params = {'scope': scope_uuid}
+        if query != '':
+            query_params.update({'query': query})
+        if page > -1:
+            query_params.update({'page': page})
+
+        search_req = self.get_api('discover/search/objects', query_params)
+        json_res = search_req['_embedded']['searchResult']
+        try:
+            item_list = [json_to_object(i['_embedded']['indexableObject']) for i in json_res['_embedded']['objects']]
+            item_list = list(filter(lambda x: isinstance(x, Item), item_list))
+            if full_item:
+                item_list = [self.get_item(i.uuid, True, i) for i in item_list]
+        except KeyError as e:
+            print(f'Problems with the following answer:\n{json_res}\n')
+            raise e
+
+        if page == -1:
+            number_pages = json_res['page']['totalPages']
+            for n in range(1, number_pages):
+                item_list += self.get_items_in_scope(scope_uuid, query, size, n, full_item)
+
+        return list(filter(lambda x: x is not None, item_list))
 
     def update_metadata(self, obj: DSpaceObject):
         if obj.uuid == '' and obj.handle == '':

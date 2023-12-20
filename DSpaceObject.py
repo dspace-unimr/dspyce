@@ -114,6 +114,6 @@ class DSpaceObject:
             if m.language is not None:
                 value = {m.language: value}
                 if tag in dict_obj.keys():
-                    value.update(dict_obj[tag] if type(dict_obj) is dict else {'': dict_obj[tag]})
+                    value.update(dict_obj[tag] if type(dict_obj[tag]) is dict else {'': dict_obj[tag]})
             dict_obj[tag] = value
         return dict_obj
