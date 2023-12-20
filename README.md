@@ -8,4 +8,4 @@ version >= 3.10 is necessary.
 
 The following class diagramm is the basis of the package:
 
-![pydspace.sv](https://gitlab.hrz.uni-marburg.de/dspace7/pydspace/-/wikis/uploads/1acc907ff46319bc2838e3aa658413b9/pydspace.svg)
+![pydspace.sv](docs/uml_diagramm.svg)
