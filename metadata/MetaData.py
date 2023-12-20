@@ -30,17 +30,19 @@ class MetaData:
         if type(other) is not MetaData:
             raise TypeError(f'Can not use = between type(Metadata) and type({type(other)})')
         other: MetaData
-        return (self.schema == other.schema and self.element == other.element and self.qualifier == other.qualifier
-                and self.value == other.value and self.language == other.language)
+        return self.get_tag() == other.get_tag() and self.value == other.value and self.language == other.language
 
     def __gt__(self, other):
         if type(other) is not MetaData:
             raise TypeError(f'Can not use > between type(Metadata) and type({type(other)})')
         other: MetaData
-        return (self.schema > other.schema or (self.schema == other.schema and self.element > other.element) or
-                (self.schema == other.schema and self.element == other.element and self.qualifier > other.qualifier) or
-                (self.schema == other.schema and self.element == other.element and self.qualifier == other.qualifier and
-                 self.value > other.value))
+        return self.__str__() > other.__str__()
+
+    def __lt__(self, other):
+        if type(other) is not MetaData:
+            raise TypeError(f'Can not use < between type(Metadata) and type({type(other)})')
+        other: MetaData
+        return self.__str__() < other.__str__()
 
     def __ge__(self, other):
         if type(other) is not MetaData:
@@ -55,7 +57,7 @@ class MetaData:
         return self < other or self == other
 
     def __str__(self):
-        return f'{self.schema}.{self.element}{"." + self.qualifier if self.qualifier != "" else ""}:{self.value}'
+        return f'{self.get_tag()}:{self.value}'
 
     def is_field(self, other) -> bool:
         """
