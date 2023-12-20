@@ -3,3 +3,4 @@ __pycache__/
 venv/
 pydoc-markdown.yml
 .gitlab-ci.yml
+pydspace.dia
