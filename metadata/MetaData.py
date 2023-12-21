@@ -66,7 +66,7 @@ class MetaData:
         :return: True, if the names are identical
         """
         if isinstance(other, MetaData):
-            return (self.get_tag() == other.get_tag() and self.language == other.language)
+            return self.get_tag() == other.get_tag() and self.language == other.language
         elif isinstance(other, str):
             field = other.split('.')
             if len(field) == 3:

@@ -505,6 +505,62 @@ class RestAPI:
 
         return list(filter(lambda x: x is not None, item_list))
 
+    def get_metadata_field(self, schema: str = '', element: str = '', qualifier: str = '',
+                           field_id: int = -1) -> list[dict]:
+        """
+        Checks if given metadata field exists in the DSpace instance. Returns one or more found metadata fields in a
+        list of dict.
+
+        :param schema: The schema of the field, if empty this field won't be taken in account for the search request.
+        :param element: The element of the field, if empty this field won't be taken in account for the search request.
+        :param qualifier: The qualifier of the field, if empty this field won't be taken in account for the search
+        request.
+        :param field_id: The exact metadata field id to look for. If the correct fields is already known.
+        :return: A list of dictionaries in the following form: {id: <id>, element: <element>, qualifier: <qualifier>,
+        scopeNote: <scopeNote>, schema: {id: <schema-id>, prefix: <prefix>, namespace: <namespace>]}
+        """
+
+        def parse_json_resp(json_resp: dict) -> dict:
+            """
+            Parses the answer of the REST-API response and returns it into the wanted format.
+            """
+            schema_resp = json_resp['_embedded']['schema']
+            return {'id': json_resp['id'],
+                    'element': json_resp['element'],
+                    'qualifier': json_resp['qualifier'],
+                    'scopeNote': json_resp['scopeNote'],
+                    'schema': {'id': schema_resp['id'], 'prefix': schema_resp['prefix'],
+                               'namespace': schema_resp['namespace']}
+                    }
+
+        url = f'core/metadatafields/'
+        if field_id > -1:
+            url += f'/{field_id}'
+            json_get = self.get_api(url)
+            return [] if json_get is None else [parse_json_resp(json_get)]
+        else:
+            url += 'search/byFieldName'
+            params = {}
+            if schema != '':
+                params.update({'schema': schema})
+            if element != '':
+                params.update({'element': element})
+            if qualifier != '':
+                params.update({'qualifier': qualifier})
+            json_get = self.get_api(url, params)
+            if json_get is None:
+                return []
+            pages = json_get['page']['totalPages']
+            current_page = json_get['page']['number'] + 1
+            results = [json_get]
+            for p in range(current_page, pages):
+                params['page'] = current_page
+                results.append(self.get_api(url, params))
+            field_objects = []
+            for r in results:
+                field_objects += [parse_json_resp(i) for i in r['_embedded']['metadatafields']]
+            return field_objects
+
     def update_metadata(self, obj: DSpaceObject):
         if obj.uuid == '' and obj.handle == '':
             raise ValueError('The object must provide identifier information! Could not find those in ' + str(obj))
