@@ -117,3 +117,13 @@ class DSpaceObject:
                     value.update(dict_obj[tag] if type(dict_obj[tag]) is dict else {'': dict_obj[tag]})
             dict_obj[tag] = value
         return dict_obj
+
+    def get_metadata_values(self, tag: str) -> list:
+        """
+        Retrieves the metadata values of a specific tag as a list.
+
+        :param tag: The metadata tag: prefix.element.qualifier
+        :return: The values as a list.
+        """
+        values = self.metadata.get(tag)
+        return values if isinstance(values, list) or values is None else [values]
