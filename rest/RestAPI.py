@@ -539,7 +539,7 @@ class RestAPI:
         request.
         :param field_id: The exact metadata field id to look for. If the correct fields is already known.
         :return: A list of dictionaries in the following form: {id: <id>, element: <element>, qualifier: <qualifier>,
-        scopeNote: <scopeNote>, schema: {id: <schema-id>, prefix: <prefix>, namespace: <namespace>]}
+        scopeNote: <scopeNote>, schema: {id: <schema-id>, prefix: <prefix>, namespace: <namespace>}
         """
 
         def parse_json_resp(json_resp: dict) -> dict:
@@ -672,7 +672,6 @@ class RestAPI:
         :return: The updated DSpace object.
         :raises ValueError: If a not existing objectType is used.
         """
-        patch_data = {}
         if isinstance(metadata, MetaData):
             metadata: MetaData
             values = [{"value": v,
@@ -705,7 +704,7 @@ class RestAPI:
         :param position: The position of the metadata value to delete. Can only be used, if only one tag is provided.
         :param obj_type: The type of DSpace object. Must be one of item, collection or community.
         :return: The updated DSpace object.
-        :raises ValueError: If a not existing objectType is used. Or a position is given, wen tag is a list.
+        :raises ValueError: If a not existing objectType is used. Or a position is given, when tag is a list.
         """
         if str(position) != '-1' and isinstance(tag, list):
             raise ValueError('Can not use position parameter if more than one tag is provided.')
