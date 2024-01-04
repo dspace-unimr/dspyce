@@ -70,9 +70,7 @@ class DSpaceObject:
         :param qualifier: The qualifier of the field.
         :param language: The language of the metadata field.
         """
-        md = MetaData(prefix, element, qualifier, value, language)
-        print(md)
-        self.metadata.append(md)
+        self.metadata.append(MetaData(prefix, element, qualifier, value, language))
 
     def get_dspace_object_type(self) -> str:
         """

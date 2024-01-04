@@ -633,7 +633,6 @@ class RestAPI:
         url = 'core/' + f'{obj_type}s' if obj_type in ('item', 'collection') else 'communities'
 
         json_resp = self.patch_api(f'{url}/{object_uuid}', patch_json)
-        print(f'\t{json_resp}')
         return json_to_object(json_resp)
 
     def add_metadata(self, metadata: list[MetaData] | dict[str, list[dict]], object_uuid: str,
