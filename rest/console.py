@@ -11,6 +11,7 @@ def authenticate_to_rest(rest_api: str) -> RestAPI:
     """
     print(f'Establishing connection to the REST-API "{rest_api}":')
     authentication = False
+    rest_server = None
     while not authentication:
         username = input('\tPlease enter your username: ')
         password = getpass('\tPassword: ')
