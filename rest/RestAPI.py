@@ -4,6 +4,7 @@ from ..Relation import Relation
 from ..bitstreams import Bundle, ContentFile, IIIFContent
 import json
 from ..DSpaceObject import parse_metadata_label
+from ..metadata import MetaData
 
 
 def json_to_object(json_content: dict) -> DSpaceObject | Item | Community | Collection | None:
@@ -18,12 +19,6 @@ def json_to_object(json_content: dict) -> DSpaceObject | Item | Community | Coll
     handle = json_content['handle']
     metadata = json_content['metadata']
     doc_type = json_content['type']
-    # _links = {}
-    # for link in json_content['_links'].keys():
-    #    if type(json_content['_links'][link]) is dict and 'href' in json_content['_links'][link].keys():
-    #        _links[link] = json_content['_links'][link]['href']
-    #    elif type(json_content['_links'][link]) is list:
-    #        _links[link] = {li['name']: li['href'] for li in json_content['_links'][link]}
     if json_content is None:
         return None
     match doc_type:
@@ -134,7 +129,34 @@ class RestAPI:
             return json_resp
         else:
             raise requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
-                                                       f'Could not post content: \n{json_data}\nWith params: {params}')
+                                                       f'Could not post content: \n\t{json_data}'
+                                                       f'\nWith params: {params}\nOn endpoint:\n\t{url}')
+
+    def patch_api(self, url: str, json_data: list, params: dict = None) -> dict:
+        """
+        Sends a patch request to the api in order to update, add or remove metadata information.
+
+        :param url: The url of the api, where to replace the metadata.
+        :param json_data: The data object containing action information.
+        :param params: Additional params for the operation.
+        :return: The JSON response of the server, if the operation was successfull.
+        :raise RequestException: If the JSON response doesn't have the status code 200 or 201
+        """
+        url = f'{self.api_endpoint}/{url}' if self.api_endpoint not in url else url
+        req = self.session.patch(url)
+        self.update_csrf_token(req)
+        resp = self.session.patch(url, json=json_data, headers=self.req_headers)
+
+        if resp.status_code in (201, 200):
+            # Success post request
+            json_resp = resp.json()
+            print(f'\tSuccessfully updated object with uuid: {json_resp["uuid"]}.')
+            return json_resp
+        else:
+            exception = requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
+                                                             f'Could not put content: \n\t{json_data}'
+                                                             f'\nWith params: {params}\nOn endpoint:\n\t{url}')
+            raise exception
 
     def authenticate_api(self) -> bool:
         """
@@ -561,7 +583,132 @@ class RestAPI:
                 field_objects += [parse_json_resp(i) for i in r['_embedded']['metadatafields']]
             return field_objects
 
-    def update_metadata(self, obj: DSpaceObject):
-        if obj.uuid == '' and obj.handle == '':
-            raise ValueError('The object must provide identifier information! Could not find those in ' + str(obj))
-        pass
+    def update_metadata(self, metadata: dict[str, (list[dict] | dict[str, dict])], object_uuid: str, obj_type: str,
+                        operation: str, position: int = -1) -> DSpaceObject:
+        """
+        Update a new metadata value information to a DSpace object, identified by its uuid.
+
+        :param metadata: A list of metadata to update as a MetaData object or dict object in the REST form, aka
+        {<tag> : [{"value": <value>, "language": <language>...}]}. May also contain position information. For "remove"-
+        operation the form must be {<tag>: [{postion: <position>}] | []}
+        :param object_uuid: The uuid of the object to add the metadata to.
+        :param obj_type: The type of DSpace object. Must be one of item, collection or community
+        :param operation: The selected update operation. Must be one off (add, replace, remove).
+        :param position: The position of the metadata value to add. Only possible if metadata is of type dict[dict[]]
+        :return: The updated DSpace object.
+        :raises ValueError: If a not existing objectType is used or wrong operation type.
+        """
+        if obj_type not in ('item', 'collection', 'community'):
+            raise ValueError(f'Wrong object type information "{obj_type}" must be one of item, collection or community')
+        if operation not in ('add', 'replace', 'remove'):
+            raise ValueError(f'Wrong update operation "{operation}" must be one off (add, replace, remove).')
+
+        patch_json = []
+        """ Form: [{"op": "<operation>",
+                    "path": "/metadata/<tag>",
+                    "value": [{"value": <value>, "language": <language>}]}]
+        """
+
+        if operation in ('add', 'replace'):
+            for k in metadata.keys():
+                values = metadata[k]
+                rank = ''
+                if type(metadata[k]) is dict:
+                    metadata[k]: dict
+                    rank = f'/{metadata[k]["position"]}'if "position" in metadata[k].keys() else ''
+                    rank = f'/{position}' if rank == '' and str(position) != '-1' else rank
+                    values = {"value": metadata[k]["value"]}
+                    if "language" in metadata[k].keys():
+                        values.update({"language": metadata[k]["language"]})
+                patch_json.append({"op": operation, "path": f"/metadata/{k}" + rank, "value": values})
+        else:
+            for k in metadata.keys():
+                rank = [i['position'] for i in metadata[k]]
+                if len(rank) > 0:
+                    patch_json += [{"op": operation, "path": f"/metadata/{k}/{r}"} for r in rank]
+                else:
+                    patch_json.append({"op": operation, "path": f"/metadata/{k}" +
+                                                                (f'/{position}' if str(position) != '-1' else '')})
+
+        url = 'core/' + f'{obj_type}s' if obj_type in ('item', 'collection') else 'communities'
+
+        json_resp = self.patch_api(f'{url}/{object_uuid}', patch_json)
+        print(f'\t{json_resp}')
+        return json_to_object(json_resp)
+
+    def add_metadata(self, metadata: list[MetaData] | dict[str, list[dict]], object_uuid: str,
+                     obj_type: str) -> DSpaceObject:
+        """
+        Add a new metadata value information to a DSpace object, identified by its uuid.
+
+        :param metadata: A list of metadata to update as a MetaData object or dict object in the REST form, aka
+        {<tag> : [{"value": <value>, "language": <language>...}]}
+        :param object_uuid: The uuid of the object to add the metadata to.
+        :param obj_type: The type of DSpace object. Must be one of item, collection or community.
+        :return: The updated DSpace object.
+        :raises ValueError: If a not existing objectType is used.
+        """
+
+        if not isinstance(metadata, dict):
+            metadata_dict = {}
+            for m in metadata:
+                values = [{"value": v,
+                           "language": m.language} for v in (m.value if type(m.value) is list else [m.value])]
+                values += metadata_dict[m.get_tag()] if m.get_tag() in metadata_dict.keys() else []
+                metadata_dict[m.get_tag()] = values
+            metadata = metadata_dict
+
+        return self.update_metadata(metadata, object_uuid, obj_type, 'add')
+
+    def replace_metadata(self, metadata: MetaData | dict[str, list[dict] | dict], object_uuid: str,
+                         obj_type: str, position: int = -1) -> DSpaceObject:
+        """
+        Add a new metadata value information to a DSpace object, identified by its uuid.
+
+        :param metadata: A list of metadata to update as a MetaData object or dict object in the REST form, aka
+        {<tag> : [{"value": <value>, "language": <language>...}]}
+        :param object_uuid: The uuid of the object to add the metadata to.
+        :param obj_type: The type of DSpace object. Must be one of item, collection or community.
+        :param position: The position of the metadata value to replace.
+        :return: The updated DSpace object.
+        :raises ValueError: If a not existing objectType is used.
+        """
+        patch_data = {}
+        if isinstance(metadata, MetaData):
+            metadata: MetaData
+            values = [{"value": v,
+                       "language": metadata.language} for v in (metadata.value if (type(metadata.value)
+                                                                                   is list) else [metadata.value])]
+
+            patch_data = {metadata.get_tag(): values}
+        else:
+            metadata: dict[str, list[dict]]
+            # Check if position argument is not used correctly
+            if len(metadata.keys()) > 1 and str(position) != '-1':
+                raise Warning('Could not set same position metadata for more than one metadata tag.')
+            elif (len(metadata.keys()) == 1 and type(metadata[list(metadata.keys())[0]]) is list
+                  and str(position) != '-1'):
+                raise Warning('Could not use one position argument for more than one metadata-value.')
+            if len(metadata.keys()) == 0:
+                patch_data = {k: metadata[k][0] if len(metadata[k]) == 1 else metadata[k] for k in metadata.keys()}
+            else:
+                patch_data = metadata
+
+        return self.update_metadata(patch_data, object_uuid, obj_type, 'replace', position=position)
+
+    def delete_metadata(self, tag: str | list[str], object_uuid: str,
+                        obj_type: str, position: int | str = -1) -> DSpaceObject:
+        """
+        Deletes a specific metadata-field or value of a DSpace Item. Can delete a list of fields as well as only one.
+
+        :param tag: A tag or list of tags wich shall be deleted.
+        :param object_uuid: The uuid of the DSpace Item to delete the metadata from.
+        :param position: The position of the metadata value to delete. Can only be used, if only one tag is provided.
+        :param obj_type: The type of DSpace object. Must be one of item, collection or community.
+        :return: The updated DSpace object.
+        :raises ValueError: If a not existing objectType is used. Or a position is given, wen tag is a list.
+        """
+        if str(position) != '-1' and isinstance(tag, list):
+            raise ValueError('Can not use position parameter if more than one tag is provided.')
+        tag = [tag] if not isinstance(tag, list) else tag
+        return self.update_metadata({t: [] for t in tag}, object_uuid, obj_type, operation='remove', position=position)
