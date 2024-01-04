@@ -42,13 +42,12 @@ class DSpaceObject:
 
         :param uuid: The uuid of the DSpaceObject. Default is ''
         :param handle: The handle of the DSpaceObject. Default is ''
+        :param name: The name of the DSpaceObject, if existing.
         """
         self.uuid = uuid
         self.handle = handle
         self.name = name
         self.metadata = MetaDataList([])
-        if name != '':
-            self.add_dc_value('title', None, name)
 
     def add_dc_value(self, element: str, qualifier: str | None, value: str, language: str = None):
         """
@@ -71,7 +70,9 @@ class DSpaceObject:
         :param qualifier: The qualifier of the field.
         :param language: The language of the metadata field.
         """
-        self.metadata.append(MetaData(prefix, element, qualifier, value, language))
+        md = MetaData(prefix, element, qualifier, value, language)
+        print(md)
+        self.metadata.append(md)
 
     def get_dspace_object_type(self) -> str:
         """

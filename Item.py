@@ -19,7 +19,7 @@ class Item(DSpaceObject):
 
         :param uuid: The uuid of the Item.
         :param handle: The handle of the Item.
-        :param name: The name of the DSpace Item.
+        :param name: The name of the DSpace Item, if existing.
         :param collections: Collections connected to this item. The first collection in the list will be the owning
         collection. Just an uuid can also be provided.
         """
