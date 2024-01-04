@@ -35,7 +35,7 @@ class MetaDataList(list):
             raise TypeError('The type of the other list must correspond to MetadataList')
 
     def __str__(self):
-        return [str(i) for i in self]
+        return ', '.join([str(i) for i in self])
 
     def __add__(self, other):
         if isinstance(other, type(self)):
