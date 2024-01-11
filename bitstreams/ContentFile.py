@@ -30,7 +30,8 @@ class ContentFile:
     """A uuid if the ContentFile already exists in a DSpace-Instance."""
 
     def __init__(self, content_type: str, name: str, path: str, content: str | bytes = '',
-                 bundle: str | Bundle = Bundle.DEFAULT_BUNDLE, primary: bool = False, show: bool = True):
+                 bundle: str | Bundle = Bundle.DEFAULT_BUNDLE, uuid: str = None, primary: bool = False,
+                 show: bool = True):
         """
         Creates a new ContentFile object.
 
@@ -40,6 +41,7 @@ class ContentFile:
         :param path: The path, where the file is currently stored.
         :param content: The content of the file, if it shouldn't be loaded from the system.
         :param bundle: The bundle, where the bitstream should be placed in. The default is ORIGINAL.
+        :param uuid: The uuid of the bitstream if existing.
         :param primary: Primary is used to specify the primary bitstream.
         :param show: If the bitstream should be listed in the saf-content file. Default: True - if the type is relations
         or handle the default is False.
@@ -64,7 +66,7 @@ class ContentFile:
             self.bundle = Bundle(name=bundle)
         else:
             self.bundle = bundle
-
+        self.uuid = uuid
         self.primary = primary
         self.show = show
         if self.content_type in ('relations', 'handle', 'collections'):

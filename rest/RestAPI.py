@@ -406,6 +406,57 @@ class RestAPI:
             print('An object could not be found!')
         return obj
 
+    def get_paginated_objects(self, endpoint: str, object_key: str, query_params: dict = None, page: int = -1,
+                              size: int = 20) -> list:
+        """
+        Retrieves a paginated list of objects from the remote dspace endpoint and returns them as a list.
+
+        :param endpoint: The endpoint to retrieve the objects from.
+        :param object_key: The dict key to get the object list from the json-response. For example "bundles" or
+        "bitstreams"
+        :param query_params: Additional query parameters to add to the request.
+        :param page: The page number to retrieve. Must be set to -1 to retrieve all pages. Default -1.
+        :param size: The page size, aka the number of objects per page.
+        :return: The list of retrieved objects.
+        """
+        query_params = {} if query_params is None else query_params
+        query_params.update({'size': size})
+        if page > -1:
+            query_params.update({'page': page})
+        endpoint_json = self.get_api(endpoint, params=query_params)
+        try:
+            object_list = endpoint_json["_embedded"][object_key]
+        except KeyError as e:
+            print('Problems with parsing paginated object list. A Key-Error occurred.\n', endpoint_json)
+            raise e
+        if page == -1:
+            page_info = endpoint_json["page"]
+            for p in range(1, page_info['totalPages']):
+                object_list += self.get_paginated_objects(endpoint, object_key, query_params, p, size)
+        return object_list
+
+    def get_item_bitstreams(self, item_uuid: str) -> list[ContentFile]:
+        """
+        Retrieves the bitstreams connected to a DSpace Object. And returns them as a list.
+
+        :param item_uuid: The uuid of the item to retrieve the bitstreams from.
+        :return: A list of ContentFile objects.
+        """
+        bitstreams = []
+        bundles = self.get_paginated_objects(f'/core/items/{item_uuid}/bundles', 'bundles')
+        for b in bundles:
+            bitstream_link = f"/core/bundles/{b['uuid']}/bitstreams"
+            bundle_description = b['metadata']['dc.description'][0]['value'] if ('dc.description'
+                                                                                 in b['metadata'].keys()) else ''
+            for o in self.get_paginated_objects(bitstream_link, 'bitstreams'):
+                description = o['metadata']['dc.description'][0]['value'] if ('dc.description'
+                                                                              in o['metadata'].keys()) else ''
+                bitstream = ContentFile('other', o['name'], o['_links']['content']['href'],
+                                        bundle=Bundle(b['name'], bundle_description, b['uuid']), uuid=o['uuid'])
+                bitstream.add_description(description)
+                bitstreams.append(bitstream)
+        return bitstreams
+
     def get_relations_by_type(self, entity_type: str) -> list[Relation]:
         """
         Parses the REST API and returns a list of relationships, which have the given entity on the left or right side.
@@ -413,19 +464,14 @@ class RestAPI:
         :param entity_type: The entity_type to look for.
         :return: Return s a list of relations.
         """
-        add_url = f'{self.api_endpoint}/core/relationshiptypes/search/byEntityType?type={entity_type}'
-        req = self.session.get(add_url)
-        self.update_csrf_token(req)
-        json_resp = req.json()
-        if req.status_code in (201, 200):
-            rel_dict = json_resp['_embedded']['relationshiptypes']
-            rel_list = []
-            for r in rel_dict:
-                rel_list.append(Relation(r['leftwardType'], relation_type=r['id']))
-                rel_list.append(Relation(r['rightwardType'], relation_type=r['id']))
-            return rel_list
-        else:
-            raise requests.exceptions.RequestException(f'Could not parse response with header: {req.headers}')
+        add_url = f'{self.api_endpoint}/core/relationshiptypes/search/byEntityType'
+        params = {type: entity_type}
+        rel_list = []
+        relations = self.get_paginated_objects(add_url, 'relationshiptypes', params)
+        for r in relations:
+            rel_list.append(Relation(r['leftwardType'], relation_type=r['id']))
+            rel_list.append(Relation(r['rightwardType'], relation_type=r['id']))
+        return rel_list
 
     def get_item_relationships(self, item_uuid: str) -> list[Relation]:
         """
@@ -434,29 +480,24 @@ class RestAPI:
         :param item_uuid: The uuid of the item to retrieve the relationships for.
         :return: A list of relation objects.
         """
-        url = f'{self.api_endpoint}/core/items/{item_uuid}/relationships'
-        req = self.session.get(url)
-        self.update_csrf_token(req)
-        json_resp = req.json()
+        url = f'/core/items/{item_uuid}/relationships'
+
+        rel_list = self.get_paginated_objects(url, 'relationships')
         relations = []
-        if req.status_code in (201, 200):
-            rel_list = json_resp['_embedded']['relationships']
-            for r in rel_list:
-                left_item = r['_links']['leftItem']['href'].split('/')[-1]
-                right_item = r['_links']['rightItem']['href'].split('/')[-1]
-                direction = 'leftwardType' if item_uuid == right_item else 'rightwardType'
-                # Retrieve the type information:
-                type_req = self.session.get(r['_links']['relationshipType']['href'])
-                rel_key = type_req.json()[direction]
-                rel_type = type_req.json()['id']
-                # Set the correct item order.
-                left_item = self.get_item(left_item, False)
-                right_item = self.get_item(right_item, False)
-                items = (left_item, right_item) if direction == 'rightwardType' else (right_item, left_item)
-                relations.append(Relation(rel_key, items, rel_type))
-            return relations
-        else:
-            return []
+        for r in rel_list:
+            left_item = r['_links']['leftItem']['href'].split('/')[-1]
+            right_item = r['_links']['rightItem']['href'].split('/')[-1]
+            direction = 'leftwardType' if item_uuid == right_item else 'rightwardType'
+            # Retrieve the type information:
+            type_req = self.session.get(r['_links']['relationshipType']['href'])
+            rel_key = type_req.json()[direction]
+            rel_type = type_req.json()['id']
+            # Set the correct item order.
+            left_item = self.get_item(left_item, False)
+            right_item = self.get_item(right_item, False)
+            items = (left_item, right_item) if direction == 'rightwardType' else (right_item, left_item)
+            relations.append(Relation(rel_key, items, rel_type))
+        return relations
 
     def get_item_collections(self, item_uuid: str) -> list[Collection]:
         """
@@ -471,28 +512,32 @@ class RestAPI:
             print('Problems with getting owning Collection!')
             return []
         owning_collection = json_to_object(get_result)
-        mapped_collections = self.get_api(f'core/items/{item_uuid}/mappedCollections')['_embedded']['mappedCollections']
+        mapped_collections = self.get_paginated_objects(f'core/items/{item_uuid}/mappedCollections',
+                                                        'mappedCollections')
         return [owning_collection] + list(filter(lambda x: x is not None,
                                                  [json_to_object(m) for m in mapped_collections]))
 
-    def get_item(self, uuid: str, get_related: bool = True, pre_downloaded_item: Item = None) -> Item | None:
+    def get_item(self, uuid: str, get_related: bool = True, get_bitstreams: bool = True,
+                 pre_downloaded_item: Item = None) -> Item | None:
         """
         Retrieves a DSpace-Item by its uuid from the API.
 
         :param uuid: The uuid of the item to get.
         :param get_related: If true, also retrieves related items from the API.
+        :param get_bitstreams: If true, also retrieves bitstreams of the item from the API.
         :param pre_downloaded_item: If a pre downloaded item is provided (aka blank dso), then only additional
         information such as relationships, owning collection, bundles and bitstreams will be provided.
         :return: An object of the class Item.
         """
-        dso: Item
         dso = self.get_dso(uuid, 'items') if pre_downloaded_item is None else pre_downloaded_item
         if dso is None:
             print(f'The item with uuid "{uuid}" could not be found.')
             return None
         if get_related:
             dso.relations = self.get_item_relationships(dso.uuid)
-        dso.collections = self.get_item_collections(uuid)
+        if get_bitstreams:
+            dso.contents = self.get_item_bitstreams(dso.uuid)
+        dso.collections = self.get_item_collections(dso.uuid)
         return dso
 
     def get_items_in_scope(self, scope_uuid: str, query: str = '', size: int = -1, page: int = -1,
@@ -520,7 +565,7 @@ class RestAPI:
             item_list = [json_to_object(i['_embedded']['indexableObject']) for i in json_res['_embedded']['objects']]
             item_list = list(filter(lambda x: isinstance(x, Item), item_list))
             if full_item:
-                item_list = [self.get_item(i.uuid, True, i) for i in item_list]
+                item_list = [self.get_item(i.uuid, True, True, i) for i in item_list]
         except KeyError as e:
             print(f'Problems with the following answer:\n{json_res}\n')
             raise e
