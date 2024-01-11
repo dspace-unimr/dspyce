@@ -176,7 +176,7 @@ class RestAPI:
                                                        f'Could not post content: \n\t{json_data}'
                                                        f'\nWith params: {params}\nOn endpoint:\n\t{url}')
 
-    def patch_api(self, url: str, json_data: list, params: dict = None) -> dict:
+    def patch_api(self, url: str, json_data: list, params: dict = None) -> dict | None:
         """
         Sends a patch request to the api in order to update, add or remove metadata information.
 
