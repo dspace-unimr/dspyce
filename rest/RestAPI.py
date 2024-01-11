@@ -117,6 +117,50 @@ class RestAPI:
             self.session.headers.update({'X-XSRF-Token': csrf})
             self.session.cookies.update({'X-XSRF-Token': csrf})
 
+    def authenticate_api(self) -> bool:
+        """
+        Authenticates to the REST-API
+
+        :return: True, if the authentication worked.
+        """
+        print('Trying to authenticate against the REST-API:')
+        auth_url = f'{self.api_endpoint}/authn/login'
+        req = self.session.post(auth_url)
+        self.update_csrf_token(req)
+        req = self.session.post(auth_url, data={'user': self.username, 'password': self.password})
+        if 'Authorization' in req.headers:
+            self.session.headers.update({'Authorization': req.headers.get('Authorization')})
+        # Check if authentication was successfully:
+        auth_status = self.session.get(auth_url.replace('login', 'status')).json()
+        if 'authenticated' in auth_status and auth_status['authenticated'] is True:
+            print(f'The authentication as "{self.username}" was successfully')
+            return True
+        else:
+            print('The authentication did not work.')
+            return False
+
+    def get_api(self, endpoint: str, params: dict = None) -> dict | None:
+        """
+        Performs a get request to the api based on a given string endpoint returns the JSON response if successfully.
+
+        :param endpoint: The endpoint information: aka https://self.api_endpoint/<endpoint>
+        :param params: A list of additional parameters to pass to the endpoint.
+        :return: The json response as a dict.
+        """
+        endpoint = endpoint if endpoint[0] != '/' else endpoint[1:]
+        url = f'{self.api_endpoint}/{endpoint}'
+        req = self.session.get(url, params=params if params is not None else {})
+        self.update_csrf_token(req)
+        json_resp = req.json()
+        if req.status_code in (201, 200):
+            return json_resp
+        elif req.status_code == 404:
+            print(req.json())
+            print(f'Object behind "{url}" does not exists')
+            return None
+        else:
+            raise requests.exceptions.RequestException(f'Could not get item with from endpoint: {url}')
+
     def post_api(self, url: str, json_data: dict, params: dict) -> dict:
         req = self.session.post(url)
         self.update_csrf_token(req)
@@ -153,32 +197,15 @@ class RestAPI:
             print(f'\tSuccessfully updated object with uuid: {json_resp["uuid"]}.')
             return json_resp
         else:
+            if resp.status_code == 204:
+                operation = [int((i["op"] if "op" in i.keys() else '') == "remove") - 1 for i in json_data]
+                if sum(operation) == 0:
+                    print(f'\tSuccessfully deleted objects.')
+                    return None
             exception = requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
                                                              f'Could not put content: \n\t{json_data}'
                                                              f'\nWith params: {params}\nOn endpoint:\n\t{url}')
             raise exception
-
-    def authenticate_api(self) -> bool:
-        """
-        Authenticates to the REST-API
-
-        :return: True, if the authentication worked.
-        """
-        print('Trying to authenticate against the REST-API:')
-        auth_url = f'{self.api_endpoint}/authn/login'
-        req = self.session.post(auth_url)
-        self.update_csrf_token(req)
-        req = self.session.post(auth_url, data={'user': self.username, 'password': self.password})
-        if 'Authorization' in req.headers:
-            self.session.headers.update({'Authorization': req.headers.get('Authorization')})
-        # Check if authentication was successfully:
-        auth_status = self.session.get(auth_url.replace('login', 'status')).json()
-        if 'authenticated' in auth_status and auth_status['authenticated'] is True:
-            print(f'The authentication as "{self.username}" was successfully')
-            return True
-        else:
-            print('The authentication did not work.')
-            return False
 
     def add_object(self, obj: DSpaceObject) -> DSpaceObject | Collection | Item | Community:
         """
@@ -359,28 +386,6 @@ class RestAPI:
             self.add_relationship(r)
 
         return item
-
-    def get_api(self, endpoint: str, params: dict = None) -> dict | None:
-        """
-        Performs a get request to the api based on a given string endpoint returns the JSON response if successfully.
-
-        :param endpoint: The endpoint information: aka https://self.api_endpoint/<endpoint>
-        :param params: A list of additional parameters to pass to the endpoint.
-        :return: The json response as a dict.
-        """
-        endpoint = endpoint if endpoint[0] != '/' else endpoint[1:]
-        url = f'{self.api_endpoint}/{endpoint}'
-        req = self.session.get(url, params=params if params is not None else {})
-        self.update_csrf_token(req)
-        json_resp = req.json()
-        if req.status_code in (201, 200):
-            return json_resp
-        elif req.status_code == 404:
-            print(req.json())
-            print(f'Object behind "{url}" does not exists')
-            return None
-        else:
-            raise requests.exceptions.RequestException(f'Could not get item with from endpoint: {url}')
 
     def get_dso(self, uuid: str, endpoint: str) -> DSpaceObject | Item | Collection | Community:
         """
@@ -694,6 +699,8 @@ class RestAPI:
 
         return self.update_metadata(patch_data, object_uuid, obj_type, 'replace', position=position)
 
+# Delete section. Be carefully, when using it!
+
     def delete_metadata(self, tag: str | list[str], object_uuid: str,
                         obj_type: str, position: int | str = -1) -> DSpaceObject:
         """
@@ -710,3 +717,14 @@ class RestAPI:
             raise ValueError('Can not use position parameter if more than one tag is provided.')
         tag = [tag] if not isinstance(tag, list) else tag
         return self.update_metadata({t: [] for t in tag}, object_uuid, obj_type, operation='remove', position=position)
+
+    def delete_bitstream(self, bitstream_uuid: str | list[str]):
+        """
+        Permanently removes a bitstream of a list of bitstreams from the repository. Handle be carefully when using the
+        method, there won't be a confirmation step.
+
+        :param bitstream_uuid: The uuid of the bitstream to delete
+        """
+        bitstream_uuid = [bitstream_uuid] if isinstance(bitstream_uuid, str) else bitstream_uuid
+        patch_call = [{"op": "remove", "path": f"/bitstreams/{uuid}"} for uuid in bitstream_uuid]
+        self.patch_api("core/bitstreams", patch_call)
