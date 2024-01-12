@@ -288,7 +288,7 @@ class RestAPI:
         resp = self.session.send(self.session.prepare_request(req))
         try:
             return resp.json()['uuid']
-        except requests.exceptions.JSONDecodeError | KeyError as e:
+        except KeyError as e:
             print('\n')
             print(resp)
             print(resp.headers)
