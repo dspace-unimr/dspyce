@@ -25,7 +25,7 @@ class Bundle:
         self.description = description
 
     def __str__(self):
-        return self.name
+        return 'Bundle: ' + self.name + (' - ' + self.uuid if self.uuid is not None else '')
 
     def __eq__(self, other) -> bool:
         """

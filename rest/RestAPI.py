@@ -443,19 +443,29 @@ class RestAPI:
         :return: A list of ContentFile objects.
         """
         bitstreams = []
-        bundles = self.get_paginated_objects(f'/core/items/{item_uuid}/bundles', 'bundles')
+        bundles = self.get_item_bundles(item_uuid)
         for b in bundles:
-            bitstream_link = f"/core/bundles/{b['uuid']}/bitstreams"
-            bundle_description = b['metadata']['dc.description'][0]['value'] if ('dc.description'
-                                                                                 in b['metadata'].keys()) else ''
+            bitstream_link = f"/core/bundles/{b.uuid}/bitstreams"
             for o in self.get_paginated_objects(bitstream_link, 'bitstreams'):
                 description = o['metadata']['dc.description'][0]['value'] if ('dc.description'
                                                                               in o['metadata'].keys()) else ''
                 bitstream = ContentFile('other', o['name'], o['_links']['content']['href'],
-                                        bundle=Bundle(b['name'], bundle_description, b['uuid']), uuid=o['uuid'])
+                                        bundle=b, uuid=o['uuid'])
                 bitstream.add_description(description)
                 bitstreams.append(bitstream)
         return bitstreams
+
+    def get_item_bundles(self, item_uuid: str) -> list[Bundle]:
+        """
+        Retrieves the bundles connected to a DSpaceObject and returns them as list.
+
+        :param item_uuid: The uuid of the item to retrieve the bundles from.
+        :return: The list of Bundle objects.
+        """
+        bundle_json = self.get_paginated_objects(f'/core/items/{item_uuid}/bundles', 'bundles')
+        return [Bundle(b["name"],
+                       b['dc.description'][0]['value'] if 'dc.description' in b["metadata"].keys() else '',
+                       b['uuid']) for b in bundle_json]
 
     def get_relations_by_type(self, entity_type: str) -> list[Relation]:
         """
