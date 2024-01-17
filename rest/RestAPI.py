@@ -407,7 +407,7 @@ class RestAPI:
         return obj
 
     def get_paginated_objects(self, endpoint: str, object_key: str, query_params: dict = None, page: int = -1,
-                              size: int = 20) -> list:
+                              size: int = 20) -> list[dict]:
         """
         Retrieves a paginated list of objects from the remote dspace endpoint and returns them as a list.
 
@@ -424,6 +424,8 @@ class RestAPI:
         if page > -1:
             query_params.update({'page': page})
         endpoint_json = self.get_api(endpoint, params=query_params)
+        if 'discover/search/objects' in endpoint:
+            endpoint_json = endpoint_json['_embedded']['searchResult']
         try:
             object_list = endpoint_json["_embedded"][object_key]
         except KeyError as e:
@@ -551,7 +553,7 @@ class RestAPI:
         return dso
 
     def get_items_in_scope(self, scope_uuid: str, query: str = '', size: int = -1, page: int = -1,
-                           full_item: bool = True) -> list[Item]:
+                           full_item: bool = False) -> list[Item]:
         """
         Returns a list of DSpace items in a given collection or community. Can be further reduced by query parameter.
 
@@ -586,6 +588,30 @@ class RestAPI:
                 item_list += self.get_items_in_scope(scope_uuid, query, size, n, full_item)
 
         return list(filter(lambda x: x is not None, item_list))
+
+    def search_items(self, query_params: dict = None, size: int = -1, full_item: bool = False) -> list[DSpaceObject]:
+        """
+        Search items via rest-API using solr-base query parameters. Uses the endpoint /discover/search/objects. If no
+        query_params are provided, the whole repository will be retrieved.
+
+        :param query_params: A dictionary with query parameters to filter the search results.
+        :param size: The number of objects to retrieve per page.
+        :param full_item: If the full items (including relations and bitstreams) shall be downloaded or not.
+        Default false.
+        :return: The list of found DSpace objects.
+        """
+        object_list = self.get_paginated_objects('/discover/search/objects', 'objects', query_params,
+                                                 size=size)
+        dspace_objects = [json_to_object(obj['_embedded']['indexableObject']) for obj in object_list]
+        if not full_item:
+            return dspace_objects
+        else:
+            for o in dspace_objects:
+                if o.get_dspace_object_type() == 'Item':
+                    o: Item
+                    o.relations = self.get_item_relationships(o.uuid)
+                    o.contents = self.get_item_bitstreams(o.uuid)
+            return dspace_objects
 
     def get_metadata_field(self, schema: str = '', element: str = '', qualifier: str = '',
                            field_id: int = -1) -> list[dict]:
