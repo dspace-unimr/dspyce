@@ -3,12 +3,4 @@
 Python package for creating saf packages for DSpace item-imports and -updates.
 
 """
-
-from .DSpace import DSpace
-from .Relation import Relation
-from .ContentFile import ContentFile
-
-
-Dspace = DSpace
-ContentFile = ContentFile
-Relation = Relation
+from .saf import saf_packages, create_saf_package
