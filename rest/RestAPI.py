@@ -151,12 +151,11 @@ class RestAPI:
         url = f'{self.api_endpoint}/{endpoint}'
         req = self.session.get(url, params=params if params is not None else {})
         self.update_csrf_token(req)
-        json_resp = req.json()
         if req.status_code in (201, 200):
-            return json_resp
+            return req.json()
         elif req.status_code == 404:
-            print(req.json())
             print(f'Object behind "{url}" does not exists')
+            print(req.json())
             return None
         else:
             raise requests.exceptions.RequestException(f'Could not get item with from endpoint: {url}')
@@ -277,7 +276,7 @@ class RestAPI:
             obj_json['metadata']['iiif.toc'] = [{'value': bitstream.iiif['toc']}]
             obj_json['metadata']['iiif.image.width'] = [{'value': bitstream.iiif['w']}]
             obj_json['metadata']['iiif.image.height'] = [{'value': bitstream.iiif['h']}]
-        data_file = {'file': (bitstream.file_name, open(bitstream.path + bitstream.file_name, 'rb'))}
+        data_file = {'file': (bitstream.file_name, bitstream.get_bitstream_file())}
         req = self.session.post(add_url)
         self.update_csrf_token(req)
         headers = self.session.headers
@@ -325,7 +324,7 @@ class RestAPI:
             raise requests.exceptions.RequestException(f'{resp.status_code}: Could not post relation: \n{relation}\n'
                                                        f'Got headers: {resp.headers}')
 
-    def add_community(self, community: Community | DSpaceObject, create_tree: bool = True) -> Community:
+    def add_community(self, community: Community | DSpaceObject, create_tree: bool = False) -> Community:
         """
         Creates a new community in the DSpace instance and its owning community if create_tree is True.
 
@@ -339,7 +338,7 @@ class RestAPI:
 
         return self.add_object(community)
 
-    def add_collection(self, collection: Collection, create_tree: bool = True) -> Collection:
+    def add_collection(self, collection: Collection, create_tree: bool = False) -> Collection:
         """
         Creates a new collection in the DSpace instance and its owning communities if create_tree is True.
 
@@ -353,7 +352,7 @@ class RestAPI:
 
         return self.add_object(collection)
 
-    def add_item(self, item: Item, create_tree: bool = True) -> Item:
+    def add_item(self, item: Item, create_tree: bool = False) -> Item:
         """
         Adds an item object to DSpace including files and relations. Based on the add_object method.
 
@@ -529,6 +528,23 @@ class RestAPI:
         return [owning_collection] + list(filter(lambda x: x is not None,
                                                  [json_to_object(m) for m in mapped_collections]))
 
+    def get_parent_community(self, dso: Collection | Community) -> Community | None:
+        """
+        Retrieves the parent community of a given collection or Community.
+
+        :param dso: The object to get the parent community from. Must be either Collection or Community
+        """
+        url = f'core/{"collections" if type(dso) is Collection else "communities"}/{dso.uuid}/parentCommunity'
+        try:
+            get_result = self.get_api(url)
+        except requests.exceptions.RequestException:
+            return None
+        if get_result is None:
+            print('Problems with getting owning Community!')
+            return None
+        owning_community = json_to_object(get_result)
+        return owning_community
+
     def get_item(self, uuid: str, get_related: bool = True, get_bitstreams: bool = True,
                  pre_downloaded_item: Item = None) -> Item | None:
         """
@@ -609,8 +625,15 @@ class RestAPI:
             for o in dspace_objects:
                 if o.get_dspace_object_type() == 'Item':
                     o: Item
+                    o.collections = self.get_item_collections(o.uuid)
                     o.relations = self.get_item_relationships(o.uuid)
                     o.contents = self.get_item_bitstreams(o.uuid)
+                if o.get_dspace_object_type() == 'Collection':
+                    o: Collection
+                    o.community = self.get_parent_community(o)
+                if o.get_dspace_object_type() == 'Community':
+                    o: Community
+                    o.parent_community = self.get_parent_community(o)
             return dspace_objects
 
     def get_metadata_field(self, schema: str = '', element: str = '', qualifier: str = '',

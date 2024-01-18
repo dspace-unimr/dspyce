@@ -1,3 +1,4 @@
+import requests
 from ..bitstreams.Bundle import Bundle
 
 
@@ -108,3 +109,15 @@ class ContentFile:
         if rw not in ('r', 'w'):
             raise ValueError(f'Permission type must be "r" or "w". Got {rw} instead!')
         self.permissions.append({'type': rw, 'group': group_name})
+
+    def get_bitstream_file(self):
+        """
+        Returns the actual file as a TextIOWrapper object.
+        """
+        if self.path != '':
+            if 'https://' not in self.path and 'http://' not in self.path:
+                return open(self.path + self.file_name, 'rb')
+            else:
+                return requests.get(self.path).content
+        else:
+            return None
