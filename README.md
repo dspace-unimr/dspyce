@@ -1,4 +1,16 @@
 # dspyce
+## Table of Contents
+1. [Description](#description)
+2. [Contents](#contents)
+   1. [packages](#packages)
+   2. [classes](#classes)
+      1. [dspyce.DSpaceObject](#1-dspycedspaceobject)
+      2. [dspyce.Community](#2-dspycecommunity)
+      3. [dspyce.Collection](#3-dspycecollection)
+      4. [dspyce.Item](#4-dspyceitem)
+   3. [UML-Diagramm](#uml-diagramm)
+3. [Requirements](#requirements)
+
 ## Description
 The package pydspace helps to communicate with dspace interfaces. Currently, 
 [saf (Simple Archive Format)](saf) packages and the [RestAPI](rest) are supported.
