@@ -419,7 +419,8 @@ class RestAPI:
         :return: The list of retrieved objects.
         """
         query_params = {} if query_params is None else query_params
-        query_params.update({'size': size})
+        if size > -1:
+            query_params.update({'size': size})
         if page > -1:
             query_params.update({'page': page})
         endpoint_json = self.get_api(endpoint, params=query_params)
@@ -605,7 +606,7 @@ class RestAPI:
 
         return list(filter(lambda x: x is not None, item_list))
 
-    def search_items(self, query_params: dict = None, size: int = -1, full_item: bool = False) -> list[DSpaceObject]:
+    def search_items(self, query_params: dict = None, size: int = 20, full_item: bool = False) -> list[DSpaceObject]:
         """
         Search items via rest-API using solr-base query parameters. Uses the endpoint /discover/search/objects. If no
         query_params are provided, the whole repository will be retrieved.
