@@ -637,6 +637,17 @@ class RestAPI:
                     o.parent_community = self.get_parent_community(o)
             return dspace_objects
 
+    def get_all_items(self, page_size: int = 20, full_item: bool = False) -> list[DSpaceObject]:
+        """
+        Retrieves all Items from the REST-API. This method simply refers to the `search_items()` method without using
+        query_params, thus getting all items.
+
+        :param page_size: The number of objects to retrieve per page.
+        :param full_item: Whether the full_item including related items and bitstreams shall be downloaded.
+        :return: A list of all found DSpaceObjects
+        """
+        return self.search_items(None, page_size, full_item)
+
     def get_metadata_field(self, schema: str = '', element: str = '', qualifier: str = '',
                            field_id: int = -1) -> list[dict]:
         """
