@@ -1,8 +1,11 @@
 import requests
-from .. import DSpaceObject, Item, Community, Collection
+import json
+from ..DSpaceObject import DSpaceObject
+from ..Item import Item
+from ..Community import Community
+from ..Collection import Collection
 from ..Relation import Relation
 from ..bitstreams import Bundle, ContentFile, IIIFContent
-import json
 from ..DSpaceObject import parse_metadata_label
 from ..metadata import MetaData
 
