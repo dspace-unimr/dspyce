@@ -4,8 +4,10 @@ from .DSpaceObject import DSpaceObject
 from .Item import Item
 from .Collection import Collection
 from .Community import Community
-from .saf import *
-from .rest import *
+import dspyce.saf
+import dspyce.rest
+# from .rest import RestAPI, authenticate_to_rest, json_to_object, object_to_json
+import dspyce.statistics
 
 
 def from_dict(obj_dict: dict, obj_type: str = None) -> DSpaceObject | Item | Community | Collection:

@@ -35,6 +35,8 @@ class DSpaceObject:
     """The handle of the Object"""
     metadata: MetaDataList
     """The metadata provided for the object."""
+    statistic_reports: dict
+    """A dictionary of statistic report objects."""
 
     def __init__(self, uuid: str = '', handle: str = '', name: str = ''):
         """
@@ -48,6 +50,7 @@ class DSpaceObject:
         self.handle = handle
         self.name = name
         self.metadata = MetaDataList([])
+        self.statistic_reports = {}
 
     def add_dc_value(self, element: str, qualifier: str | None, value: str, language: str = None):
         """
@@ -126,3 +129,21 @@ class DSpaceObject:
         """
         values = self.metadata.get(tag)
         return values if isinstance(values, list) or values is None else [values]
+
+    def add_statistic_report(self, report: dict | list[dict]):
+        """
+        Adds a new report or list of reports as a dict object to the DSpaceObject
+
+        :param report: The report(s) to add.
+        """
+        report = [report] if isinstance(report, dict) else report
+        for r in report:
+            self.statistic_reports.update(r)
+
+    def has_statistics(self) -> bool:
+        """
+        Checks if statistic reports are available for this object.
+
+        :return: True if there is at least one report.
+        """
+        return len(self.statistic_reports.keys()) > 0
