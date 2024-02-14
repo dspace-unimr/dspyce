@@ -12,14 +12,18 @@ def parse_metadata_label(label: str) -> tuple[str, str, str | None]:
 
     :param label: The metadata label to parse.
     :return: A tuple containing prefix, element and qualifier of a label.
+    :raises ValueError: Raises a value-error if the label can not be parsed.
+    :raises AttributeError: Raises a attribute-error if the label isn't a string.
     """
+    if not isinstance(label, str):
+        raise AttributeError('The label must be from type string.')
     label = label.split('.')
     if len(label) == 2:
         return label[0], label[1], None
-    elif len(label) == 3:
+    if len(label) == 3:
         return label[0], label[1], label[2]
-    else:
-        raise KeyError(f'Could not parse dspace-metadata label "{label}"')
+
+    raise ValueError(f'Could not parse dspace-metadata label "{label}"')
 
 
 class DSpaceObject:
@@ -89,10 +93,10 @@ class DSpaceObject:
         """
         if self.uuid != '':
             return self.uuid
-        elif self.handle != '':
+        if self.handle != '':
             return self.handle
-        else:
-            return ''
+
+        return ''
 
     def __eq__(self, other):
         if self.uuid == '' and other.uuid == '':
@@ -106,7 +110,7 @@ class DSpaceObject:
 
     def to_dict(self) -> dict:
         """
-            Converts the curent item object to a dictionary object containing all available metadata.
+            Converts the current item object to a dictionary object containing all available metadata.
         """
         dict_obj = {'uuid': self.uuid, 'handle': self.handle, 'name': self.name}
         for m in self.metadata:
@@ -116,11 +120,12 @@ class DSpaceObject:
             if m.language is not None:
                 value = {m.language: value}
                 if tag in dict_obj.keys():
-                    value.update(dict_obj[tag] if type(dict_obj[tag]) is dict else {'': dict_obj[tag]})
+                    value.update(dict_obj[tag] if isinstance(dict_obj[tag], dict) else {'': dict_obj[tag]})
+                    # TODO: Correct language implementation in dictionary representations of DSpaceObject.
             dict_obj[tag] = value
         return dict_obj
 
-    def get_metadata_values(self, tag: str) -> list:
+    def get_metadata_values(self, tag: str) -> list | None:
         """
         Retrieves the metadata values of a specific tag as a list.
 
@@ -128,7 +133,9 @@ class DSpaceObject:
         :return: The values as a list.
         """
         values = self.metadata.get(tag)
-        return values if isinstance(values, list) or values is None else [values]
+        if values is None:
+            return None
+        return [v.value for v in (values if isinstance(values, list) else [values])]
 
     def add_statistic_report(self, report: dict | list[dict]):
         """

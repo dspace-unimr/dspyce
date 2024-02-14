@@ -38,5 +38,5 @@ class Bundle:
             raise TypeError(f'Can not compare type Bundle to "{type(other)}"')
         if self.uuid is None or other.uuid is None:
             return self.name == other.name
-        else:
-            return self.uuid == other.uuid and self.name == other.name
+
+        return self.uuid == other.uuid and self.name == other.name

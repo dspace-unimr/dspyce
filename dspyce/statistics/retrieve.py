@@ -6,10 +6,19 @@ REPORT_TYPES: tuple = ('TotalVisits', 'TotalVisitsPerMonth', 'TotalDownloads', '
 
 
 def get_point_views(point: dict) -> int | None:
+    """
+    Return the views value from a point dict, retrieved by the RestAPI of DSpace instance.
+
+    :param point: The dictionary contain the points' data.
+    :return: The views value, if existing, else None.
+    :raises TypeError: If the parameter point is not form type dict.
+    """
+    if not isinstance(point, dict):
+        raise TypeError(f'The parameter point must be a dictionary! But found: {type(point)}')
     if isinstance(point.get('values'), dict) and 'views' in point['values'].keys():
         return point['values']['views']
-    else:
-        return None
+
+    return None
 
 
 def download_statistics_to_object(object_uuid: str, report_type: str, rest_api: RestAPI) -> dict | None:
@@ -57,13 +66,13 @@ def download_statistics(object_list: list[str] | list[DSpaceObject], report_type
     """
     if len(object_list) > 0 and isinstance(object_list[0], str):
         return [download_statistics_to_object(str(o), report_type, rest_api) for o in object_list]
-    else:
-        for o in object_list:
-            o: DSpaceObject
-            tmp = download_statistics_to_object(o.uuid, report_type, rest_api)
-            o.add_statistic_report(tmp)
-            del tmp
-        return object_list
+
+    for o in object_list:
+        o: DSpaceObject
+        tmp = download_statistics_to_object(o.uuid, report_type, rest_api)
+        o.add_statistic_report(tmp)
+        del tmp
+    return object_list
 
 
 def all_statistics_to_object(obj: str | DSpaceObject, rest_api: RestAPI) -> list[dict] | DSpaceObject:
@@ -74,6 +83,7 @@ def all_statistics_to_object(obj: str | DSpaceObject, rest_api: RestAPI) -> list
     :param obj: The uuid of the object to get the report from or the corresponding DSpaceObject.
     :param rest_api: A given rest API to retrieve the data from.
     :return: A Report object containing the information.
+    :raise TypeError: If type(object) is not DSpaceObject
     """
     if isinstance(obj, DSpaceObject):
         stats = list(filter(lambda x: x is not None,
@@ -82,12 +92,12 @@ def all_statistics_to_object(obj: str | DSpaceObject, rest_api: RestAPI) -> list
         obj.add_statistic_report(stats)
         del stats
         return obj
-    elif isinstance(obj, str):
+    if isinstance(obj, str):
         return list(filter(lambda x: x is not None,
                            [download_statistics_to_object(obj,
                                                           report_type, rest_api) for report_type in REPORT_TYPES]))
-    else:
-        raise TypeError(f"The obj type must be either DSpaceObject or str, but got {type(obj)}!")
+
+    raise TypeError(f"The obj type must be either DSpaceObject or str, but got {type(obj)}!")
 
 
 def all_statistics(object_list: list[str] | list[DSpaceObject],
@@ -107,8 +117,8 @@ def all_statistics(object_list: list[str] | list[DSpaceObject],
             o: str
             reports += all_statistics_to_object(o, rest_api)
         return reports
-    else:
-        for o in object_list:
-            o: DSpaceObject
-            o.statistic_reports += all_statistics_to_object(o.uuid, rest_api)
-        return object_list
+
+    for o in object_list:
+        o: DSpaceObject
+        o.statistic_reports += all_statistics_to_object(o.uuid, rest_api)
+    return object_list

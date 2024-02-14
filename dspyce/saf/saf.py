@@ -33,7 +33,7 @@ def create_bitstreams(bitstreams: list[ContentFile], save_path: str):
             with open(b.path + b.file_name, 'rb') as f:
                 b.file = f.read()
 
-        with open(save_path + b.file_name, 'wb' if type(b.file) is bytes else 'w') as f:
+        with open(save_path + b.file_name, 'wb' if isinstance(b.file, bytes) else 'w') as f:
             file: bytes | str = b.file
             f.write(file)
     if contents != '':
@@ -62,7 +62,7 @@ def create_saf_package(item: Item, element_id: int, path: str, overwrite: bool =
         schema = '' if prefix == 'dc' else f' schema="{prefix}"'
         prefix_xml = f'<dublin_core{schema}>\n'
         for m in filter(lambda x: x.schema == prefix, metadata):
-            value = [m.value] if type(m.value) is not list else m.value
+            value = [m.value] if not isinstance(m.value, list) else m.value
             for v in value:
                 lang = f' language="{m.language}"' if m.language is not None else ''
                 prefix_xml += (f'\t<dcvalue element="{m.element}" qualifier="{m.qualifier}"{lang}>'
@@ -79,12 +79,12 @@ def create_saf_package(item: Item, element_id: int, path: str, overwrite: bool =
                                    f'in "{path}"')
     if f'item_{element_id}' in os.listdir(path) and not overwrite:
         raise exists_error
-    else:
-        try:
-            os.mkdir(f'{path}item_{element_id}')
-        except FileExistsError:
-            if not overwrite:
-                raise exists_error
+
+    try:
+        os.mkdir(f'{path}item_{element_id}')
+    except FileExistsError as e:
+        if not overwrite:
+            raise e
     path += f'item_{element_id}/'
     header = '<?xml version="1.0" encoding="UTF-8"?>\n'
     if 'dc' in item.metadata.get_schemas():

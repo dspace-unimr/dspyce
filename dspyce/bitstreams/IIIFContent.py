@@ -1,7 +1,8 @@
-from ..bitstreams import ContentFile
-from ..bitstreams.Bundle import Bundle
-from PIL import Image
 import warnings
+from PIL import Image
+
+from dspyce.bitstreams import ContentFile
+from dspyce.bitstreams.Bundle import Bundle
 
 
 class IIIFContent(ContentFile):
@@ -43,8 +44,10 @@ class IIIFContent(ContentFile):
         """
         export_name = super().__str__()
         if len(self.iiif.keys()) > 0:
-            export_name += '\tiiif-label:{}\tiiif-toc:{}\tiiif-width:{}\tiiif-height:{}'.format(
-                self.iiif['label'], self.iiif['toc'], self.iiif['w'], self.iiif['h'])
+            export_name += (f'\tiiif-label:{self.iiif["label"]}'
+                            f'\tiiif-toc:{self.iiif["toc"]}'
+                            f'\tiiif-width:{self.iiif["w"]}'
+                            f'\tiiif-height:{self.iiif["h"]}')
         else:
             warnings.warn('You are about to generate information of IIIF-specific DSpace bitstream, without providing'
                           'IIIF-specific information. Are you sure, you want to do this?')
