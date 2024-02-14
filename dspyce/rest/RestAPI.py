@@ -1,5 +1,6 @@
-import requests
 import json
+import requests
+
 from ..DSpaceObject import DSpaceObject
 from ..Item import Item
 from ..Community import Community
@@ -54,7 +55,7 @@ def object_to_json(obj: DSpaceObject) -> dict:
     obj_type = obj.get_dspace_object_type().lower()
     metadata = {}
     for m in obj.metadata:
-        value = m.value if type(m.value) is list else [m.value]
+        value = m.value if isinstance(m.value, list) else [m.value]
         values = []
         for v in value:
             tmp = {'value': v}
@@ -72,7 +73,7 @@ def object_to_json(obj: DSpaceObject) -> dict:
         json_object['name'] = name
     if obj_type is not None and obj_type != '':
         json_object['type'] = obj_type
-    if type(obj) is Item:
+    if isinstance(obj, Item):
         obj: Item
         json_object['inArchive'] = obj.in_archive
         json_object['discoverable'] = obj.discoverable
@@ -86,6 +87,10 @@ def object_to_json(obj: DSpaceObject) -> dict:
 
 
 class RestAPI:
+    """
+    The class RestAPI represents the REST API of a DSpace 7 backend. It helps to get, push, update or remove Objects,
+    Bitstreams, Relations, MetaData and other from a DSpace Instance.
+    """
     api_endpoint: str
     """The address of the api_endpoint."""
     username: str
@@ -138,9 +143,9 @@ class RestAPI:
         if 'authenticated' in auth_status and auth_status['authenticated'] is True:
             print(f'The authentication as "{self.username}" was successfully')
             return True
-        else:
-            print('The authentication did not work.')
-            return False
+
+        print('The authentication did not work.')
+        return False
 
     def get_api(self, endpoint: str, params: dict = None) -> dict | None:
         """
@@ -156,14 +161,17 @@ class RestAPI:
         self.update_csrf_token(req)
         if req.status_code in (201, 200):
             return req.json()
-        elif req.status_code == 404:
+        if req.status_code == 404:
             print(f'Object behind "{url}" does not exists')
             print(req.json())
             return None
-        else:
-            raise requests.exceptions.RequestException(f'Could not get item with from endpoint: {url}')
+
+        raise requests.exceptions.RequestException(f'Could not get item with from endpoint: {url}')
 
     def post_api(self, url: str, json_data: dict, params: dict) -> dict:
+        """
+        Performs a post action on the RestAPI endpoint.
+        """
         req = self.session.post(url)
         self.update_csrf_token(req)
         # print(f'Adding object in "{url}" with params ({params}):\n{json_data}')
@@ -173,10 +181,10 @@ class RestAPI:
             json_resp = resp.json()
             print(f'\tSuccessfully added object with uuid: {json_resp["uuid"]}')
             return json_resp
-        else:
-            raise requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
-                                                       f'Could not post content: \n\t{json_data}'
-                                                       f'\nWith params: {params}\nOn endpoint:\n\t{url}')
+
+        raise requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
+                                                   f'Could not post content: \n\t{json_data}'
+                                                   f'\nWith params: {params}\nOn endpoint:\n\t{url}')
 
     def patch_api(self, url: str, json_data: list, params: dict = None) -> dict | None:
         """
@@ -198,16 +206,16 @@ class RestAPI:
             json_resp = resp.json()
             print(f'\tSuccessfully updated object with uuid: {json_resp["uuid"]}.')
             return json_resp
-        else:
-            if resp.status_code == 204:
-                operation = [int((i["op"] if "op" in i.keys() else '') == "remove") - 1 for i in json_data]
-                if sum(operation) == 0:
-                    print(f'\tSuccessfully deleted objects.')
-                    return None
-            exception = requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
-                                                             f'Could not put content: \n\t{json_data}'
-                                                             f'\nWith params: {params}\nOn endpoint:\n\t{url}')
-            raise exception
+
+        if resp.status_code == 204:
+            operation = [int((i["op"] if "op" in i.keys() else '') == "remove") - 1 for i in json_data]
+            if sum(operation) == 0:
+                print('\tSuccessfully deleted objects.')
+                return None
+        exception = requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
+                                                         f'Could not put content: \n\t{json_data}'
+                                                         f'\nWith params: {params}\nOn endpoint:\n\t{url}')
+        raise exception
 
     def add_object(self, obj: DSpaceObject) -> DSpaceObject | Collection | Item | Community:
         """
@@ -323,9 +331,9 @@ class RestAPI:
             # Success post request
             print(f'\t\tCreated relationship: {relation}')
             return resp.json()
-        else:
-            raise requests.exceptions.RequestException(f'{resp.status_code}: Could not post relation: \n{relation}\n'
-                                                       f'Got headers: {resp.headers}')
+
+        raise requests.exceptions.RequestException(f'{resp.status_code}: Could not post relation: \n{relation}\n'
+                                                   f'Got headers: {resp.headers}')
 
     def add_community(self, community: Community | DSpaceObject, create_tree: bool = False) -> Community:
         """
@@ -538,7 +546,7 @@ class RestAPI:
 
         :param dso: The object to get the parent community from. Must be either Collection or Community
         """
-        url = f'core/{"collections" if type(dso) is Collection else "communities"}/{dso.uuid}/parentCommunity'
+        url = f'core/{"collections" if isinstance(dso, Collection) else "communities"}/{dso.uuid}/parentCommunity'
         try:
             get_result = self.get_api(url)
         except requests.exceptions.RequestException:
@@ -625,20 +633,20 @@ class RestAPI:
         dspace_objects = [json_to_object(obj['_embedded']['indexableObject']) for obj in object_list]
         if not full_item:
             return dspace_objects
-        else:
-            for o in dspace_objects:
-                if o.get_dspace_object_type() == 'Item':
-                    o: Item
-                    o.collections = self.get_item_collections(o.uuid)
-                    o.relations = self.get_item_relationships(o.uuid)
-                    o.contents = self.get_item_bitstreams(o.uuid)
-                if o.get_dspace_object_type() == 'Collection':
-                    o: Collection
-                    o.community = self.get_parent_community(o)
-                if o.get_dspace_object_type() == 'Community':
-                    o: Community
-                    o.parent_community = self.get_parent_community(o)
-            return dspace_objects
+
+        for o in dspace_objects:
+            if o.get_dspace_object_type() == 'Item':
+                o: Item
+                o.collections = self.get_item_collections(o.uuid)
+                o.relations = self.get_item_relationships(o.uuid)
+                o.contents = self.get_item_bitstreams(o.uuid)
+            if o.get_dspace_object_type() == 'Collection':
+                o: Collection
+                o.community = self.get_parent_community(o)
+            if o.get_dspace_object_type() == 'Community':
+                o: Community
+                o.parent_community = self.get_parent_community(o)
+        return dspace_objects
 
     def get_all_items(self, page_size: int = 20, full_item: bool = False) -> list[DSpaceObject]:
         """
@@ -679,33 +687,33 @@ class RestAPI:
                                'namespace': schema_resp['namespace']}
                     }
 
-        url = f'core/metadatafields/'
+        url = 'core/metadatafields/'
         if field_id > -1:
             url += f'/{field_id}'
             json_get = self.get_api(url)
             return [] if json_get is None else [parse_json_resp(json_get)]
-        else:
-            url += 'search/byFieldName'
-            params = {}
-            if schema != '':
-                params.update({'schema': schema})
-            if element != '':
-                params.update({'element': element})
-            if qualifier != '':
-                params.update({'qualifier': qualifier})
-            json_get = self.get_api(url, params)
-            if json_get is None:
-                return []
-            pages = json_get['page']['totalPages']
-            current_page = json_get['page']['number'] + 1
-            results = [json_get]
-            for p in range(current_page, pages):
-                params['page'] = current_page
-                results.append(self.get_api(url, params))
-            field_objects = []
-            for r in results:
-                field_objects += [parse_json_resp(i) for i in r['_embedded']['metadatafields']]
-            return field_objects
+
+        url += 'search/byFieldName'
+        params = {}
+        if schema != '':
+            params.update({'schema': schema})
+        if element != '':
+            params.update({'element': element})
+        if qualifier != '':
+            params.update({'qualifier': qualifier})
+        json_get = self.get_api(url, params)
+        if json_get is None:
+            return []
+        pages = json_get['page']['totalPages']
+        current_page = json_get['page']['number'] + 1
+        results = [json_get]
+        for p in range(current_page, pages):
+            params['page'] = p
+            results.append(self.get_api(url, params))
+        field_objects = []
+        for r in results:
+            field_objects += [parse_json_resp(i) for i in r['_embedded']['metadatafields']]
+        return field_objects
 
     def update_metadata(self, metadata: dict[str, (list[dict] | dict[str, dict])], object_uuid: str, obj_type: str,
                         operation: str, position: int = -1) -> DSpaceObject:
@@ -728,18 +736,17 @@ class RestAPI:
             raise ValueError(f'Wrong update operation "{operation}" must be one off (add, replace, remove).')
 
         patch_json = []
-        """ Form: [{"op": "<operation>",
-                    "path": "/metadata/<tag>",
-                    "value": [{"value": <value>, "language": <language>}]}]
-        """
+        # Form: [{"op": "<operation>",
+        #            "path": "/metadata/<tag>",
+        #            "value": [{"value": <value>, "language": <language>}]}]
 
         if operation in ('add', 'replace'):
             for k in metadata.keys():
                 values = metadata[k]
                 rank = ''
-                if type(metadata[k]) is dict:
+                if isinstance(metadata[k], dict):
                     metadata[k]: dict
-                    rank = f'/{metadata[k]["position"]}'if "position" in metadata[k].keys() else ''
+                    rank = f'/{metadata[k]["position"]}' if "position" in metadata[k].keys() else ''
                     rank = f'/{position}' if rank == '' and str(position) != '-1' else rank
                     values = {"value": metadata[k]["value"]}
                     if "language" in metadata[k].keys():
@@ -776,7 +783,7 @@ class RestAPI:
             metadata_dict = {}
             for m in metadata:
                 values = [{"value": v,
-                           "language": m.language} for v in (m.value if type(m.value) is list else [m.value])]
+                           "language": m.language} for v in (m.value if isinstance(m.value, list) else [m.value])]
                 values += metadata_dict[m.get_tag()] if m.get_tag() in metadata_dict.keys() else []
                 metadata_dict[m.get_tag()] = values
             metadata = metadata_dict
@@ -799,8 +806,8 @@ class RestAPI:
         if isinstance(metadata, MetaData):
             metadata: MetaData
             values = [{"value": v,
-                       "language": metadata.language} for v in (metadata.value if (type(metadata.value)
-                                                                                   is list) else [metadata.value])]
+                       "language": metadata.language} for v in (metadata.value if (isinstance(metadata.value, list))
+                                                                else [metadata.value])]
 
             patch_data = {metadata.get_tag(): values}
         else:
@@ -808,8 +815,8 @@ class RestAPI:
             # Check if position argument is not used correctly
             if len(metadata.keys()) > 1 and str(position) != '-1':
                 raise Warning('Could not set same position metadata for more than one metadata tag.')
-            elif (len(metadata.keys()) == 1 and type(metadata[list(metadata.keys())[0]]) is list
-                  and str(position) != '-1'):
+            if (len(metadata.keys()) == 1 and isinstance(metadata[list(metadata.keys())[0]], list)
+                    and str(position) != '-1'):
                 raise Warning('Could not use one position argument for more than one metadata-value.')
             if len(metadata.keys()) == 0:
                 patch_data = {k: metadata[k][0] if len(metadata[k]) == 1 else metadata[k] for k in metadata.keys()}
@@ -818,7 +825,7 @@ class RestAPI:
 
         return self.update_metadata(patch_data, object_uuid, obj_type, 'replace', position=position)
 
-# Delete section. Be carefully, when using it!
+    # Delete section. Be carefully, when using it!
 
     def delete_metadata(self, tag: str | list[str], object_uuid: str,
                         obj_type: str, position: int | str = -1) -> DSpaceObject:

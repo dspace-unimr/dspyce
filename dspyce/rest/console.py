@@ -1,5 +1,5 @@
-from .RestAPI import RestAPI
 from getpass import getpass
+from .RestAPI import RestAPI
 
 
 def authenticate_to_rest(rest_api: str) -> RestAPI:

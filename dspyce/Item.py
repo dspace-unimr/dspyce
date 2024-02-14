@@ -1,10 +1,14 @@
-from .Collection import Collection
-from .DSpaceObject import DSpaceObject
-from .Relation import Relation
-from .bitstreams import ContentFile, IIIFContent, Bundle
+from dspyce.Collection import Collection
+from dspyce.DSpaceObject import DSpaceObject
+from dspyce.Relation import Relation
+from dspyce.bitstreams import ContentFile, IIIFContent, Bundle
 
 
 class Item(DSpaceObject):
+    """
+    The class Item represents a single DSpace item. It can have a owning collection, several Bitstreams or relations
+    to other items, if it's an entity.
+    """
     collections: list[Collection]
     relations: list[Relation]
     contents: list[ContentFile]
@@ -24,9 +28,9 @@ class Item(DSpaceObject):
         collection. Just an uuid can also be provided.
         """
         super().__init__(uuid, handle, name)
-        if type(collections) is str:
+        if isinstance(collections, str):
             self.collections = [Collection(uuid=collections, community=None)]
-        elif type(collections) is Collection:
+        elif isinstance(collections, Collection):
             self.collections = [collections]
         elif collections is None:
             self.collections = []
@@ -52,8 +56,8 @@ class Item(DSpaceObject):
         """
         if self.is_entity():
             return self.metadata.get('dspace.entity.type')
-        else:
-            return None
+
+        return None
 
     def add_collection(self, c: Collection, primary: bool = False):
         """

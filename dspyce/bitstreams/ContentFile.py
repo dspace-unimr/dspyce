@@ -63,7 +63,7 @@ class ContentFile:
         self.permissions = []
         self.description = ''
         bundle = bundle if str(bundle) != '' else Bundle.DEFAULT_BUNDLE
-        if type(bundle) is not Bundle:
+        if not isinstance(bundle, Bundle):
             self.bundle = Bundle(name=bundle)
         else:
             self.bundle = bundle
@@ -80,7 +80,7 @@ class ContentFile:
         :return: A SAF-ready information string which can be used for the content-file.
         """
         export_name = self.file_name
-        if self.bundle.name != '' and self.bundle.name != Bundle.DEFAULT_BUNDLE:
+        if self.bundle.name not in ('', Bundle.DEFAULT_BUNDLE):
             export_name += f'\tbundle:{self.bundle.name}'
         if self.description != '':
             export_name += f'\tdescription:{self.description}'
@@ -117,7 +117,5 @@ class ContentFile:
         if self.path != '':
             if 'https://' not in self.path and 'http://' not in self.path:
                 return open(self.path + self.file_name, 'rb')
-            else:
-                return requests.get(self.path).content
-        else:
-            return None
+            return requests.get(self.path).content
+        return None

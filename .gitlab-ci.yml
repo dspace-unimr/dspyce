@@ -1,0 +1,10 @@
+image: python:3.10-slim
+
+unittests:
+    stage: test
+    before_script:
+      - pip install --upgrade pip
+      - pip install -r ./requirements.txt
+      - cp -r ./dspyce /usr/local/lib/python3.10/site-packages/
+    script:
+      - python3 dspyce/_testing/__init__.py

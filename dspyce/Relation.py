@@ -1,4 +1,3 @@
-from . import Item
 # Relation.py
 """
 This module contains the python class Relation representing the Relation between DSpace-Entities.
@@ -14,6 +13,7 @@ Example:
     > relation.any_relation 123456789/12\nrelation.different_relation 123456789/13\n
 
 """
+from dspyce import Item
 
 
 class Relation:

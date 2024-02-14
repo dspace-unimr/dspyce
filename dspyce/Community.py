@@ -2,6 +2,9 @@ from .DSpaceObject import DSpaceObject
 
 
 class Community(DSpaceObject):
+    """
+    The class Community represents a DSpace community containing sub communities or collections.
+    """
     parent_community: DSpaceObject | None
     sub_communities: list[DSpaceObject]
 
@@ -17,10 +20,9 @@ class Community(DSpaceObject):
         :param other: Another community object.
         :return: True, if self is in other.sub_communities.
         """
-        if type(other) is not Community:
+        if not isinstance(other, Community):
             raise TypeError('The given object must be of the type "Community".')
-        else:
-            return self in other.sub_communities
+        return self in other.sub_communities
 
     def get_dspace_object_type(self) -> str:
         return 'Community'

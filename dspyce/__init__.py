@@ -1,13 +1,12 @@
 import re
 
-from .DSpaceObject import DSpaceObject
-from .Item import Item
-from .Collection import Collection
-from .Community import Community
 import dspyce.saf
 import dspyce.rest
-# from .rest import RestAPI, authenticate_to_rest, json_to_object, object_to_json
 import dspyce.statistics
+from dspyce.DSpaceObject import DSpaceObject, parse_metadata_label
+from dspyce.Item import Item
+from dspyce.Collection import Collection
+from dspyce.Community import Community
 
 
 def from_dict(obj_dict: dict, obj_type: str = None) -> DSpaceObject | Item | Community | Collection:
@@ -67,17 +66,23 @@ def from_dict(obj_dict: dict, obj_type: str = None) -> DSpaceObject | Item | Com
                              obj_dict['name'] if 'name' in obj_dict.keys() else '')
             if 'parent_community' in obj_dict.keys():
                 obj.parent_community = Community(obj_dict['parent_community'])
+        case _:
+            raise TypeError('The obj_type parameter must be one of (item, collection, community or None)'
+                            f'but got {obj_type}')
     for key in filter(lambda x: re.search(r'[a-zA-Z0-9\-]\.[a-zA-Z0-9\-](\.[a-zA-Z0-9\-])?', x),
                       obj_dict.keys()):
-        tag = key.split('.')
-        schema, element, qualifier = parse_metadata_label(tag)
-        if type(obj_dict[key]) is not list and type(obj_dict[key]) is not dict:
+        schema, element, qualifier = parse_metadata_label(key)
+        if not isinstance(obj_dict[key], list) and not isinstance(obj_dict[key], dict):
             obj.add_metadata(schema, element, qualifier, value=obj_dict[key])
-        elif type(obj_dict[key]) is list:
+        elif isinstance(obj_dict[key], list):
             for o in obj_dict[key]:
-                obj.add_metadata(schema, element, qualifier, value=o)
+                if isinstance(o, dict) and 'value' in o.keys():
+                    obj.add_metadata(schema, element, qualifier, value=o['value'],
+                                     language=o['language'] if 'language' in o.keys() else None)
+                else:
+                    obj.add_metadata(schema, element, qualifier, value=o)
         else:
             val = obj_dict[key]
-            for lang in val.keys():
-                obj.add_metadata(schema, element, qualifier, value=val[''], language=lang if lang != '' else None)
+            obj.add_metadata(schema, element, qualifier, value=val['value'],
+                             language=val['language'] if 'language' in val.keys() else None)
     return obj
