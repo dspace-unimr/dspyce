@@ -137,12 +137,14 @@ class DSpaceObject:
             return None
         return [v.value for v in (values if isinstance(values, list) else [values])]
 
-    def add_statistic_report(self, report: dict | list[dict]):
+    def add_statistic_report(self, report: dict | list[dict] | None):
         """
         Adds a new report or list of reports as a dict object to the DSpaceObject
 
         :param report: The report(s) to add.
         """
+        if report is None:
+            return
         report = [report] if isinstance(report, dict) else report
         for r in report:
             self.statistic_reports.update(r)

@@ -96,6 +96,15 @@ class DSpaceObjectTest(unittest.TestCase):
         self.assertEqual(obj.metadata[1].language, 'de')
         self.assertRaises(TypeError, ds.from_dict, dict_obj, 'test')
 
+    def test_statistics(self):
+        """
+        Test add_statistic_report and has_statistics methods from DSpaceObject
+        """
+        self.assertFalse(self.obj.has_statistics())
+        self.obj.add_statistic_report({'views': 0})
+        self.obj.add_statistic_report(None)
+        self.assertEqual(1, len(self.obj.statistic_reports))
+
 
 if __name__ == '__main__':
     unittest.main()
