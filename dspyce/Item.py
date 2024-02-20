@@ -55,7 +55,7 @@ class Item(DSpaceObject):
         :return: The entity type as a string, if existing, else None.
         """
         if self.is_entity():
-            return self.metadata.get('dspace.entity.type')
+            return self.get_metadata_values('dspace.entity.type')[0]
 
         return None
 
