@@ -101,9 +101,14 @@ class DSpaceObjectTest(unittest.TestCase):
         Test add_statistic_report and has_statistics methods from DSpaceObject
         """
         self.assertFalse(self.obj.has_statistics())
-        self.obj.add_statistic_report({'views': 0})
+        self.obj.add_statistic_report({'TotalViews': 0})
         self.obj.add_statistic_report(None)
-        self.assertEqual(1, len(self.obj.statistic_reports))
+        self.obj.add_statistic_report({"TotalDownloads": {'uuid': 'lkjlkjl', "views": 12}})
+        self.obj.add_statistic_report({"TotalDownloads": {'uuid': '12345', "views": 12}})
+        self.obj.add_statistic_report({"TotalDownloads": {'uuid': 'sd3x33', "views": 15}})
+        self.assertEqual(2, len(self.obj.statistic_reports))
+        print(self.obj.statistic_reports)
+        self.assertTrue(isinstance(self.obj.statistic_reports['TotalDownloads'], list))
 
 
 if __name__ == '__main__':

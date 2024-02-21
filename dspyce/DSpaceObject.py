@@ -147,7 +147,16 @@ class DSpaceObject:
             return
         report = [report] if isinstance(report, dict) else report
         for r in report:
-            self.statistic_reports.update(r)
+            for k in r.keys():
+                if k not in self.statistic_reports.keys():
+                    self.statistic_reports[k] = r[k]
+                else:
+                    if isinstance(r[k], dict):
+                        self.statistic_reports[k] = (self.statistic_reports[k] +
+                                                     [r[k]]) if isinstance(self.statistic_reports[k],
+                                                                           list) else [self.statistic_reports[k], r[k]]
+                    else:
+                        self.statistic_reports[k] = r[k]
 
     def has_statistics(self) -> bool:
         """

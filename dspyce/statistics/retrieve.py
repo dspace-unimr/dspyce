@@ -43,9 +43,9 @@ def download_statistics_to_object(object_uuid: str, report_type: str, rest_api: 
         case 'TotalVisits':
             return {report_type: get_point_views(json_resp['points'][0])}
         case 'TotalDownloads':
-            downloads = {}
+            downloads = []
             for p in json_resp['points']:
-                downloads.update({'uuid': p['id'], 'label': p['label'], 'downloads': get_point_views(p)})
+                downloads.append({'uuid': p['id'], 'label': p['label'], 'downloads': get_point_views(p)})
             return {report_type: downloads}
         case 'TotalVisitsPerMonth':
             return {report_type: {p['label']: get_point_views(p) for p in json_resp['points']}}
