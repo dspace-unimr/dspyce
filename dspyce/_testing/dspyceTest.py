@@ -107,8 +107,8 @@ class DSpaceObjectTest(unittest.TestCase):
         self.obj.add_statistic_report({"TotalDownloads": {'uuid': '12345', "views": 12}})
         self.obj.add_statistic_report({"TotalDownloads": {'uuid': 'sd3x33', "views": 15}})
         self.assertEqual(2, len(self.obj.statistic_reports))
-        print(self.obj.statistic_reports)
         self.assertTrue(isinstance(self.obj.statistic_reports['TotalDownloads'], list))
+        self.assertTrue(self.obj.has_statistics())
 
 
 if __name__ == '__main__':

@@ -7,6 +7,7 @@ from dspyce.DSpaceObject import DSpaceObject, parse_metadata_label
 from dspyce.Item import Item
 from dspyce.Collection import Collection
 from dspyce.Community import Community
+from dspyce.Relation import Relation
 
 
 def from_dict(obj_dict: dict, obj_type: str = None) -> DSpaceObject | Item | Community | Collection:
