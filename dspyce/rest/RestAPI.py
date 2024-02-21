@@ -79,7 +79,7 @@ def object_to_json(obj: DSpaceObject) -> dict:
         json_object['discoverable'] = obj.discoverable
         json_object['withdrawn'] = obj.withdrawn
         if obj.is_entity():
-            json_object['entityType'] = obj.metadata.get('dspace.entity.type')
+            json_object['entityType'] = obj.get_entity_type()
     if obj.handle is not None and obj.handle != '':
         json_object['handle'] = obj.handle
     json_object['metadata'] = metadata
@@ -139,7 +139,12 @@ class RestAPI:
         if 'Authorization' in req.headers:
             self.session.headers.update({'Authorization': req.headers.get('Authorization')})
         # Check if authentication was successfully:
-        auth_status = self.session.get(auth_url.replace('login', 'status')).json()
+        auth_session = self.session.get(auth_url.replace('login', 'status'))
+        try:
+            auth_status = auth_session.json()
+        except requests.exceptions.JSONDecodeError as e:
+            print(auth_session)
+            raise e
         if 'authenticated' in auth_status and auth_status['authenticated'] is True:
             print(f'The authentication as "{self.username}" was successfully')
             return True
@@ -578,6 +583,28 @@ class RestAPI:
         if get_bitstreams:
             dso.contents = self.get_item_bitstreams(dso.uuid)
         dso.collections = self.get_item_collections(dso.uuid)
+        return dso
+
+    def get_community(self, uuid) -> Community | None:
+        """
+        Retrieves a DSpace-Community object from the API.
+
+        :param uuid: The UUID of the community to get.
+        """
+        dso = self.get_dso(uuid, 'communities')
+        dso: Community
+        dso.parent_community = self.get_parent_community(dso)
+        return dso
+
+    def get_collection(self, uuid) -> Collection | None:
+        """
+        Retrieves a DSpace-Community object from the API.
+
+        :param uuid: The UUID of the community to get.
+        """
+        dso = self.get_dso(uuid, 'collections')
+        dso: Collection
+        dso.community = self.get_parent_community(dso)
         return dso
 
     def get_items_in_scope(self, scope_uuid: str, query: str = '', size: int = -1, page: int = -1,

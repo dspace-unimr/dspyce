@@ -1,5 +1,6 @@
 from getpass import getpass
 from .RestAPI import RestAPI
+import requests
 
 
 def authenticate_to_rest(rest_api: str) -> RestAPI:
@@ -15,7 +16,11 @@ def authenticate_to_rest(rest_api: str) -> RestAPI:
     while not authentication:
         username = input('\tPlease enter your username: ')
         password = getpass('\tPassword: ')
-        rest_server = RestAPI(rest_api, username, password)
+        try:
+            rest_server = RestAPI(rest_api, username, password)
+        except requests.exceptions.JSONDecodeError:
+            print(f'Did not found the api-Endpoint. Are you sure, that {rest_api} is the correct address and the API is'
+                  'reachable?')
         authentication = rest_server.authenticated
         if not authentication:
             print('Wrong username or password! Please try again.')
