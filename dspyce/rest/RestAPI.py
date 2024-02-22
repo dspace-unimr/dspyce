@@ -428,7 +428,7 @@ class RestAPI:
 
         :param endpoint: The endpoint to retrieve the objects from.
         :param object_key: The dict key to get the object list from the json-response. For example "bundles" or
-        "bitstreams"
+            "bitstreams"
         :param query_params: Additional query parameters to add to the request.
         :param page: The page number to retrieve. Must be set to -1 to retrieve all pages. Default -1.
         :param size: The page size, aka the number of objects per page.
@@ -571,7 +571,7 @@ class RestAPI:
         :param get_related: If true, also retrieves related items from the API.
         :param get_bitstreams: If true, also retrieves bitstreams of the item from the API.
         :param pre_downloaded_item: If a pre downloaded item is provided (aka blank dso), then only additional
-        information such as relationships, owning collection, bundles and bitstreams will be provided.
+            information such as relationships, owning collection, bundles and bitstreams will be provided.
         :return: An object of the class Item.
         """
         dso = self.get_dso(uuid, 'items') if pre_downloaded_item is None else pre_downloaded_item
@@ -617,7 +617,7 @@ class RestAPI:
         :param size: The number of objects per page. Use -1 to select the default.
         :param page: The page to retrieve if a paginated list is returned. Use -1 to retrieve all.
         :param full_item: If the full item information should be downloaded (Including relationships, bundles and
-        bitstreams. This can be slower due to additional api calls).
+            bitstreams. This can be slower due to additional api calls).
         :return: A list of Item objects.
         """
         query_params = {'scope': scope_uuid}
@@ -652,7 +652,7 @@ class RestAPI:
         :param query_params: A dictionary with query parameters to filter the search results.
         :param size: The number of objects to retrieve per page.
         :param full_item: If the full items (including relations and bitstreams) shall be downloaded or not.
-        Default false.
+            Default false.
         :return: The list of found DSpace objects.
         """
         object_list = self.get_paginated_objects('/discover/search/objects', 'objects', query_params,
@@ -695,10 +695,10 @@ class RestAPI:
         :param schema: The schema of the field, if empty this field won't be taken in account for the search request.
         :param element: The element of the field, if empty this field won't be taken in account for the search request.
         :param qualifier: The qualifier of the field, if empty this field won't be taken in account for the search
-        request.
+            request.
         :param field_id: The exact metadata field id to look for. If the correct fields is already known.
         :return: A list of dictionaries in the following form: {id: <id>, element: <element>, qualifier: <qualifier>,
-        scopeNote: <scopeNote>, schema: {id: <schema-id>, prefix: <prefix>, namespace: <namespace>}
+            scopeNote: <scopeNote>, schema: {id: <schema-id>, prefix: <prefix>, namespace: <namespace>}
         """
 
         def parse_json_resp(json_resp: dict) -> dict:
@@ -748,8 +748,8 @@ class RestAPI:
         Update a new metadata value information to a DSpace object, identified by its uuid.
 
         :param metadata: A list of metadata to update as a MetaData object or dict object in the REST form, aka
-        {<tag> : [{"value": <value>, "language": <language>...}]}. May also contain position information. For "remove"-
-        operation the form must be {<tag>: [{postion: <position>}] | []}
+            {<tag> : [{"value": <value>, "language": <language>...}]}. May also contain position information. For
+            "remove"- operation the form must be {<tag>: [{postion: <position>}] | []}
         :param object_uuid: The uuid of the object to add the metadata to.
         :param obj_type: The type of DSpace object. Must be one of item, collection or community
         :param operation: The selected update operation. Must be one off (add, replace, remove).
@@ -799,7 +799,7 @@ class RestAPI:
         Add a new metadata value information to a DSpace object, identified by its uuid.
 
         :param metadata: A list of metadata to update as a MetaData object or dict object in the REST form, aka
-        {<tag> : [{"value": <value>, "language": <language>...}]}
+            {<tag> : [{"value": <value>, "language": <language>...}]}
         :param object_uuid: The uuid of the object to add the metadata to.
         :param obj_type: The type of DSpace object. Must be one of item, collection or community.
         :return: The updated DSpace object.
@@ -823,7 +823,7 @@ class RestAPI:
         Add a new metadata value information to a DSpace object, identified by its uuid.
 
         :param metadata: A list of metadata to update as a MetaData object or dict object in the REST form, aka
-        {<tag> : [{"value": <value>, "language": <language>...}]}
+            {<tag> : [{"value": <value>, "language": <language>...}]}
         :param object_uuid: The uuid of the object to add the metadata to.
         :param obj_type: The type of DSpace object. Must be one of item, collection or community.
         :param position: The position of the metadata value to replace.
