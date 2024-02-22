@@ -1,3 +1,11 @@
+# saf/saf_write.py
+"""
+Python module for creating saf packages to prepare DSpace Item-imports or updates. Two functions are imported by the saf
+package:
+1. create_saf_package() -> Creates a single saf package based on a given Item.
+2. saf_packages() -> Creates multiple saf packages in a given path based on the given Item information.
+"""
+
 import os
 
 from ..Item import Item

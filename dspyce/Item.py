@@ -162,7 +162,7 @@ class Item(DSpaceObject):
         if len(self.collections) > 0:
             obj_str += '\n\tCollections:'
             for c in self.collections:
-                obj_str += f'\n\t\t{c.uuid}'
+                obj_str += f'\n\t\t{c.uuid if c.uuid != "" else c.handle}'
         return obj_str
 
     def get_related(self) -> list[DSpaceObject]:

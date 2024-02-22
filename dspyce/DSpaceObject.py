@@ -130,7 +130,7 @@ class DSpaceObject:
         Retrieves the metadata values of a specific tag as a list.
 
         :param tag: The metadata tag: prefix.element.qualifier
-        :return: The values as a list.
+        :return: The values as a list or None, if the tag doesn't exist.
         """
         values = self.metadata.get(tag)
         if values is None:
