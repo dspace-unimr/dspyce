@@ -110,12 +110,12 @@ class ContentFile:
             raise ValueError(f'Permission type must be "r" or "w". Got {rw} instead!')
         self.permissions.append({'type': rw, 'group': group_name})
 
-    def get_bitstream_file(self):
+    def get_bitstream_file(self, timeout: int = 30):
         """
         Returns the actual file as a TextIOWrapper object.
         """
         if self.path != '':
             if 'https://' not in self.path and 'http://' not in self.path:
                 return open(self.path + self.file_name, 'rb')
-            return requests.get(self.path).content
+            return requests.get(self.path, timeout=timeout).content
         return None
