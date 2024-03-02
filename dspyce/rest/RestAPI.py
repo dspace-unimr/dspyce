@@ -292,7 +292,8 @@ class RestAPI:
             obj_json['metadata']['iiif.toc'] = [{'value': bitstream.iiif['toc']}]
             obj_json['metadata']['iiif.image.width'] = [{'value': bitstream.iiif['w']}]
             obj_json['metadata']['iiif.image.height'] = [{'value': bitstream.iiif['h']}]
-        data_file = {'file': (bitstream.file_name, bitstream.get_bitstream_file())}
+        bitstream_file = bitstream.get_bitstream_file()
+        data_file = {'file': (bitstream.file_name, bitstream_file)} if bitstream_file is not None else None
         req = self.session.post(add_url)
         self.update_csrf_token(req)
         headers = self.session.headers
@@ -402,20 +403,30 @@ class RestAPI:
 
         return item
 
-    def get_dso(self, uuid: str, endpoint: str) -> DSpaceObject | Item | Collection | Community:
+    def get_dso(self, uuid: str = '', endpoint: str = '',
+                identifier: str = None) -> DSpaceObject | Item | Collection | Community:
         """
         Retrieves a DSpace object from the api based on its uuid and the endpoint information.
 
         :param uuid: The uuid of the object.
         :param endpoint: The endpoint string. Must be one of ('items', 'collections', 'communities')
+        :param identifier: An optional other identifier to retrieve a DSpace Object. Can be used instead of uuid. Must
+            be a handle or doi.
         :return: Returns a DSpace object
         """
-        url = f'core/{endpoint}/{uuid}'
-        if endpoint not in ('items', 'collections', 'communities'):
-            raise ValueError(f"The endpoint '{endpoint}' does not exist. endpoint must be one of"
-                             "('items', 'collections', 'communities')")
+        if identifier is None:
+            if uuid == '' or not isinstance(uuid, str):
+                raise ValueError(f'If no other identifier is used, the uuid must be provided. "{uuid}" is not correct.')
+            params = {}
+            url = f'core/{endpoint}/{uuid}'
+            if endpoint not in ('items', 'collections', 'communities'):
+                raise ValueError(f"The endpoint '{endpoint}' does not exist. endpoint must be one of"
+                                 "('items', 'collections', 'communities')")
+        else:
+            url = 'pid/find'
+            params = {'id': identifier}
         try:
-            obj = json_to_object(self.get_api(url))
+            obj = json_to_object(self.get_api(url, params))
         except TypeError:
             obj = None
             print('An object could not be found!')
@@ -513,18 +524,22 @@ class RestAPI:
         rel_list = self.get_paginated_objects(url, 'relationships')
         relations = []
         for r in rel_list:
-            left_item = r['_links']['leftItem']['href'].split('/')[-1]
-            right_item = r['_links']['rightItem']['href'].split('/')[-1]
-            direction = 'leftwardType' if item_uuid == right_item else 'rightwardType'
+            left_item_uuid = r['_links']['leftItem']['href'].split('/')[-1]
+            right_item_uuid = r['_links']['rightItem']['href'].split('/')[-1]
+            direction = 'leftwardType' if item_uuid == right_item_uuid else 'rightwardType'
             # Retrieve the type information:
             type_req = self.session.get(r['_links']['relationshipType']['href'])
             rel_key = type_req.json()[direction]
             rel_type = type_req.json()['id']
             # Set the correct item order.
-            left_item = self.get_item(left_item, False)
-            right_item = self.get_item(right_item, False)
-            items = (left_item, right_item) if direction == 'rightwardType' else (right_item, left_item)
-            relations.append(Relation(rel_key, items, rel_type))
+            try:
+                left_item = self.get_item(left_item_uuid, False)
+                right_item = self.get_item(right_item_uuid, False)
+                items = (left_item, right_item) if direction == 'rightwardType' else (right_item, left_item)
+                relations.append(Relation(rel_key, items, rel_type))
+            except requests.exceptions.RequestException:
+                print('Could not retrieve relationship(', rel_type, ') between ', left_item_uuid, ' and ',
+                      right_item_uuid)
         return relations
 
     def get_item_collections(self, item_uuid: str) -> list[Collection]:
@@ -562,19 +577,21 @@ class RestAPI:
         owning_community = json_to_object(get_result)
         return owning_community
 
-    def get_item(self, uuid: str, get_related: bool = True, get_bitstreams: bool = True,
-                 pre_downloaded_item: Item = None) -> Item | None:
+    def get_item(self, uuid: str = '', get_related: bool = True, get_bitstreams: bool = True,
+                 pre_downloaded_item: Item = None, identifier: str = None) -> Item | None:
         """
-        Retrieves a DSpace-Item by its uuid from the API.
+        Retrieves a DSpace-Item by its uuid (or other identifieres) from the API.
 
         :param uuid: The uuid of the item to get.
         :param get_related: If true, also retrieves related items from the API.
         :param get_bitstreams: If true, also retrieves bitstreams of the item from the API.
         :param pre_downloaded_item: If a pre downloaded item is provided (aka blank dso), then only additional
             information such as relationships, owning collection, bundles and bitstreams will be provided.
+        :param identifier: The identifier of the item to get. Can be used to retrieve items with ids other than uuid.
+            Must be doi or handle
         :return: An object of the class Item.
         """
-        dso = self.get_dso(uuid, 'items') if pre_downloaded_item is None else pre_downloaded_item
+        dso = self.get_dso(uuid, 'items', identifier) if pre_downloaded_item is None else pre_downloaded_item
         if dso is None:
             print(f'The item with uuid "{uuid}" could not be found.')
             return None
