@@ -1,4 +1,5 @@
 import json
+import logging
 import requests
 
 from ..DSpaceObject import DSpaceObject
@@ -102,10 +103,27 @@ class RestAPI:
     authenticated: bool = False
     """Provides information about the authentication status."""
 
-    def __init__(self, api_endpoint: str, username: str = None, password: str = None):
+    def __init__(self, api_endpoint: str, username: str = None, password: str = None,
+                 log_level: int | str = logging.INFO, log_file: str = None):
         """
         Creates a new object of the RestAPI class using
+
+        :param api_endpoint: The api endpoint to connect to. (For example https://demo.dspace.org/server/api)
+        :param username: The username of the user for authentication.
+        :param password: The password of the user for authentication.
+        :param log_level: The log_level used for Logging. Must be string or integer. The strings must be one of
+            the following: DEBUG, INFO, WARNING, ERROR, CRITICAL. Default is INFO.
+        :param log_file: A possible name and path of the log file. If None provided, all output will be logged to the
+            console.
         """
+        log_level_types = {'DEBUG': logging.DEBUG, 'INFO': logging.INFO, 'WARNING': logging.WARNING,
+                           'ERROR': logging.ERROR, 'CRITICAL': logging.CRITICAL}
+        if isinstance(log_level, str) and log_level.upper() not in log_level_types.keys():
+            raise TypeError(f"Invalid log level: {log_level}. Must be one of DEBUG, INFO, WARNING, ERROR, CRITICAL.")
+        elif isinstance(log_level, str):
+            log_level = log_level_types[log_level]
+        logging.basicConfig(level=log_level, filename=log_file, encoding='utf8',
+                            format='%(asctime)s - %(levelname)s: %(message)s')
         self.session = requests.Session()
         self.api_endpoint = api_endpoint
         self.username = username
@@ -131,7 +149,7 @@ class RestAPI:
 
         :return: True, if the authentication worked.
         """
-        print('Trying to authenticate against the REST-API:')
+        logging.info(f'Trying to authenticate against the REST-API "{self.api_endpoint}", with user {self.username}')
         auth_url = f'{self.api_endpoint}/authn/login'
         req = self.session.post(auth_url)
         self.update_csrf_token(req)
@@ -142,14 +160,15 @@ class RestAPI:
         auth_session = self.session.get(auth_url.replace('login', 'status'))
         try:
             auth_status = auth_session.json()
+            if 'authenticated' in auth_status and auth_status['authenticated'] is True:
+                logging.info(f'The authentication as "{self.username}" was successfully')
+                return True
         except requests.exceptions.JSONDecodeError as e:
-            print(auth_session)
-            raise e
-        if 'authenticated' in auth_status and auth_status['authenticated'] is True:
-            print(f'The authentication as "{self.username}" was successfully')
-            return True
+            logging.error('Problem with authenticating to the api.')
+            logging.error(auth_session)
+            logging.exception(e)
 
-        print('The authentication did not work.')
+        logging.critical('The authentication was unsuccessful.')
         return False
 
     def get_api(self, endpoint: str, params: dict = None) -> dict | None:
@@ -164,12 +183,15 @@ class RestAPI:
         url = f'{self.api_endpoint}/{endpoint}'
         req = self.session.get(url, params=params if params is not None else {})
         self.update_csrf_token(req)
-        if req.status_code in (201, 200):
+        if req.status_code in (204, 201, 200):
+            logging.debug(f'Successfully performed GET request to endpoint {endpoint}')
             return req.json()
         if req.status_code == 404:
-            print(f'Object behind "{url}" does not exists')
-            print(req.json())
+            logging.warning(f'Object behind "{url}" does not exists.')
+            logging.warning(req.json())
             return None
+        logging.error(f'Problem with performing GET request to endpoint {endpoint}.')
+        logging.error(req)
 
         raise requests.exceptions.RequestException(f'Could not get item with from endpoint: {url}')
 
@@ -179,14 +201,15 @@ class RestAPI:
         """
         req = self.session.post(url)
         self.update_csrf_token(req)
-        # print(f'Adding object in "{url}" with params ({params}):\n{json_data}')
+        logging.debug(f'Performing POST request in "{url}" with params({params}):{json_data}')
         resp = self.session.post(url, json=json_data, headers=self.req_headers, params=params)
         if resp.status_code in (201, 200):
             # Success post request
             json_resp = resp.json()
-            print(f'\tSuccessfully added object with uuid: {json_resp["uuid"]}')
+            logging.info(f'Successfully added object with uuid: {json_resp["uuid"]}')
             return json_resp
-
+        logging.error(f'Could not POST content: {json_data}.\n\tWith params: {params}\n\tOn endpoint: {url}')
+        logging.error(f'Statuscode: {resp.status_code}')
         raise requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
                                                    f'Could not post content: \n\t{json_data}'
                                                    f'\nWith params: {params}\nOn endpoint:\n\t{url}')
@@ -202,6 +225,7 @@ class RestAPI:
         :raise RequestException: If the JSON response doesn't have the status code 200 or 201
         """
         url = f'{self.api_endpoint}/{url}' if self.api_endpoint not in url else url
+        logging.debug(f'Performing PATCH request in "{url}" with params({params}):{json_data}')
         req = self.session.patch(url)
         self.update_csrf_token(req)
         resp = self.session.patch(url, json=json_data, headers=self.req_headers)
@@ -209,14 +233,17 @@ class RestAPI:
         if resp.status_code in (201, 200):
             # Success post request
             json_resp = resp.json()
-            print(f'\tSuccessfully updated object with uuid: {json_resp["uuid"]}.')
+            logging.info(f'Successfully updated object with uuid: {json_resp["uuid"]}.')
             return json_resp
 
         if resp.status_code == 204:
             operation = [int((i["op"] if "op" in i.keys() else '') == "remove") - 1 for i in json_data]
             if sum(operation) == 0:
-                print('\tSuccessfully deleted objects.')
+                logging.info('Successfully deleted objects.')
                 return None
+
+        logging.error(f'Could not PATCH content: {json_data}.\n\tWith params: {params}\n\tOn endpoint: {url}')
+        logging.error(f'Statuscode: {resp.status_code}')
         exception = requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
                                                          f'Could not put content: \n\t{json_data}'
                                                          f'\nWith params: {params}\nOn endpoint:\n\t{url}')
@@ -230,6 +257,7 @@ class RestAPI:
         :return: The newly created object.
         """
         if not self.authenticated:
+            logging.critical('Could not add object, authentication required!')
             raise ConnectionRefusedError('Authentication needed.')
         params = {}
         match obj.get_dspace_object_type():
@@ -262,6 +290,7 @@ class RestAPI:
         :return: The newly created object returned from DSpace.
         """
         if not self.authenticated:
+            logging.critical('Could not add object, authentication required!')
             raise ConnectionRefusedError('Authentication needed.')
         params = {}
         add_url = f'{self.api_endpoint}/core/items/{item_uuid}/bundles'
@@ -281,6 +310,7 @@ class RestAPI:
         :return: The uuid of the newly created bitstream.
         """
         if not self.authenticated:
+            logging.critical('Could not add object, authentication required!')
             raise ConnectionRefusedError('Authentication needed.')
         add_url = f'{self.api_endpoint}/core/bundles/{bundle.uuid}/bitstreams'
         obj_json = {'name': bitstream.file_name, 'metadata': {'dc.title': [{'value': bitstream.file_name}],
@@ -292,6 +322,7 @@ class RestAPI:
             obj_json['metadata']['iiif.toc'] = [{'value': bitstream.iiif['toc']}]
             obj_json['metadata']['iiif.image.width'] = [{'value': bitstream.iiif['w']}]
             obj_json['metadata']['iiif.image.height'] = [{'value': bitstream.iiif['h']}]
+        logging.debug(f'Adding bitstream: {obj_json}')
         bitstream_file = bitstream.get_bitstream_file()
         data_file = {'file': (bitstream.file_name, bitstream_file)} if bitstream_file is not None else None
         req = self.session.post(add_url)
@@ -303,12 +334,11 @@ class RestAPI:
                                files=data_file)
         resp = self.session.send(self.session.prepare_request(req))
         try:
-            return resp.json()['uuid']
+            uuid = resp.json()['uuid']
+            logging.info(f'Successfully added bitstream with uuid "{uuid}"')
+            return uuid
         except KeyError as e:
-            print('\n')
-            print(resp)
-            print(resp.headers)
-            print('\n')
+            logging.error(f'Problem with adding bitstream:\n{resp}\n\t{resp.headers}')
             raise e
 
     def add_relationship(self, relation: Relation) -> dict:
@@ -318,13 +348,16 @@ class RestAPI:
         :param relation: The relation to create.
         """
         if not self.authenticated:
+            logging.critical('Could not add object, authentication required!')
             raise ConnectionRefusedError('Authentication needed.')
         add_url = f'{self.api_endpoint}/core/relationships?relationshipType={relation.relation_type}'
         if relation.items[0] is None or relation.items[1] is None:
+            logging.error(f'Could not create Relation because of missing item information in relation: {relation}')
             raise ValueError(f'Could not create Relation because of missing item information in relation: {relation}')
         uuid_1 = relation.items[0].uuid
         uuid_2 = relation.items[1].uuid
         if uuid_1 == '' or uuid_2 == '':
+            logging.error(f'Relation via RestAPI can only be created by using item-uuids, but found: {relation}')
             raise ValueError(f'Relation via RestAPI can only be created by using item-uuids, but found: {relation}')
         req = self.session.post(add_url)
         self.update_csrf_token(req)
@@ -335,7 +368,7 @@ class RestAPI:
 
         if resp.status_code in (201, 200):
             # Success post request
-            print(f'\t\tCreated relationship: {relation}')
+            logging.info(f'Created relationship: {relation}')
             return resp.json()
 
         raise requests.exceptions.RequestException(f'{resp.status_code}: Could not post relation: \n{relation}\n'
@@ -352,7 +385,7 @@ class RestAPI:
         parent_community = community.parent_community
         if parent_community is not None and parent_community.uuid == '' and create_tree:
             community.parent_community = self.add_community(parent_community, create_tree)
-
+        logging.debug(f'Adding community: {community}')
         return self.add_object(community)
 
     def add_collection(self, collection: Collection, create_tree: bool = False) -> Collection:
@@ -366,7 +399,7 @@ class RestAPI:
         community = collection.community
         if community.uuid == '' and create_tree:
             collection.community = self.add_community(community, create_tree)
-
+        logging.debug(f'Adding collection: {collection}')
         return self.add_object(collection)
 
     def add_item(self, item: Item, create_tree: bool = False) -> Item:
@@ -396,11 +429,11 @@ class RestAPI:
                 relations = list(map(lambda x: Relation(x.relation_key, x.items, relation_types[x.relation_key]),
                                      relations))
             except KeyError as e:
-                print(f'Could not find relation in the list: {relation_types}')
+                logging.error(f'Could not find relation in the list: {relation_types}')
                 raise e
         for r in relations:
             self.add_relationship(r)
-
+        logging.debug(f'Created item {item}')
         return item
 
     def get_dso(self, uuid: str = '', endpoint: str = '',
@@ -427,9 +460,10 @@ class RestAPI:
             params = {'id': identifier}
         try:
             obj = json_to_object(self.get_api(url, params))
+            logging.debug(f'Retrieved DSpaceObject: {obj}')
         except TypeError:
             obj = None
-            print('An object could not be found!')
+            logging.warning('The object could not be found!')
         return obj
 
     def get_paginated_objects(self, endpoint: str, object_key: str, query_params: dict = None, page: int = -1,
@@ -456,7 +490,7 @@ class RestAPI:
         try:
             object_list = endpoint_json["_embedded"][object_key]
         except KeyError as e:
-            print('Problems with parsing paginated object list. A Key-Error occurred.\n', endpoint_json)
+            logging.error(f'Problems with parsing paginated object list. A Key-Error occurred.\n{endpoint_json}')
             raise e
         if page == -1:
             page_info = endpoint_json["page"]
@@ -482,6 +516,7 @@ class RestAPI:
                                         bundle=b, uuid=o['uuid'])
                 bitstream.add_description(description)
                 bitstreams.append(bitstream)
+                logging.debug(f'Retrieved item-bitstream: {bitstream}')
         return bitstreams
 
     def get_item_bundles(self, item_uuid: str) -> list[Bundle]:
@@ -510,6 +545,7 @@ class RestAPI:
         for r in relations:
             rel_list.append(Relation(r['leftwardType'], relation_type=r['id']))
             rel_list.append(Relation(r['rightwardType'], relation_type=r['id']))
+            logging.debug(f'Got relation {r} from RestAPI')
         return rel_list
 
     def get_item_relationships(self, item_uuid: str) -> list[Relation]:
@@ -536,10 +572,12 @@ class RestAPI:
                 left_item = self.get_item(left_item_uuid, False)
                 right_item = self.get_item(right_item_uuid, False)
                 items = (left_item, right_item) if direction == 'rightwardType' else (right_item, left_item)
-                relations.append(Relation(rel_key, items, rel_type))
+                relation = Relation(rel_key, items, rel_type)
+                relations.append(relation)
+                logging.debug(f'Added relation {relation} to Item.')
             except requests.exceptions.RequestException:
-                print('Could not retrieve relationship(', rel_type, ') between ', left_item_uuid, ' and ',
-                      right_item_uuid)
+                logging.warning(f'Could not retrieve relationship({rel_key}) between {left_item_uuid} and'
+                                f' {right_item_uuid}')
         return relations
 
     def get_item_collections(self, item_uuid: str) -> list[Collection]:
@@ -552,7 +590,7 @@ class RestAPI:
         url = f'core/items/{item_uuid}/owningCollection'
         get_result = self.get_api(url)
         if get_result is None:
-            print('Problems with getting owning Collection!')
+            logging.warning(f'Problems with getting owning Collection for item with uuid "{item_uuid}"')
             return []
         owning_collection = json_to_object(get_result)
         mapped_collections = self.get_paginated_objects(f'core/items/{item_uuid}/mappedCollections',
@@ -572,7 +610,7 @@ class RestAPI:
         except requests.exceptions.RequestException:
             return None
         if get_result is None:
-            print('Problems with getting owning Community!')
+            logging.warning(f'Problems with getting parent communities for DSpaceObject {dso}')
             return None
         owning_community = json_to_object(get_result)
         return owning_community
@@ -593,13 +631,14 @@ class RestAPI:
         """
         dso = self.get_dso(uuid, 'items', identifier) if pre_downloaded_item is None else pre_downloaded_item
         if dso is None:
-            print(f'The item with uuid "{uuid}" could not be found.')
+            logging.warning(f'The item with uuid "{uuid}" could not be found.')
             return None
         if get_related:
             dso.relations = self.get_item_relationships(dso.uuid)
         if get_bitstreams:
             dso.contents = self.get_item_bitstreams(dso.uuid)
         dso.collections = self.get_item_collections(dso.uuid)
+        logging.debug(f'Successfully retrieved item {dso} from endpoint.')
         return dso
 
     def get_community(self, uuid) -> Community | None:
@@ -611,6 +650,7 @@ class RestAPI:
         dso = self.get_dso(uuid, 'communities')
         dso: Community
         dso.parent_community = self.get_parent_community(dso)
+        logging.debug(f'Successfully retrieved community {dso} from endpoint.')
         return dso
 
     def get_collection(self, uuid) -> Collection | None:
@@ -622,6 +662,7 @@ class RestAPI:
         dso = self.get_dso(uuid, 'collections')
         dso: Collection
         dso.community = self.get_parent_community(dso)
+        logging.debug(f'Successfully retrieved collection {dso} from endpoint.')
         return dso
 
     def get_items_in_scope(self, scope_uuid: str, query: str = '', size: int = -1, page: int = -1,
@@ -651,11 +692,12 @@ class RestAPI:
             if full_item:
                 item_list = [self.get_item(i.uuid, True, True, i) for i in item_list]
         except KeyError as e:
-            print(f'Problems with the following answer:\n{json_res}\n')
+            logging.error(f'Problem with parsing the following request anser:\n{json_res}')
             raise e
 
         if page == -1:
             number_pages = json_res['page']['totalPages']
+            logging.debug(f'Parsing {number_pages} with items.')
             for n in range(1, number_pages):
                 item_list += self.get_items_in_scope(scope_uuid, query, size, n, full_item)
 
@@ -690,6 +732,7 @@ class RestAPI:
             if o.get_dspace_object_type() == 'Community':
                 o: Community
                 o.parent_community = self.get_parent_community(o)
+        logging.info(f'Found {len(dspace_objects)} DSpace Objects.')
         return dspace_objects
 
     def get_all_items(self, page_size: int = 20, full_item: bool = False) -> list[DSpaceObject]:
@@ -757,6 +800,8 @@ class RestAPI:
         field_objects = []
         for r in results:
             field_objects += [parse_json_resp(i) for i in r['_embedded']['metadatafields']]
+            logging.debug(f'Found metadata field {field_objects[-1]}')
+        logging.info(f'Found {len(field_objects)} metadata fields.')
         return field_objects
 
     def update_metadata(self, metadata: dict[str, (list[dict] | dict[str, dict])], object_uuid: str, obj_type: str,
@@ -775,8 +820,10 @@ class RestAPI:
         :raises ValueError: If a not existing objectType is used or wrong operation type.
         """
         if obj_type not in ('item', 'collection', 'community'):
+            logging.error(f'Wrong object type information "{obj_type}" must be one of item, collection or community')
             raise ValueError(f'Wrong object type information "{obj_type}" must be one of item, collection or community')
         if operation not in ('add', 'replace', 'remove'):
+            logging.error(f'Wrong update operation "{operation}" must be one off (add, replace, remove).')
             raise ValueError(f'Wrong update operation "{operation}" must be one off (add, replace, remove).')
 
         patch_json = []
@@ -858,9 +905,11 @@ class RestAPI:
             metadata: dict[str, list[dict]]
             # Check if position argument is not used correctly
             if len(metadata.keys()) > 1 and str(position) != '-1':
+                logging.warning('Could not set same position metadata for more than one metadata tag.')
                 raise Warning('Could not set same position metadata for more than one metadata tag.')
             if (len(metadata.keys()) == 1 and isinstance(metadata[list(metadata.keys())[0]], list)
                     and str(position) != '-1'):
+                logging.warning('Could not use one position argument for more than one metadata-value.')
                 raise Warning('Could not use one position argument for more than one metadata-value.')
             if len(metadata.keys()) == 0:
                 patch_data = {k: metadata[k][0] if len(metadata[k]) == 1 else metadata[k] for k in metadata.keys()}
@@ -898,3 +947,4 @@ class RestAPI:
         bitstream_uuid = [bitstream_uuid] if isinstance(bitstream_uuid, str) else bitstream_uuid
         patch_call = [{"op": "remove", "path": f"/bitstreams/{uuid}"} for uuid in bitstream_uuid]
         self.patch_api("core/bitstreams", patch_call)
+        logging.info(f'Successfully deleted bitstream with uuid "{bitstream_uuid}".')
