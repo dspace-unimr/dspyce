@@ -5,7 +5,7 @@ package:
 1. create_saf_package() -> Creates a single saf package based on a given Item.
 2. saf_packages() -> Creates multiple saf packages in a given path based on the given Item information.
 """
-
+import logging
 import os
 
 from ..Item import Item
@@ -42,11 +42,13 @@ def create_bitstreams(bitstreams: list[ContentFile], save_path: str):
                 b.file = f.read()
 
         with open(save_path + b.file_name, 'wb' if isinstance(b.file, bytes) else 'w') as f:
+            logging.debug(f'Sucessfully created file {b.file_name}')
             file: bytes | str = b.file
             f.write(file)
     if contents != '':
         with open(save_path + 'contents', 'w', encoding='utf8') as f:
             f.write(contents)
+        logging.debug(f'Wrote content-file {save_path + contents}')
 
 
 def create_saf_package(item: Item, element_id: int, path: str, overwrite: bool = False):
@@ -82,25 +84,27 @@ def create_saf_package(item: Item, element_id: int, path: str, overwrite: bool =
     path += '/' if len(path) > 0 and path[-1] != '/' else ('./' if len(path) == 0 else '')
     if 'archive_directory' not in os.listdir(path):
         os.mkdir(path + 'archive_directory')
+        logging.info(f'Created archive_directory in "{path}"')
     path += 'archive_directory/'
     exists_error = FileExistsError(f'The item with the element_id "{element_id}" exists already'
                                    f'in "{path}"')
     if f'item_{element_id}' in os.listdir(path) and not overwrite:
+        logging.error(f'The item with the id {element_id} already exists in "{path}"!')
         raise exists_error
 
-    try:
-        os.mkdir(f'{path}item_{element_id}')
-    except FileExistsError as e:
-        if not overwrite:
-            raise e
+    os.mkdir(f'{path}item_{element_id}')
+    logging.info(f'Created directory for item with the ID {element_id}')
     path += f'item_{element_id}/'
     header = '<?xml version="1.0" encoding="UTF-8"?>\n'
     if 'dc' in item.metadata.get_schemas():
         with open(path + 'dublin_core.xml', 'w', encoding='utf8') as f:
             f.write(header + prefix_schema('dc', item.metadata))
+        logging.debug(f'Wrote dublin_core.xml to item folder item_{element_id}')
     for k in filter(lambda x: x != 'dc', item.metadata.get_schemas()):
         with open(f'{path}metadata_{k}.xml', 'w', encoding='utf8') as f:
             f.write(header + prefix_schema(k, item.metadata))
+
+        logging.debug(f'Wrote metadata_{k}.xml to item folder item_{element_id}')
 
     if len(item.relations) > 0:
         item.contents.append(ContentFile('relations', 'relationships', '',
@@ -110,6 +114,7 @@ def create_saf_package(item: Item, element_id: int, path: str, overwrite: bool =
     if len(item.collections) > 0:
         item.contents.append(ContentFile('collections', 'collections', '',
                                          content='\n'.join([c.get_identifier() for c in item.collections]), show=False))
+        logging.debug(f'Created handle file for item {element_id}')
     create_bitstreams(item.contents, save_path=path)
 
 
@@ -123,10 +128,10 @@ def saf_packages(items: list[Item], path: str, overwrite: bool = False):
     """
     n = 0
     show_progress = len(items) >= 1000
-    print('Start process!')
+    logging.info(f'Start process! Processing {len(items)}')
     for item in items:
         create_saf_package(item, n, path, overwrite)
         if show_progress and n % 100 == 0:
-            print(f'\tCreated {n} saf packages.')
+            logging.info(f'\tCreated {n} saf packages.')
         n += 1
-    print('Finished')
+    logging.info(f'Finished process! Created {len(items)} saf packages.')
