@@ -10,7 +10,6 @@ from ..Relation import Relation
 from ..bitstreams import Bundle, ContentFile, IIIFContent
 from ..DSpaceObject import parse_metadata_label
 from ..metadata import MetaData
-from .. import LOG_FILE, LOG_LEVEL, LOG_FORMAT
 
 
 def json_to_object(json_content: dict) -> DSpaceObject | Item | Community | Collection | None:
@@ -105,7 +104,7 @@ class RestAPI:
     """Provides information about the authentication status."""
 
     def __init__(self, api_endpoint: str, username: str = None, password: str = None,
-                 log_level: int | str = LOG_LEVEL, log_file: str = LOG_FILE):
+                 log_level: int | str = logging.INFO, log_file: str = None):
         """
         Creates a new object of the RestAPI class using
 
@@ -124,7 +123,7 @@ class RestAPI:
         elif isinstance(log_level, str):
             log_level = log_level_types[log_level]
         logging.basicConfig(level=log_level, filename=log_file, encoding='utf8',
-                            format=LOG_FORMAT)
+                            format='%(asctime)s - %(levelname)s: %(message)s')
         self.session = requests.Session()
         self.api_endpoint = api_endpoint
         self.username = username

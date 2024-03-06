@@ -14,6 +14,19 @@ from ..bitstreams.ContentFile import ContentFile
 from ..metadata import MetaDataList
 
 
+LOG_LEVEL = logging.INFO
+"""A global log_level for logging. Is used by all sub-modules as a default value for the log-level."""
+
+LOG_FILE: str | None = None
+"""
+A global log-file for logging. Is used by all sub-modules as default. If "NONE" all logs will be printed into the
+console.
+"""
+
+LOG_FORMAT: str = '%(asctime)s - %(levelname)s: %(message)s'
+"""A global log-format setting, wich is used by all sub-modules."""
+
+
 def export_relations(relations: list[Relation]) -> str:
     """
         Creates a list of relationships separated by line-breaks. It can be used to create the relationship-file in a
@@ -33,6 +46,8 @@ def create_bitstreams(bitstreams: list[ContentFile], save_path: str):
        :param bitstreams: A list of bitstreams to create the files from.
        :param save_path: The path, where the bitstream shall be saved.
    """
+    logging.basicConfig(level=LOG_LEVEL, filename=LOG_FILE, encoding='utf8',
+                        format=LOG_FORMAT)
     contents = ''
     for b in bitstreams:
         if b.show:
@@ -81,6 +96,9 @@ def create_saf_package(item: Item, element_id: int, path: str, overwrite: bool =
         prefix_xml += '</dublin_core>'
         return prefix_xml
 
+    logging.basicConfig(level=LOG_LEVEL, filename=LOG_FILE, encoding='utf8',
+                        format=LOG_FORMAT)
+
     path += '/' if len(path) > 0 and path[-1] != '/' else ('./' if len(path) == 0 else '')
     if 'archive_directory' not in os.listdir(path):
         os.mkdir(path + 'archive_directory')
@@ -126,6 +144,8 @@ def saf_packages(items: list[Item], path: str, overwrite: bool = False):
     :param path: The path in the filesystem where to store the packages.
     :param overwrite: If true, it overwrites the currently existing files.
     """
+    logging.basicConfig(level=LOG_LEVEL, filename=LOG_FILE, encoding='utf8',
+                        format=LOG_FORMAT)
     n = 0
     show_progress = len(items) >= 1000
     logging.info(f'Start process! Processing {len(items)}')

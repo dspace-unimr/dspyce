@@ -11,19 +11,6 @@ from dspyce.Community import Community
 from dspyce.Relation import Relation
 
 
-LOG_LEVEL = logging.INFO
-"""A global log_level for logging. Is used by all sub-modules as a default value for the log-level."""
-
-LOG_FILE: str | None = None
-"""
-A global log-file for logging. Is used by all sub-modules as default. If "NONE" all logs will be printed into the
-console.
-"""
-
-LOG_FORMAT: str = '%(asctime)s - %(levelname)s: %(message)s'
-"""A global log-format setting, wich is used by all sub-modules."""
-
-
 def from_dict(obj_dict: dict, obj_type: str = None) -> DSpaceObject | Item | Community | Collection:
     """
     Creates a new DSpaceObject from a given dictionary.
