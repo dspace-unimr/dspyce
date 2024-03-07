@@ -120,5 +120,5 @@ def all_statistics(object_list: list[str] | list[DSpaceObject],
 
     for o in object_list:
         o: DSpaceObject
-        o.statistic_reports += all_statistics_to_object(o.uuid, rest_api)
+        o.add_statistic_report(all_statistics_to_object(o.uuid, rest_api))
     return object_list
