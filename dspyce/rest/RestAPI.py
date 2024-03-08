@@ -221,7 +221,7 @@ class RestAPI:
         :param url: The url of the api, where to replace the metadata.
         :param json_data: The data object containing action information.
         :param params: Additional params for the operation.
-        :return: The JSON response of the server, if the operation was successfull.
+        :return: The JSON response of the server, if the operation was successfully.
         :raise RequestException: If the JSON response doesn't have the status code 200 or 201
         """
         url = f'{self.api_endpoint}/{url}' if self.api_endpoint not in url else url
@@ -852,13 +852,12 @@ class RestAPI:
                     patch_json.append({"op": operation, "path": f"/metadata/{k}" +
                                                                 (f'/{position}' if str(position) != '-1' else '')})
 
-        url = 'core/' + f'{obj_type}s' if obj_type in ('item', 'collection') else 'communities'
-
+        url = 'core/' + (f'{obj_type}s' if obj_type in ('item', 'collection') else 'communities')
         json_resp = self.patch_api(f'{url}/{object_uuid}', patch_json)
         return json_to_object(json_resp)
 
     def add_metadata(self, metadata: list[MetaData] | dict[str, list[dict]], object_uuid: str,
-                     obj_type: str) -> DSpaceObject:
+                     obj_type: str, position_end: bool = False) -> DSpaceObject:
         """
         Add a new metadata value information to a DSpace object, identified by its uuid.
 
@@ -866,6 +865,7 @@ class RestAPI:
             {<tag> : [{"value": <value>, "language": <language>...}]}
         :param object_uuid: The uuid of the object to add the metadata to.
         :param obj_type: The type of DSpace object. Must be one of item, collection or community.
+        :param position_end: Whether the new metadata field should be placed at the end of the existing metadata.
         :return: The updated DSpace object.
         :raises ValueError: If a not existing objectType is used.
         """
@@ -878,8 +878,12 @@ class RestAPI:
                 values += metadata_dict[m.get_tag()] if m.get_tag() in metadata_dict.keys() else []
                 metadata_dict[m.get_tag()] = values
             metadata = metadata_dict
-
-        return self.update_metadata(metadata, object_uuid, obj_type, 'add')
+        else:
+            # Checks if there is only one metadata key with only one value.
+            if len(metadata.keys()) == 1 and position_end and len(metadata[list(metadata.keys())[0]]) == 1:
+                metadata = {list(metadata.keys())[0]: metadata[list(metadata.keys())[0]][0]}
+        return self.update_metadata(metadata, object_uuid, obj_type, 'add',
+                                    position='-' if position_end else -1)
 
     def replace_metadata(self, metadata: MetaData | dict[str, list[dict] | dict], object_uuid: str,
                          obj_type: str, position: int = -1) -> DSpaceObject:
@@ -902,7 +906,7 @@ class RestAPI:
 
             patch_data = {metadata.get_tag(): values}
         else:
-            metadata: dict[str, list[dict]]
+            metadata: dict[str, list[dict] | dict]
             # Check if position argument is not used correctly
             if len(metadata.keys()) > 1 and str(position) != '-1':
                 logging.warning('Could not set same position metadata for more than one metadata tag.')
@@ -911,10 +915,9 @@ class RestAPI:
                     and str(position) != '-1'):
                 logging.warning('Could not use one position argument for more than one metadata-value.')
                 raise Warning('Could not use one position argument for more than one metadata-value.')
-            if len(metadata.keys()) == 0:
-                patch_data = {k: metadata[k][0] if len(metadata[k]) == 1 else metadata[k] for k in metadata.keys()}
-            else:
-                patch_data = metadata
+
+            patch_data = {k: (metadata[k][0] if (isinstance(metadata[k], list)
+                                                 and len(metadata[k]) == 1) else metadata[k])for k in metadata.keys()}
 
         return self.update_metadata(patch_data, object_uuid, obj_type, 'replace', position=position)
 
