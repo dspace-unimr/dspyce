@@ -31,7 +31,7 @@ class ItemTest(unittest.TestCase):
         """
         self.item.add_content('TEST-FILE', '/test/path/to/file.txt', 'description')
         self.item.add_content('TEST-FILE-2', '/test/path/to/file.txt', 'description',
-                              bundle='TEST')
+                              bundle=Bundle('TEST'))
         self.assertEqual([Bundle('ORIGINAL'), Bundle('TEST')], self.item.get_bundles())
 
     def test_collections(self):

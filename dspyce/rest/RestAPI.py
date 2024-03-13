@@ -7,7 +7,7 @@ from ..Item import Item
 from ..Community import Community
 from ..Collection import Collection
 from ..Relation import Relation
-from ..bitstreams import Bundle, ContentFile, IIIFContent
+from ..bitstreams import Bundle, Bitstream, IIIFContent
 from ..DSpaceObject import parse_metadata_label
 from ..metadata import MetaData
 
@@ -302,7 +302,7 @@ class RestAPI:
         name = resp['name']
         return Bundle(name=name, uuid=uuid)
 
-    def add_bitstream(self, bitstream: ContentFile, bundle: Bundle) -> str:
+    def add_bitstream(self, bitstream: Bitstream, bundle: Bundle) -> str:
         """
         Creates a new bitstream in a given dspace bundle.
         :param bitstream: The bitstream to upload.
@@ -498,7 +498,7 @@ class RestAPI:
                 object_list += self.get_paginated_objects(endpoint, object_key, query_params, p, size)
         return object_list
 
-    def get_item_bitstreams(self, item_uuid: str) -> list[ContentFile]:
+    def get_item_bitstreams(self, item_uuid: str) -> list[Bitstream]:
         """
         Retrieves the bitstreams connected to a DSpace Object. And returns them as a list.
 
@@ -512,8 +512,8 @@ class RestAPI:
             for o in self.get_paginated_objects(bitstream_link, 'bitstreams'):
                 description = o['metadata']['dc.description'][0]['value'] if ('dc.description'
                                                                               in o['metadata'].keys()) else ''
-                bitstream = ContentFile('other', o['name'], o['_links']['content']['href'],
-                                        bundle=b, uuid=o['uuid'])
+                bitstream = Bitstream('other', o['name'], o['_links']['content']['href'],
+                                      bundle=b, uuid=o['uuid'])
                 bitstream.add_description(description)
                 bitstreams.append(bitstream)
                 logging.debug(f'Retrieved item-bitstream: {bitstream}')

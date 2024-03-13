@@ -1,7 +1,7 @@
 from dspyce.Collection import Collection
 from dspyce.DSpaceObject import DSpaceObject
 from dspyce.Relation import Relation
-from dspyce.bitstreams import ContentFile, IIIFContent, Bundle
+from dspyce.bitstreams import Bitstream, IIIFContent, Bundle
 
 
 class Item(DSpaceObject):
@@ -11,7 +11,8 @@ class Item(DSpaceObject):
     """
     collections: list[Collection]
     relations: list[Relation]
-    contents: list[ContentFile]
+    contents: list[Bitstream]
+    bundles: list[Bundle]
     in_archive: bool = True
     discoverable: bool = True
     withdrawn: bool = False
@@ -38,6 +39,7 @@ class Item(DSpaceObject):
             self.collections = collections
         self.relations = []
         self.contents = []
+        self.bundles = []
 
     def is_entity(self) -> bool:
         """
@@ -83,22 +85,26 @@ class Item(DSpaceObject):
             raise TypeError('Could not add relations to a non entity item for item:\n' + str(self))
         self.relations.append(Relation(relation_type, (self, Item(uuid=identifier))))
 
-    def add_content(self, content_file: str, path: str, description: str = '', bundle: str = '',
-                    permissions: list[tuple[str, str]] = None, iiif: bool = False, width: int = 0, iiif_toc: str = ''):
+    def add_content(self, content_file: str, path: str, description: str = '',
+                    bundle: str | Bundle = Bundle(), permissions: list[tuple[str, str]] = None,
+                    iiif: bool = False, width: int = 0, iiif_toc: str = ''):
         """
         Adds additional content-files to the item.
 
         :param content_file: The name of the document, which should be added.
         :param path: The path where to find the document.
         :param description: A description of the content file.
-        :param bundle: The bundle where the item is stored in.
+        :param bundle: The bundle where the item is stored in. The default is bundle.DEFAULT_BUNDLE
         :param permissions: Add permissions to a content file. This variable expects a list of tuples containing the
-        permission-type and the group name to which it is granted to.
+            permission-type and the group name to which it is granted to.
         :param iiif: If the bitstream should be treated as an iiif-specific file. If true also "dspace.iiif.enabled"
-        will be set to "true".
+            will be set to "true".
         :param width: The width of an image. Only needed, if the file is a jpg, wich should be reduced and iiif is True.
         :param iiif_toc: A toc information for an iiif-specific bitstream.
         """
+        active_bundle = self.get_bundle(bundle.name if isinstance(bundle, Bundle) else bundle)
+        if active_bundle is None:
+            active_bundle = bundle if isinstance(bundle, Bundle) else Bundle(bundle)
 
         if iiif:
             cf = IIIFContent('images', content_file, path, bundle=bundle)
@@ -107,7 +113,7 @@ class Item(DSpaceObject):
             if self.metadata.get('dspace.iiif.enabled') is None:
                 self.add_metadata('dspace', 'iiif', 'enabled', 'true', 'en')
         else:
-            cf = ContentFile('other', content_file, path, bundle=bundle)
+            cf = Bitstream('other', content_file, path, bundle=bundle)
 
         if description != '':
             cf.add_description(description)
@@ -115,6 +121,7 @@ class Item(DSpaceObject):
             for p in permissions:
                 cf.add_permission(p[0], p[1])
         self.contents.append(cf)
+        active_bundle.add_bitstream(cf)
 
     def enable_entity(self, entity_type: str):
         """
@@ -141,6 +148,18 @@ class Item(DSpaceObject):
             if c.bundle not in bundles:
                 bundles.append(c.bundle)
         return bundles
+
+    def get_bundle(self, bundle_name: str) -> Bundle | None:
+        """
+        Returns a specific bundle based on the bundle name or None if the bundle does not exist.
+
+        :param bundle_name: The name of the bundle.
+        :return: The bundle object associated with the bundle name, or None if a bundle with this name does not exist.
+        """
+        for b in self.bundles:
+            if b.name == bundle_name:
+                return b
+        return None
 
     def get_dspace_object_type(self) -> str:
         return 'Item'

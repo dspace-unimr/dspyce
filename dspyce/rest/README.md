@@ -112,11 +112,11 @@ class RestAPI(builtins.object)
  |      information such as relationships, owning collection, bundles and bitstreams will be provided.
  |      :return: An object of the class Item.
  |  
- |  get_item_bitstreams(self, item_uuid: str) -> list[dspyce.bitstreams.ContentFile.ContentFile]
+ |  get_item_bitstreams(self, item_uuid: str) -> list[dspyce.bitstreams.Bitstream.ContentFile]
  |      Retrieves the bitstreams connected to a DSpace Object. And returns them as a list.
  |      
  |      :param item_uuid: The uuid of the item to retrieve the bitstreams from.
- |      :return: A list of ContentFile objects.
+ |      :return: A list of Bitstream objects.
  |  
  |  get_item_bundles(self, item_uuid: str) -> list[dspyce.bitstreams.Bundle.Bundle]
  |      Retrieves the bundles connected to a DSpaceObject and returns them as list.

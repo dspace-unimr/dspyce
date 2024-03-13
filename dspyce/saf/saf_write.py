@@ -10,7 +10,7 @@ import os
 
 from ..Item import Item
 from ..Relation import Relation
-from ..bitstreams.ContentFile import ContentFile
+from ..bitstreams.ContentFile import Bitstream
 from ..metadata import MetaDataList
 
 
@@ -39,7 +39,7 @@ def export_relations(relations: list[Relation]) -> str:
     return '\n'.join([r.replace(':', ' ') for r in relation_strings])
 
 
-def create_bitstreams(bitstreams: list[ContentFile], save_path: str):
+def create_bitstreams(bitstreams: list[Bitstream], save_path: str):
     """
        Creates the need bitstream-files in the archive-directory based on the path information.
 
@@ -125,13 +125,13 @@ def create_saf_package(item: Item, element_id: int, path: str, overwrite: bool =
         logging.debug(f'Wrote metadata_{k}.xml to item folder item_{element_id}')
 
     if len(item.relations) > 0:
-        item.contents.append(ContentFile('relations', 'relationships', '',
-                                         export_relations(item.relations), show=False))
+        item.contents.append(Bitstream('relations', 'relationships', '',
+                                       export_relations(item.relations), show=False))
     if item.handle != '':
-        item.contents.append(ContentFile('handle', 'handle', '', item.handle, show=False))
+        item.contents.append(Bitstream('handle', 'handle', '', item.handle, show=False))
     if len(item.collections) > 0:
-        item.contents.append(ContentFile('collections', 'collections', '',
-                                         content='\n'.join([c.get_identifier() for c in item.collections]), show=False))
+        item.contents.append(Bitstream('collections', 'collections', '',
+                                       content='\n'.join([c.get_identifier() for c in item.collections]), show=False))
         logging.debug(f'Created handle file for item {element_id}')
     create_bitstreams(item.contents, save_path=path)
 
