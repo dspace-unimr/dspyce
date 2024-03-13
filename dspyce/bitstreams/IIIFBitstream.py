@@ -4,7 +4,7 @@ from PIL import Image
 from dspyce.bitstreams import Bitstream
 
 
-class IIIFContent(Bitstream):
+class IIIFBitstream(Bitstream):
     """
         A class for managing iiif-specific content files in the saf-packages.
     """
@@ -31,7 +31,7 @@ class IIIFContent(Bitstream):
         or handle the default is False.
         """
         if content_type != 'images':
-            raise TypeError('If you use a IIIFContent object to create saf content files, the content_type must be'
+            raise TypeError('If you use a IIIFBitstream object to create saf content files, the content_type must be'
                             '"images", if you want another content type, please use the super-class `Bitstream`.'
                             f'\n\t"{content_type}" is not allowed here!')
         super().__init__(content_type, name, path, content, bundle, uuid, primary, show)

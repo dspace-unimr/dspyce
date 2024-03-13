@@ -1,7 +1,7 @@
 from dspyce.Collection import Collection
 from dspyce.DSpaceObject import DSpaceObject
 from dspyce.Relation import Relation
-from dspyce.bitstreams import Bitstream, IIIFContent, Bundle
+from dspyce.bitstreams import Bitstream, IIIFBitstream, Bundle
 
 
 class Item(DSpaceObject):
@@ -107,7 +107,7 @@ class Item(DSpaceObject):
             active_bundle = bundle if isinstance(bundle, Bundle) else Bundle(bundle)
 
         if iiif:
-            cf = IIIFContent('images', content_file, path, bundle=bundle)
+            cf = IIIFBitstream('images', content_file, path, bundle=bundle)
             name = content_file.split('.')[0]
             cf.add_iiif(description, name if iiif_toc == '' else iiif_toc, w=width)
             if self.metadata.get('dspace.iiif.enabled') is None:

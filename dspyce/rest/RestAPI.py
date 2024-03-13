@@ -7,7 +7,7 @@ from ..Item import Item
 from ..Community import Community
 from ..Collection import Collection
 from ..Relation import Relation
-from ..bitstreams import Bundle, Bitstream, IIIFContent
+from ..bitstreams import Bundle, Bitstream, IIIFBitstream
 from ..DSpaceObject import parse_metadata_label
 from ..metadata import MetaData
 
@@ -316,8 +316,8 @@ class RestAPI:
         obj_json = {'name': bitstream.file_name, 'metadata': {'dc.title': [{'value': bitstream.file_name}],
                                                               'dc.description': [{'value': bitstream.description}]},
                     'bundleName': bundle.name}
-        if isinstance(bitstream, IIIFContent):
-            bitstream: IIIFContent
+        if isinstance(bitstream, IIIFBitstream):
+            bitstream: IIIFBitstream
             obj_json['metadata']['iiif.label'] = [{'value': bitstream.iiif['label']}]
             obj_json['metadata']['iiif.toc'] = [{'value': bitstream.iiif['toc']}]
             obj_json['metadata']['iiif.image.width'] = [{'value': bitstream.iiif['w']}]

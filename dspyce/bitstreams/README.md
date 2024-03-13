@@ -2,7 +2,7 @@
 ## Package contents:
 1. [Bundle](#bundle)
 2. [Bitstream](#bitstream)
-3. [IIIFContent](#iiifcontent)
+3. [IIIFBitstream](#iiifbitstream)
 ## Package documentation
 ### Bundle
 ```
@@ -71,15 +71,15 @@ class Bitstream(builtins.object)
  |  get_bitstream_file(self)
  |      Returns the actual file as a TextIOWrapper object.
 ```
-### IIIFContent
+### IIIFBitstream
 ```
-class IIIFContent(dspyce.bitstreams.Bitstream.Bitstream)
- |  IIIFContent(content_type: str, name: str, path: str, content: str | bytes = '', bundle: str | dspyce.bitstreams.Bundle.Bundle = 'ORIGINAL', primary: bool = False, show: bool = True)
+class IIIFBitstream(dspyce.bitstreams.Bitstream.Bitstream)
+ |  IIIFBitstream(content_type: str, name: str, path: str, content: str | bytes = '', bundle: str | dspyce.bitstreams.Bundle.Bundle = 'ORIGINAL', primary: bool = False, show: bool = True)
  |  
  |  A class for managing iiif-specific content files in the saf-packages.
  |  
  |  Method resolution order:
- |      IIIFContent
+ |      IIIFBitstream
  |      dspyce.bitstreams.Bitstream.Bitstream
  |      builtins.object
  |  
