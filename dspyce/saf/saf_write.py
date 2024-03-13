@@ -10,7 +10,7 @@ import os
 
 from ..Item import Item
 from ..Relation import Relation
-from ..bitstreams.ContentFile import Bitstream
+from ..bitstreams.Bitstream import Bitstream
 from ..metadata import MetaDataList
 
 

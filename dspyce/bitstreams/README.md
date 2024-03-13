@@ -1,8 +1,8 @@
 # dspyce.bitstreams
 ## Package contents:
 1. [Bundle](#bundle)
-2. [ContentFile](#contentFile)
-2. [IIIFContent](#iiifcontent)
+2. [Bitstream](#bitstream)
+3. [IIIFContent](#iiifcontent)
 ## Package documentation
 ### Bundle
 ```
@@ -29,17 +29,17 @@ class Bundle(builtins.object)
  |  __str__(self)
  |      Return str(self).
 ```
-### ContentFile
+### Bitstream
 ```
-class ContentFile(builtins.object)
- |  ContentFile(content_type: str, name: str, path: str, content: str | bytes = '', bundle: str | dspyce.bitstreams.Bundle.Bundle = 'ORIGINAL', uuid: str = None, primary: bool = False, show: bool = True)
+class Bitstream(builtins.object)
+ |  Bitstream(content_type: str, name: str, path: str, content: str | bytes = '', bundle: str | dspyce.bitstreams.Bundle.Bundle = 'ORIGINAL', uuid: str = None, primary: bool = False, show: bool = True)
  |  
  |  A class for managing content files in the saf-packages.
  |  
  |  Methods defined here:
  |  
  |  __init__(self, content_type: str, name: str, path: str, content: str | bytes = '', bundle: str | dspyce.bitstreams.Bundle.Bundle = 'ORIGINAL', uuid: str = None, primary: bool = False, show: bool = True)
- |      Creates a new ContentFile object.
+ |      Creates a new Bitstream object.
  |      
  |      :param content_type: The type of content file. Must be one off: ('relations', 'licenses', 'images', 'contents',
  |      'handle', 'other')
@@ -63,7 +63,7 @@ class ContentFile(builtins.object)
  |      :param description: String which provides the description.
  |  
  |  add_permission(self, rw: str, group_name: str)
- |      Add access information to the ContentFile.
+ |      Add access information to the Bitstream.
  |      
  |      :param rw: Access-type r-read, w-write.
  |      :param group_name: Group to which the access will be provided.
@@ -73,20 +73,20 @@ class ContentFile(builtins.object)
 ```
 ### IIIFContent
 ```
-class IIIFContent(dspyce.bitstreams.ContentFile.ContentFile)
+class IIIFContent(dspyce.bitstreams.Bitstream.Bitstream)
  |  IIIFContent(content_type: str, name: str, path: str, content: str | bytes = '', bundle: str | dspyce.bitstreams.Bundle.Bundle = 'ORIGINAL', primary: bool = False, show: bool = True)
  |  
  |  A class for managing iiif-specific content files in the saf-packages.
  |  
  |  Method resolution order:
  |      IIIFContent
- |      dspyce.bitstreams.ContentFile.ContentFile
+ |      dspyce.bitstreams.Bitstream.Bitstream
  |      builtins.object
  |  
  |  Methods defined here:
  |  
  |  __init__(self, content_type: str, name: str, path: str, content: str | bytes = '', bundle: str | dspyce.bitstreams.Bundle.Bundle = 'ORIGINAL', primary: bool = False, show: bool = True)
- |      Creates a new IIIF-ContentFile object.
+ |      Creates a new IIIF-Bitstream object.
  |      
  |      :param content_type: The type of content file. Must be one of: 'images'
  |      :param name: The name of the bitstream.
@@ -115,7 +115,7 @@ class IIIFContent(dspyce.bitstreams.ContentFile.ContentFile)
  |  __annotations__ = {'iiif': dict[str, str | int]}
  |  
  |  ----------------------------------------------------------------------
- |  Methods inherited from dspyce.bitstreams.ContentFile.ContentFile:
+ |  Methods inherited from dspyce.bitstreams.Bitstream.Bitstream:
  |  
  |  add_description(self, description)
  |      Creates a description to the content-file.
@@ -123,7 +123,7 @@ class IIIFContent(dspyce.bitstreams.ContentFile.ContentFile)
  |      :param description: String which provides the description.
  |  
  |  add_permission(self, rw: str, group_name: str)
- |      Add access information to the ContentFile.
+ |      Add access information to the Bitstream.
  |      
  |      :param rw: Access-type r-read, w-write.
  |      :param group_name: Group to which the access will be provided.

@@ -503,7 +503,7 @@ class RestAPI:
         Retrieves the bitstreams connected to a DSpace Object. And returns them as a list.
 
         :param item_uuid: The uuid of the item to retrieve the bitstreams from.
-        :return: A list of ContentFile objects.
+        :return: A list of Bitstream objects.
         """
         bitstreams = []
         bundles = self.get_item_bundles(item_uuid)

@@ -13,7 +13,7 @@ class RestAPI(builtins.object)
  |  __init__(self, api_endpoint: str, username: str = None, password: str = None)
  |      Creates a new object of the RestAPI class using
  |  
- |  add_bitstream(self, bitstream: dspyce.bitstreams.ContentFile.ContentFile, bundle: dspyce.bitstreams.Bundle.Bundle) -> str
+ |  add_bitstream(self, bitstream: dspyce.bitstreams.Bitstream.ContentFile, bundle: dspyce.bitstreams.Bundle.Bundle) -> str
  |      Creates a new bitstream in a given dspace bundle.
  |      :param bitstream: The bitstream to upload.
  |      :param bundle: The bundle to upload the item in.
@@ -112,7 +112,7 @@ class RestAPI(builtins.object)
  |      information such as relationships, owning collection, bundles and bitstreams will be provided.
  |      :return: An object of the class Item.
  |  
- |  get_item_bitstreams(self, item_uuid: str) -> list[dspyce.bitstreams.Bitstream.ContentFile]
+ |  get_item_bitstreams(self, item_uuid: str) -> list[dspyce.bitstreams.Bitstream.Bitstream]
  |      Retrieves the bitstreams connected to a DSpace Object. And returns them as a list.
  |      
  |      :param item_uuid: The uuid of the item to retrieve the bitstreams from.

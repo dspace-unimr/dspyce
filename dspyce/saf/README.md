@@ -36,7 +36,7 @@ The line-break separated list of relationships as a string.
 #### create\_bitstreams
 
 ```python
-def create_bitstreams(bitstreams: list[ContentFile], save_path: str)
+def create_bitstreams(bitstreams: list[Bitstream], save_path: str)
 ```
 
 Creates the need bitstream-files in the archive-directory based on the path information.

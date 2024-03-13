@@ -1,4 +1,4 @@
-from .ContentFile import Bitstream
+from dspyce.bitstreams import Bitstream
 
 
 class Bundle:
