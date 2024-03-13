@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dspyce"
+version = "0.0.1"
+authors = [
+    {name="Löhden, Eike Martin"}
+]
+description = "The *dspyce* package helps to communicate with dspace interfaces. Currently saf (Simple Archive Format) packages and the RestAPI are supported."
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent"
+]
+
+[project.urls]
+Homepage = "https://github.com/dspace-unimr/dspyce"
+Issues = "https://github.com/dspace-unimr/dspyce/issues"
