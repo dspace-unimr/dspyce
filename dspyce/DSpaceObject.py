@@ -79,6 +79,40 @@ class DSpaceObject:
         """
         self.metadata.append(MetaData(prefix, element, qualifier, value, language))
 
+    def remove_metadata(self, prefix: str, element: str, qualifier: str | None, value: str = None):
+        """
+        Remove a specific metadata field from the DSpaceObject. Can either be all values for a field or ony a specific
+        value based on the *value* parameter.
+
+        :param prefix: The prefix of the schema, which should be used.
+        :param element: Type of the metadata-field. For example 'title'.
+        :param qualifier: The qualifier of the field. Or None, if not existing.
+        :param value: The value of the metadata field to delete. Can be used, if only one value in a list of values
+            should be deleted. If None, all values from the given tag will be deleted.
+        """
+        qualifier = '' if qualifier is None else qualifier
+        self.metadata = MetaDataList(filter(
+            lambda m: not (m.schema == prefix and
+                           m.element == element and
+                           m.qualifier == qualifier and
+                           (value is None or m.value == value)),
+            self.metadata))
+
+    def replace_metadata(self, prefix: str, element: str, qualifier: str | None, value: str, language: str = None):
+        """
+        Replaces a specific metadata field from the DSpaceObject. Replaces all values of a given tag. If the tag,
+        doesn't exist, new metadata field will be created.
+
+        :param prefix: The prefix of the schema, which should be used.
+        :param element: Type of the metadata-field. For example 'title'.
+        :param qualifier: The qualifier of the field. Or None, if not existing.
+        :param value: The value of the metadata field to delete. Can be used, if only one value in a list of values
+            should be deleted. If None, all values from the given tag will be deleted.
+        :param language: The language of the metadata value to add.
+        """
+        self.remove_metadata(prefix, element, qualifier)
+        self.add_metadata(prefix, element, qualifier, value, language)
+
     def get_dspace_object_type(self) -> str:
         """
         This Function serves mainly to be overwritten by subclasses to get the type of DSpaceObject.

@@ -50,6 +50,25 @@ class DSpaceObjectTest(unittest.TestCase):
                          'kidll88-uuid999-duwkke1222')
         self.obj.metadata = MetaDataList([])
 
+    def test_remove_metadata(self):
+        self.obj.add_dc_value('title', None, 'hello', 'en')
+        self.assertEqual(['hello'], self.obj.get_metadata_values('dc.title'))
+        self.obj.remove_metadata('dc', 'title', None)
+        self.assertIsNone(self.obj.get_metadata_values('dc.title'))
+        self.obj.add_dc_value('title', None, 'hello', 'en')
+        self.obj.add_dc_value('title', None, 'hallo', 'de')
+        self.assertEqual(['hello', 'hallo'], self.obj.get_metadata_values('dc.title'))
+        self.obj.remove_metadata('dc', 'title', None, 'hallo')
+        self.assertEqual(['hello'], self.obj.get_metadata_values('dc.title'))
+        self.obj.remove_metadata('dc', 'title', None)
+
+    def test_replace_metadata(self):
+        self.obj.add_dc_value('title', None, 'hello', 'en')
+        self.assertEqual(['hello'], self.obj.get_metadata_values('dc.title'))
+        self.obj.replace_metadata('dc', 'title', None, 'salut')
+        self.assertEqual(['salut'], self.obj.get_metadata_values('dc.title'))
+        self.obj.remove_metadata('dc', 'title', None)
+
     def test_object_type(self):
         """
         Test object_type method from DSpaceObject, Item and Community classes.
@@ -78,8 +97,8 @@ class DSpaceObjectTest(unittest.TestCase):
         """
         Tests to_dict method from DSpaceObject.
         """
-        self.assertEqual(self.obj.to_dict(), {'uuid': '123445-123jljl1-234kjj', 'handle': 'doc/12345',
-                                              'name': 'test-name'})
+        self.assertEqual({'uuid': '123445-123jljl1-234kjj', 'handle': 'doc/12345', 'name': 'test-name'},
+                         self.obj.to_dict())
 
     def test_from_dict(self):
         """
@@ -88,12 +107,12 @@ class DSpaceObjectTest(unittest.TestCase):
         dict_obj = {'uuid': '123445-123jljl1-234kjj', 'handle': 'doc/12345', 'name': 'test-name',
                     'dc.title': [{'value': 'test-title', 'language': 'en'}, {'value': 'Test-Titel', 'language': 'de'}]}
         obj = ds.from_dict(dict_obj)
-        self.assertEqual(obj.uuid, '123445-123jljl1-234kjj')
-        self.assertEqual(obj.handle, 'doc/12345')
-        self.assertEqual(obj.name, 'test-name')
+        self.assertEqual('123445-123jljl1-234kjj', obj.uuid)
+        self.assertEqual('doc/12345', obj.handle)
+        self.assertEqual('test-name', obj.name)
         self.assertTrue(obj.get_metadata_values('dc.title'), ['test-title', 'Test-Titel'])
-        self.assertEqual(obj.metadata[0].language, 'en')
-        self.assertEqual(obj.metadata[1].language, 'de')
+        self.assertEqual('en', obj.metadata[0].language)
+        self.assertEqual('de', obj.metadata[1].language)
         self.assertRaises(TypeError, ds.from_dict, dict_obj, 'test')
 
     def test_statistics(self):
