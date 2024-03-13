@@ -68,6 +68,31 @@ class MetadataTest(unittest.TestCase):
         obj = md.MetaData('dc', 'creator', None, None)
         self.assertEqual('dc.creator', obj.get_tag())
 
+    def test_md_to_dict(self):
+        """
+        Tests to_dict method from MetaData class.
+        """
+        obj = md.MetaData('dc', 'creator', None, 'Smith, Sam', 'en')
+        obj.add_value('Smith, Adam')
+        self.assertEqual({
+            'dc.creator': [
+                {'value': 'Smith, Sam', 'language': 'en'},
+                {'value': 'Smith, Adam', 'language': 'en'}]}, obj.to_dict())
+
+    def test_md_list_to_dict(self):
+        """
+        Tests the to_dict method from MetaDataList class.
+        """
+        md_list = md.MetaDataList([self.mdObject,
+                                   md.MetaData('dc', 'contributor', 'author',
+                                               'Muster, Max', 'de'),
+                                   md.MetaData('dc', 'title', None, 'Hello World!')])
+        self.assertEqual(
+            {
+                'dc.contributor.author': [{'value': 'Smith, Adam', 'language': 'en'},
+                                          {'value': 'Muster, Max', 'language': 'de'},],
+                'dc.title': [{'value': 'Hello World!'}]}, md_list.to_dict())
+
     def test_metadata_list(self):
         """
         Tests methods from MetadataList class.

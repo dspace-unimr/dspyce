@@ -136,6 +136,17 @@ class MetaData:
         """
         return f'{self.schema}.{self.element}.{self.qualifier}'.strip('.')
 
+    def to_dict(self) -> dict:
+        """
+        Create a DSpace compatible json version of the metadata object,
+        aka: {<tag>: [{"value": <value>, "language": <language>}]}
+
+        :return: The json representation of the metadata object as dict object.
+        """
+        values = [self.value] if not isinstance(self.value, list) else self.value
+        return {self.get_tag(): [
+            {"value": v} if self.language is None else {"value": v, "language": self.language} for v in values]}
+
 
 class MetaDataList(list):
     """
@@ -225,3 +236,19 @@ class MetaDataList(list):
         :return: A list of schema names a strings.
         """
         return {i.schema for i in self}
+
+    def to_dict(self) -> dict:
+        """
+        Create a DSpace compatible json version of the MetadataList object,
+        aka: [{<tag>: [{"value": <value>, "language": <language>}]}, ...]
+
+        :return: The json representation of the MetadataList object as dict object.
+        """
+        metadata_json = {}
+        for tag in self:
+            md_json = tag.to_dict()
+            if tag.get_tag() in metadata_json.keys():
+                metadata_json[tag.get_tag()] += md_json[tag.get_tag()]
+            else:
+                metadata_json.update(md_json)
+        return metadata_json
