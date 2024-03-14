@@ -26,7 +26,11 @@ class Bundle:
         :param description: A description if existing.
         :param uuid: The uuid of the bundle, if known.
         :param bitstreams: A list of bitstreams associated with this bundle.
+        :raises AttributeError: If the bundle name is not of type <str> or is empty.
         """
+        if not isinstance(name, str) or name.strip() == '':
+            raise AttributeError('You have to provide a correct bundle name expected not-empty string,'
+                                 f'but got "{name}"')
         self.name = name
         self.uuid = uuid
         self.description = description

@@ -13,6 +13,7 @@ from bs4 import BeautifulSoup
 
 from dspyce.Item import Item
 from dspyce.Collection import Collection
+from dspyce.bitstreams import Bundle
 
 
 def read_saf_package(path: str) -> Item:
@@ -57,7 +58,7 @@ def read_saf_package(path: str) -> Item:
         name = bitstream[0]
         attributes = {i.split(':')[0]: i.split(':')[1] for i in bitstream[1:]}
         description = attributes.get('description') if attributes.get('description') is not None else ''
-        bundle = attributes.get('bundle') if attributes.get('bundle') is not None else ''
+        bundle = attributes.get('bundle') if attributes.get('bundle') is not None else Bundle.DEFAULT_BUNDLE
         permissions = [(p.split(' ')[0], p.split(' ')[1])
                        for p in attributes.get('permissions')] if attributes.get('permissions') is not None else None
 
