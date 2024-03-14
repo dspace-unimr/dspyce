@@ -77,3 +77,13 @@ class Bundle:
         :raises FileNotFoundError: If the bitstream does not exist.
         """
         self.bitstreams.remove(bitstream)
+
+    def save_bitstreams(self, path: str):
+        """
+        Saves the bitstreams of the given bundle into path.
+
+        :param path: The path where to save the bitstreams.
+        :raises FileExistsError: If the Bitstream already exists in the given path.
+        """
+        for b in self.bitstreams:
+            b.save_bitstream(path)

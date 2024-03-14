@@ -508,16 +508,28 @@ class RestAPI:
         bitstreams = []
         bundles = self.get_item_bundles(item_uuid)
         for b in bundles:
-            bitstream_link = f"/core/bundles/{b.uuid}/bitstreams"
-            for o in self.get_paginated_objects(bitstream_link, 'bitstreams'):
-                description = o['metadata']['dc.description'][0]['value'] if ('dc.description'
-                                                                              in o['metadata'].keys()) else ''
-                bitstream = Bitstream('other', o['name'], o['_links']['content']['href'],
-                                      bundle=b, uuid=o['uuid'])
-                bitstream.add_description(description)
-                bitstreams.append(bitstream)
-                logging.debug(f'Retrieved item-bitstream: {bitstream}')
+            bitstreams += self.get_bitstreams_in_bundle(b).bitstreams
         return bitstreams
+
+    def get_bitstreams_in_bundle(self, bundle: Bundle) -> Bundle:
+        """
+        Retrieves all bitstreams in a given bundle by the bundle uuid.
+
+        :param bundle: The bundle object to retrieve the bitstreams to.
+        :return: The updated bundle object containing the bitstreams associated.
+        """
+        bitstream_link = f"/core_bundles/{bundle.uuid}/bitstreams"
+        logging.debug(f'Retrieving bitstreams for bundle({bundle.name}) with uuid: {bundle.uuid}')
+        for o in self.get_paginated_objects(bitstream_link, 'bitstreams'):
+            description = o['metadata']['dc.description'][0]['value'] if ('dc.description'
+                                                                          in o['metadata'].keys()) else ''
+            bitstream = Bitstream('other', o['name'], o['_links']['content']['href'],
+                                  bundle=bundle, uuid=o['uuid'])
+            bitstream.add_description(description)
+            bundle.add_bitstream(bitstream)
+            logging.debug(f'Retrieved bitstreams: {bitstream}')
+        logging.debug(f'Retrieved {len(bundle.bitstreams)} bitstreams.')
+        return bundle
 
     def get_item_bundles(self, item_uuid: str) -> list[Bundle]:
         """
@@ -636,7 +648,10 @@ class RestAPI:
         if get_related:
             dso.relations = self.get_item_relationships(dso.uuid)
         if get_bitstreams:
-            dso.contents = self.get_item_bitstreams(dso.uuid)
+            dso.bundles = [self.get_bitstreams_in_bundle(b) for b in self.get_item_bundles(dso.uuid)]
+            for b in dso.bundles:
+                dso.contents += b.bitstreams
+
         dso.collections = self.get_item_collections(dso.uuid)
         logging.debug(f'Successfully retrieved item {dso} from endpoint.')
         return dso
