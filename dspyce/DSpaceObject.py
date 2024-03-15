@@ -119,9 +119,9 @@ class DSpaceObject:
         """
         pass
 
-    def get_identifier(self) -> str:
+    def get_identifier(self) -> str | None:
         """
-        Returns the identifier of this object. Preferably this will be the uuid, but if this, does not exist, it uses
+        Returns the identifier of this object. Preferably this will be the uuid, but if this does not exist, it uses
         the handle.
         :return: The identifier as a string.
         """
@@ -129,8 +129,7 @@ class DSpaceObject:
             return self.uuid
         if self.handle != '':
             return self.handle
-
-        return ''
+        return None
 
     def __eq__(self, other):
         if self.uuid == '' and other.uuid == '':

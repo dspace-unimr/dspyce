@@ -7,11 +7,13 @@ package:
 """
 import logging
 import os
+from bs4 import BeautifulSoup
+from bs4.formatter import XMLFormatter
 
-from ..Item import Item
-from ..Relation import Relation
-from ..bitstreams.Bitstream import Bitstream
-from ..metadata import MetaDataList
+from dspyce.Item import Item
+from dspyce.Collection import Collection
+from dspyce.Relation import Relation
+from dspyce.metadata import MetaDataList
 
 
 LOG_LEVEL = logging.INFO
@@ -39,7 +41,23 @@ def export_relations(relations: list[Relation]) -> str:
     return '\n'.join([r.replace(':', ' ') for r in relation_strings])
 
 
-def create_bitstreams(bitstreams: list[Bitstream], save_path: str):
+def save_text_file(path: str, file_name: str, content: str):
+    """
+    Save a text into path using encoding *utf-8*. Raises an exception if the file already exists.
+
+    :param path: The path where to store the text-file.
+    :param file_name: The name of the new file.
+    :param content: The content of the text-file.
+    :raises FileExistsError: If the file already exits in path.
+    """
+    if file_name in os.listdir(path):
+        raise FileExistsError(f'The file {file_name} already exists in path {path}.')
+    with open(f'{path}/{file_name}', 'w', encoding='utf8') as f:
+        f.write(content)
+        logging.debug(f'Wrote file "{file_name}" into "{path}"')
+
+
+def create_bitstreams(item: Item, save_path: str):
     """
        Creates the need bitstream-files in the archive-directory based on the path information.
 
@@ -48,22 +66,54 @@ def create_bitstreams(bitstreams: list[Bitstream], save_path: str):
    """
     logging.basicConfig(level=LOG_LEVEL, filename=LOG_FILE, encoding='utf8',
                         format=LOG_FORMAT)
-    contents = ''
-    for b in bitstreams:
-        if b.show:
-            contents += f'{str(b)}\n'
-        if b.file is None:
-            with open(b.path + b.file_name, 'rb') as f:
-                b.file = f.read()
+    contents = []
+    bundles = item.get_bundles()
+    for bundle in bundles:
+        for b in bundle.bitstreams:
+            if b.bundle.name != bundle.name:
+                logging.error(f'The name of the bundle({bundle.name}) containing the bitstream({b.file_name}) does not'
+                              f'match the name of the bundle registered in the bitstream object: {b.bundle.name}')
+            contents.append(str(b))
 
-        with open(save_path + b.file_name, 'wb' if isinstance(b.file, bytes) else 'w') as f:
-            logging.debug(f'Sucessfully created file {b.file_name}')
-            file: bytes | str = b.file
-            f.write(file)
-    if contents != '':
-        with open(save_path + 'contents', 'w', encoding='utf8') as f:
-            f.write(contents)
-        logging.debug(f'Wrote content-file {save_path + contents}')
+            b.save_bitstream(save_path)
+            logging.debug(f'Successfully created file {b.file_name}')
+    if len(contents) > 0:
+        save_text_file(save_path, 'contents', '\n'.join(contents))
+
+
+def export_schemas(metadata: MetaDataList) -> dict:
+    """
+    Creates the content of the xml files metadata_[prefix].xml based on the given metadata.
+
+    :param metadata: The metadata list containing all metadata fields.
+    :return: The content of the xml file for this schema prefix in a dictionary.
+    """
+    class SAFFormatter(XMLFormatter):
+        def attributes(self, tag):
+            for k, l in tag.attrs.items():
+                yield k, l
+
+    xml_schemas = {}
+    for prefix in metadata.get_schemas():
+        schema_xml = BeautifulSoup(features='xml', preserve_whitespace_tags=["dcvalue"])
+        file_name = f'metadata_{prefix}.xml'
+        if prefix == 'dc':
+            file_name = 'dublin_core.xml'
+            schema_xml.append(schema_xml.new_tag('dublin_core'))
+        else:
+            schema_xml.append(schema_xml.new_tag('dublin_core', schema=prefix))
+        for m in filter(lambda x: x.schema == prefix, metadata):
+            value = [m.value] if not isinstance(m.value, list) else m.value
+            for v in value:
+                mv_field = schema_xml.new_tag("dcvalue", element=m.element)
+                if m.qualifier != '':
+                    mv_field["qualifier"] = m.qualifier
+                if m.language is not None and m.language != '':
+                    mv_field["language"] = m.language
+                mv_field.string = v
+                schema_xml.contents[0].append(mv_field)
+        xml_schemas[file_name] = schema_xml.prettify(formatter=SAFFormatter())
+    return xml_schemas
 
 
 def create_saf_package(item: Item, element_id: int, path: str, overwrite: bool = False):
@@ -75,26 +125,6 @@ def create_saf_package(item: Item, element_id: int, path: str, overwrite: bool =
     :param path: The path where to store all package files.
     :param overwrite: If true, it overwrites the currently existing files.
     """
-    def prefix_schema(prefix: str, metadata: MetaDataList) -> str:
-        """
-        Creates the content of the files metadata_[prefix].xml
-
-        :param prefix: The prefix of the schema which should be created.
-        :param metadata: The metadata list containing all metadata fields.
-        """
-        if prefix not in metadata.get_schemas():
-            raise KeyError(f'The Prefix "{prefix}" does\'nt exist!')
-        schema = '' if prefix == 'dc' else f' schema="{prefix}"'
-        prefix_xml = f'<dublin_core{schema}>\n'
-        for m in filter(lambda x: x.schema == prefix, metadata):
-            value = [m.value] if not isinstance(m.value, list) else m.value
-            for v in value:
-                lang = f' language="{m.language}"' if m.language is not None else ''
-                prefix_xml += (f'\t<dcvalue element="{m.element}" qualifier="{m.qualifier}"{lang}>'
-                               f'{v}'
-                               '</dcvalue>\n')
-        prefix_xml += '</dublin_core>'
-        return prefix_xml
 
     logging.basicConfig(level=LOG_LEVEL, filename=LOG_FILE, encoding='utf8',
                         format=LOG_FORMAT)
@@ -102,38 +132,40 @@ def create_saf_package(item: Item, element_id: int, path: str, overwrite: bool =
     path += '/' if len(path) > 0 and path[-1] != '/' else ('./' if len(path) == 0 else '')
     if 'archive_directory' not in os.listdir(path):
         os.mkdir(path + 'archive_directory')
-        logging.info(f'Created archive_directory in "{path}"')
+        logging.info(f'Created directory *archive_directory* in "{path}"')
     path += 'archive_directory/'
-    exists_error = FileExistsError(f'The item with the element_id "{element_id}" exists already'
-                                   f'in "{path}"')
-    if f'item_{element_id}' in os.listdir(path) and not overwrite:
-        logging.error(f'The item with the id {element_id} already exists in "{path}"!')
-        raise exists_error
+    # Now we check, if the element already exists and deleted it, if overwrite is set to true.
+    if f'item_{element_id}' in os.listdir(path):
+        logging.debug(f'The Item "{element_id}" already exists in "{path}".')
+        if not overwrite:
+            logging.error(f'The item with the id {element_id} already exists in "{path}"!')
+            raise FileExistsError(f'The item with the element_id "{element_id}" exists already'
+                                  f'in "{path}"')
+        else:
+            logging.debug(f'Deleted old item "{element_id}" in "{path}"')
+            for file in os.listdir(f'{path}/item_{element_id}'):
+                os.remove(f'{path}/item_{element_id}/{file}')
+            os.rmdir(f'{path}/item_{element_id}')
 
     os.mkdir(f'{path}item_{element_id}')
     logging.info(f'Created directory for item with the ID {element_id}')
     path += f'item_{element_id}/'
-    header = '<?xml version="1.0" encoding="UTF-8"?>\n'
-    if 'dc' in item.metadata.get_schemas():
-        with open(path + 'dublin_core.xml', 'w', encoding='utf8') as f:
-            f.write(header + prefix_schema('dc', item.metadata))
-        logging.debug(f'Wrote dublin_core.xml to item folder item_{element_id}')
-    for k in filter(lambda x: x != 'dc', item.metadata.get_schemas()):
-        with open(f'{path}metadata_{k}.xml', 'w', encoding='utf8') as f:
-            f.write(header + prefix_schema(k, item.metadata))
 
-        logging.debug(f'Wrote metadata_{k}.xml to item folder item_{element_id}')
+    xml_files = export_schemas(item.metadata)
+    for file_name in xml_files.keys():
+        save_text_file(path, file_name, str(xml_files[file_name]))
+        logging.debug(f'Wrote %s to item folder item_%s' % (file_name, element_id))
 
     if len(item.relations) > 0:
-        item.contents.append(Bitstream('relations', 'relationships', '',
-                                       export_relations(item.relations), show=False))
+        save_text_file(path, 'relations', export_relations(item.relations))
+        logging.debug(f'Created relations file for item {element_id}')
     if item.handle != '':
-        item.contents.append(Bitstream('handle', 'handle', '', item.handle, show=False))
-    if len(item.collections) > 0:
-        item.contents.append(Bitstream('collections', 'collections', '',
-                                       content='\n'.join([c.get_identifier() for c in item.collections]), show=False))
+        save_text_file(path, 'handle', item.handle)
         logging.debug(f'Created handle file for item {element_id}')
-    create_bitstreams(item.contents, save_path=path)
+    if len(item.collections) > 0:
+        save_text_file(path, 'collections', '\n'.join([c.get_identifier() for c in item.collections]))
+        logging.debug(f'Created collections file for item {element_id}')
+    create_bitstreams(item, save_path=path)
 
 
 def saf_packages(items: list[Item], path: str, overwrite: bool = False):
@@ -155,3 +187,21 @@ def saf_packages(items: list[Item], path: str, overwrite: bool = False):
             logging.info(f'\tCreated {n} saf packages.')
         n += 1
     logging.info(f'Finished process! Created {len(items)} saf packages.')
+
+
+if __name__ == '__main__':
+    LOG_LEVEL = logging.DEBUG
+    item = Item(handle='umr/3', collections=Collection(handle = 'umr/2'))
+    item.add_dc_value('title', None, 'test', 'en')
+    item.add_dc_value('contributor', 'author', 'Muster, Max')
+    item.add_dc_value('type', None, 'article')
+    item.enable_entity('Article')
+    item.add_metadata('local', 'umr', 'faculty', 'UB')
+    item.add_content('uml_diagramm.svg', '../../docs', 'Example bitstream')
+    item.add_content('UB_Spring.jpg', 'https://www.uni-marburg.de/de/ub/media/ostern3.jpg',
+                     'Spring picture of the botanic garden in front of the university library in Marburg',
+                     bundle='IIIF', iiif=True)
+    item.add_content('LICENSE.txt', 'https://gitlab.uni-marburg.de/loehdene/learning_git/-/raw/main/LICENSE?ref_type=heads')
+    item.add_content('LICENSE', '../../', 'The data license', bundle='LICENSE')
+    print('\n'.join(map(str, item.bundles)))
+    create_saf_package(item, 0, '../../docs', True)

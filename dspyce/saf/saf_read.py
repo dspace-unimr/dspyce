@@ -9,10 +9,12 @@ the read_saf_packages() function.
 
 import os
 import re
+import uuid
 from bs4 import BeautifulSoup
 
 from dspyce.Item import Item
 from dspyce.Collection import Collection
+from dspyce.bitstreams import Bundle
 
 
 def read_saf_package(path: str) -> Item:
@@ -48,7 +50,13 @@ def read_saf_package(path: str) -> Item:
             qualifier = None if qualifier is None or qualifier == 'none' else qualifier
             lang = field.get('language')
             item.add_metadata(schema, element, qualifier, language=lang, value=field.getText())
-    item.collections = [Collection(handle=c) for c in further_information['collections']]
+
+    for c in further_information['collections']:
+        try:
+            item.add_collection(Collection(uuid=str(uuid.UUID(c))))
+        except ValueError:
+            item.add_collection(Collection(handle=c))
+
     for r in filter(lambda x: x.strip() != '', further_information['relationships']):
         relation = r.split(' ')
         item.add_relation(relation[0].replace('relation.', ''), relation[1])
@@ -57,12 +65,12 @@ def read_saf_package(path: str) -> Item:
         name = bitstream[0]
         attributes = {i.split(':')[0]: i.split(':')[1] for i in bitstream[1:]}
         description = attributes.get('description') if attributes.get('description') is not None else ''
-        bundle = attributes.get('bundle') if attributes.get('bundle') is not None else ''
+        bundle = attributes.get('bundle') if attributes.get('bundle') is not None else Bundle.DEFAULT_BUNDLE
         permissions = [(p.split(' ')[0], p.split(' ')[1])
                        for p in attributes.get('permissions')] if attributes.get('permissions') is not None else None
 
         iiif = 'iiif-label' in attributes.keys()
-        item.add_content(name, f'{path}/{name}', description, bundle, permissions, iiif,
+        item.add_content(name, f'{path}', description, bundle=bundle, permissions=permissions, iiif=iiif,
                          iiif_toc=attributes['iiif-toc'] if 'iiif-toc' in attributes.keys() else '')
     return item
 

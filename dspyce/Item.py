@@ -85,7 +85,7 @@ class Item(DSpaceObject):
             raise TypeError('Could not add relations to a non entity item for item:\n' + str(self))
         self.relations.append(Relation(relation_type, (self, Item(uuid=identifier))))
 
-    def add_content(self, content_file: str, path: str, description: str = '',
+    def add_content(self, content_file: str, path: str, description: str = '', primary: bool = False,
                     bundle: str | Bundle = Bundle(), permissions: list[tuple[str, str]] = None,
                     iiif: bool = False, width: int = 0, iiif_toc: str = ''):
         """
@@ -94,6 +94,7 @@ class Item(DSpaceObject):
         :param content_file: The name of the document, which should be added.
         :param path: The path where to find the document.
         :param description: A description of the content file.
+        :param primary: Whether the added content should be the primary bitstream.
         :param bundle: The bundle where the item is stored in. The default is bundle.DEFAULT_BUNDLE
         :param permissions: Add permissions to a content file. This variable expects a list of tuples containing the
             permission-type and the group name to which it is granted to.
@@ -105,15 +106,16 @@ class Item(DSpaceObject):
         active_bundle = self.get_bundle(bundle.name if isinstance(bundle, Bundle) else bundle)
         if active_bundle is None:
             active_bundle = bundle if isinstance(bundle, Bundle) else Bundle(bundle)
+            self.bundles.append(active_bundle)
 
         if iiif:
-            cf = IIIFBitstream('images', content_file, path, bundle=bundle)
+            cf = IIIFBitstream(content_file, path, bundle=bundle)
             name = content_file.split('.')[0]
             cf.add_iiif(description, name if iiif_toc == '' else iiif_toc, w=width)
             if self.metadata.get('dspace.iiif.enabled') is None:
                 self.add_metadata('dspace', 'iiif', 'enabled', 'true', 'en')
         else:
-            cf = Bitstream('other', content_file, path, bundle=bundle)
+            cf = Bitstream(content_file, path, bundle=bundle)
 
         if description != '':
             cf.add_description(description)

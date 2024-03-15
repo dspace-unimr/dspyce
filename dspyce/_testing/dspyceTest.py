@@ -84,7 +84,7 @@ class DSpaceObjectTest(unittest.TestCase):
         """
         self.assertEqual(self.obj.get_identifier(), '123445-123jljl1-234kjj')
         self.assertEqual(Item(handle='doc/12').get_identifier(), 'doc/12')
-        self.assertEqual(Collection().get_identifier(), '')
+        self.assertIsNone(Collection().get_identifier())
 
     def test_equality(self):
         """

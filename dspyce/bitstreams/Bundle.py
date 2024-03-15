@@ -26,7 +26,11 @@ class Bundle:
         :param description: A description if existing.
         :param uuid: The uuid of the bundle, if known.
         :param bitstreams: A list of bitstreams associated with this bundle.
+        :raises AttributeError: If the bundle name is not of type <str> or is empty.
         """
+        if not isinstance(name, str) or name.strip() == '':
+            raise AttributeError('You have to provide a correct bundle name expected not-empty string,'
+                                 f'but got "{name}"')
         self.name = name
         self.uuid = uuid
         self.description = description
@@ -35,7 +39,9 @@ class Bundle:
             [self.add_bitstream(b) for b in bitstreams]
 
     def __str__(self):
-        return 'Bundle: ' + self.name + (' - ' + self.uuid if self.uuid is not None else '')
+        return ('Bundle - {}{}:\n{}'.format(self.name,
+                                            f'({self.uuid})' if self.uuid is not None else '',
+                                            '\n'.join([f'\t{i}' for i in self.bitstreams])))
 
     def __eq__(self, other) -> bool:
         """
@@ -77,3 +83,13 @@ class Bundle:
         :raises FileNotFoundError: If the bitstream does not exist.
         """
         self.bitstreams.remove(bitstream)
+
+    def save_bitstreams(self, path: str):
+        """
+        Saves the bitstreams of the given bundle into path.
+
+        :param path: The path where to save the bitstreams.
+        :raises FileExistsError: If the Bitstream already exists in the given path.
+        """
+        for b in self.bitstreams:
+            b.save_bitstream(path)
