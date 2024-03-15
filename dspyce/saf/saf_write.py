@@ -11,7 +11,6 @@ from bs4 import BeautifulSoup
 from bs4.formatter import XMLFormatter
 
 from dspyce.Item import Item
-from dspyce.Collection import Collection
 from dspyce.Relation import Relation
 from dspyce.metadata import MetaDataList
 
@@ -61,8 +60,8 @@ def create_bitstreams(item: Item, save_path: str):
     """
        Creates the need bitstream-files in the archive-directory based on the path information.
 
-       :param bitstreams: A list of bitstreams to create the files from.
-       :param save_path: The path, where the bitstream shall be saved.
+        :param item: The item to create the bitstreams for.
+        :param save_path: The path, where the bitstream shall be saved.
    """
     logging.basicConfig(level=LOG_LEVEL, filename=LOG_FILE, encoding='utf8',
                         format=LOG_FORMAT)
@@ -187,21 +186,3 @@ def saf_packages(items: list[Item], path: str, overwrite: bool = False):
             logging.info(f'\tCreated {n} saf packages.')
         n += 1
     logging.info(f'Finished process! Created {len(items)} saf packages.')
-
-
-if __name__ == '__main__':
-    LOG_LEVEL = logging.DEBUG
-    item = Item(handle='umr/3', collections=Collection(handle = 'umr/2'))
-    item.add_dc_value('title', None, 'test', 'en')
-    item.add_dc_value('contributor', 'author', 'Muster, Max')
-    item.add_dc_value('type', None, 'article')
-    item.enable_entity('Article')
-    item.add_metadata('local', 'umr', 'faculty', 'UB')
-    item.add_content('uml_diagramm.svg', '../../docs', 'Example bitstream')
-    item.add_content('UB_Spring.jpg', 'https://www.uni-marburg.de/de/ub/media/ostern3.jpg',
-                     'Spring picture of the botanic garden in front of the university library in Marburg',
-                     bundle='IIIF', iiif=True)
-    item.add_content('LICENSE.txt', 'https://gitlab.uni-marburg.de/loehdene/learning_git/-/raw/main/LICENSE?ref_type=heads')
-    item.add_content('LICENSE', '../../', 'The data license', bundle='LICENSE')
-    print('\n'.join(map(str, item.bundles)))
-    create_saf_package(item, 0, '../../docs', True)
