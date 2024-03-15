@@ -11,8 +11,15 @@ authors = [
 description = "The *dspyce* package helps to communicate with dspace interfaces. Currently saf (Simple Archive Format) packages and the RestAPI are supported."
 readme = "README.md"
 requires-python = ">=3.10"
+dependencies = [
+    "Pillow>=10.0.0",
+    "requests>=2.28.0",
+    "beautifulsoup4>=4.0",
+    "lxml>=5.0",
+]
+
 classifiers = [
-    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent"
 ]
@@ -20,3 +27,4 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/dspace-unimr/dspyce"
 Issues = "https://github.com/dspace-unimr/dspyce/issues"
+Institution = "https://www.uni-marburg.de/en/ub"
