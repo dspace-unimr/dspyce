@@ -12,17 +12,17 @@
 3. [Requirements](#requirements)
 
 ## Description
-The package pydspace helps to communicate with dspace interfaces. Currently, 
-[saf (Simple Archive Format)](saf) packages and the [RestAPI](rest) are supported.
+The package **dspyce** helps to communicate with dspace interfaces. Currently, 
+[saf (Simple Archive Format)](./dspyce/saf) packages and the [RestAPI](./dspyce/rest) are supported.
 
 ## Contents
-The dspyce packages contains the following classes and packages.
+The **dspyce** packages contains the following classes and packages.
 
 ### packages
-1. [bitstreams](bitstreams) -> The package for managing DSpace bitstream objects.
-2. [metadata](metadata) -> The package manages the handling of DSpace metadata information.
-3. [saf](saf) -> The saf packages helps you to create saf packages based on given DSpaceObject objects.
-4. [rest](rest) -> The rest packages handles the communication with the RestAPI of a given DSpace instance.
+1. [bitstreams](./dspyce/bitstreams) -> The package for managing DSpace bitstream objects.
+2. [metadata](./dspyce/metadata) -> The package manages the handling of DSpace metadata information.
+3. [saf](./dspyce/saf) -> The saf packages helps you to create saf packages based on given DSpaceObject objects.
+4. [rest](./dspyce/rest) -> The rest packages handles the communication with the RestAPI of a given DSpace instance.
 
 ### classes
 The following classes exist:
