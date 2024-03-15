@@ -413,9 +413,19 @@ class RestAPI:
         bitstreams = item.contents
         collection_list = item.collections
         if create_tree:
-            if collection_list[0].uuid == '':
+            if len(collection_list) > 0 and collection_list[0].uuid == '':
                 col: Collection = self.add_collection(collection_list[0], create_tree)
                 collection_list[0] = col
+        elif len(collection_list) == 0:
+            raise ValueError('Can not push an Item into the restAPI without information about the owning collections.')
+        elif len(collection_list) > 0 and collection_list[0].get_identifier() is None:
+            raise ValueError('Can not push an Item into the restAPI without a owning collections. Set create_tree to'
+                             'True or provide an identifier of the owning collection.')
+        else:
+            for c in collection_list:
+                if c.uuid == '' and c.handle != '':
+                    logging.debug(f'Could not find uuid for collection with handle "{c.handle}". Retrieving uuid from api.')
+                    c.uuid = self.get_dso(identifier=c.handle).uuid
         dso = self.add_object(item)
         bundles = {i.name: i for i in [self.add_bundle(b, dso.uuid) for b in item.get_bundles()]}
         for b in bitstreams:

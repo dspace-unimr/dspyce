@@ -5,7 +5,7 @@ from dspyce.bitstreams import Bitstream
 
 class BitstreamsTest(unittest.TestCase):
     bundle: Bundle = Bundle()
-    bitstream: Bitstream = Bitstream('other', 'test-file', 'test-content')
+    bitstream: Bitstream = Bitstream('other', 'test-file')
 
     def test_init_bundle(self):
         self.assertIsInstance(self.bundle, Bundle)
@@ -13,7 +13,7 @@ class BitstreamsTest(unittest.TestCase):
 
     def test_init_bitstream(self):
         self.assertIsInstance(self.bitstream, Bitstream)
-        self.assertEqual('test-file', self.bitstream.file_name)
+        self.assertEqual('other', self.bitstream.file_name)
 
     def test_bundle_bitstream(self):
         self.bundle.add_bitstream(self.bitstream)

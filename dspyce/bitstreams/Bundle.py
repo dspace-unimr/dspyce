@@ -39,7 +39,9 @@ class Bundle:
             [self.add_bitstream(b) for b in bitstreams]
 
     def __str__(self):
-        return 'Bundle: ' + self.name + (' - ' + self.uuid if self.uuid is not None else '')
+        return ('Bundle - {}{}:\n{}'.format(self.name,
+                                            f'({self.uuid})' if self.uuid is not None else '',
+                                            '\n'.join([f'\t{i}' for i in self.bitstreams])))
 
     def __eq__(self, other) -> bool:
         """

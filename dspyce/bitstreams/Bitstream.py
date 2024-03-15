@@ -7,17 +7,10 @@ class Bitstream:
     """
         A class for managing bitstream files in the DSpace context.
     """
-    content_type: str
-    """
-    The type of the content file. Must be one off: ('relations', 'licenses', 'images', 'contents',
-    'handle', 'other')
-    """
     file_name: str
     """The name of the file."""
     path: str
     """The path, where the file can be found."""
-    file: bytes | str | None
-    """The file itself, if is should not be loaded from file-system."""
     description: str
     """A possible description of the bitstream."""
     permissions: list[dict[str, str]]
@@ -31,44 +24,23 @@ class Bitstream:
     uuid: str
     """A uuid if the Bitstream already exists in a DSpace-Instance."""
 
-    def __init__(self, content_type: str, name: str, path: str, content: str | bytes = '',
-                 bundle: any = None, uuid: str = None, primary: bool = False,
-                 show: bool = True):
+    def __init__(self, name: str, path: str, bundle: any = None, uuid: str = None, primary: bool = False):
         """
         Creates a new Bitstream object.
-
-        :param content_type: The type of content file. Must be one off: ('relations', 'licenses', 'images', 'contents',
-            'handle', 'other')
         :param name: The name of the bitstream.
         :param path: The path, where the file is currently stored.
-        :param content: The content of the file, if it shouldn't be loaded from the system.
         :param bundle: The bundle, where the bitstream should be placed in. The default is ORIGINAL.
         :param uuid: The uuid of the bitstream if existing.
         :param primary: Primary is used to specify the primary bitstream.
-        :param show: If the bitstream should be listed in the saf-content file. Default: True - if the type is relations
-            or handle the default is False.
         """
-        types = ('relations', 'licenses', 'images', 'contents', 'handle', 'collections', 'other')
-        if content_type not in types:
-            raise KeyError(f'Content-Type {content_type} does not exist. Value must be one of {types}')
-        self.content_type = content_type
         self.file_name = name
         self.path = path
         self.path += '/' if len(self.path) > 0 and self.path[-1] != '/' else ''
-        if content_type == 'relations':
-            self.file = content
-        elif content != '':
-            self.file = content
-        else:
-            self.file = None
         self.permissions = []
         self.description = ''
         self.bundle = bundle
         self.uuid = uuid
         self.primary = primary
-        self.show = show
-        if self.content_type in ('relations', 'handle', 'collections'):
-            self.show = False
 
     def __str__(self):
         """
@@ -129,6 +101,8 @@ class Bitstream:
         if self.file_name in os.listdir(path):
             raise FileExistsError(f'The file "{self.file_name}" already exists in {path}')
         file = self.get_bitstream_file(timeout)
+        if isinstance(file, str):
+            file = file.encode('utf-8')
         with open(f'{path}/{self.file_name}', 'wb') as f:
             f.write(file)
 
