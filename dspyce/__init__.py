@@ -1,6 +1,7 @@
 import re
 import logging
 
+import dspyce.entities
 import dspyce.saf
 import dspyce.rest
 import dspyce.statistics

@@ -2,3 +2,5 @@ Pillow>=10.0.0
 requests>=2.28.0
 beautifulsoup4>=4.0
 lxml>=5.0
+networkx >= 3.3rc0 #TODO: This is still a development version, so this can't be published until a new version release.
+matplotlib >= 3.6
