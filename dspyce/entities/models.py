@@ -97,6 +97,14 @@ class EntityModell:
         if show:
             plt.show()
 
+    def get_relation_list(self) -> list[tuple[tuple[str, str], str]]:
+        """
+        Returns a list of all relations and the connected entity types.
+
+        :return: Returns the list in the following format [((left_type, right_type), relation_name), ...]
+        """
+        return [((l, r), attr['label']) for l, r, attr in self.entity_modell.edges(data=True)]
+
 
 def from_relationship_file(path: str) -> EntityModell:
     """
