@@ -109,7 +109,7 @@ def export_schemas(metadata: MetaDataList) -> dict:
                     mv_field["qualifier"] = m.qualifier
                 if m.language is not None and m.language != '':
                     mv_field["language"] = m.language
-                mv_field.string = v
+                mv_field.string = str(v)
                 schema_xml.contents[0].append(mv_field)
         xml_schemas[file_name] = schema_xml.prettify(formatter=SAFFormatter())
     return xml_schemas
