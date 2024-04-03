@@ -76,11 +76,12 @@ class EntityModell:
         :param path: The path and file_name where the graph should be saved. If None, the graph won't be saved.
         """
         plt.axis('off')
-        fig, ax = plt.subplots(figsize=(2.13*len(self.entities),
-                                        1.6*len(self.entities)))
+        fig, ax = plt.subplots(figsize=(2.13*len(self.entities)+2,
+                                        1.6*len(self.entities)+2))
         ax.axis('off')
         pos = nx.spring_layout(self.entity_modell, scale=2)
-        con_style = 'arc3, rad=0.1'
+        # con_style = 'arc3, rad=0.1'
+        con_style = [f"arc3,rad={r}" for r in [0.2, 0.6, 0.9, 1.2]]
         nx.draw_networkx(self.entity_modell, pos,
                          node_size=1500, alpha=0.9, node_shape='s',
                          edge_color='grey', connectionstyle=con_style,
