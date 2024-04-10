@@ -528,12 +528,12 @@ class RestAPI:
         :param bundle: The bundle object to retrieve the bitstreams to.
         :return: The updated bundle object containing the bitstreams associated.
         """
-        bitstream_link = f"/core_bundles/{bundle.uuid}/bitstreams"
+        bitstream_link = f"/core/bundles/{bundle.uuid}/bitstreams"
         logging.debug(f'Retrieving bitstreams for bundle({bundle.name}) with uuid: {bundle.uuid}')
         for o in self.get_paginated_objects(bitstream_link, 'bitstreams'):
             description = o['metadata']['dc.description'][0]['value'] if ('dc.description'
                                                                           in o['metadata'].keys()) else ''
-            bitstream = Bitstream('other', o['name'], o['_links']['content']['href'],
+            bitstream = Bitstream(o['name'], o['_links']['content']['href'],
                                   bundle=bundle, uuid=o['uuid'])
             bitstream.add_description(description)
             bundle.add_bitstream(bitstream)
@@ -728,7 +728,8 @@ class RestAPI:
 
         return list(filter(lambda x: x is not None, item_list))
 
-    def search_items(self, query_params: dict = None, size: int = 20, full_item: bool = False) -> list[DSpaceObject]:
+    def search_items(self, query_params: dict = None, size: int = 20, full_item: bool = False,
+                     get_bitstreams: bool = False) -> list[DSpaceObject]:
         """
         Search items via rest-API using solr-base query parameters. Uses the endpoint /discover/search/objects. If no
         query_params are provided, the whole repository will be retrieved.
@@ -737,39 +738,47 @@ class RestAPI:
         :param size: The number of objects to retrieve per page.
         :param full_item: If the full items (including relations and bitstreams) shall be downloaded or not.
             Default false.
+        :param get_bitstreams: If true, also the bitstreams of the item will be connected. Not needed if full_item is
+            True. Default: False.
         :return: The list of found DSpace objects.
         """
         object_list = self.get_paginated_objects('/discover/search/objects', 'objects', query_params,
                                                  size=size)
         dspace_objects = [json_to_object(obj['_embedded']['indexableObject']) for obj in object_list]
-        if not full_item:
+        if not full_item and not get_bitstreams:
+            logging.info(f'Found {len(dspace_objects)} DSpace Objects.')
             return dspace_objects
 
         for o in dspace_objects:
             if o.get_dspace_object_type() == 'Item':
                 o: Item
-                o.collections = self.get_item_collections(o.uuid)
-                o.relations = self.get_item_relationships(o.uuid)
+                if full_item:
+                    o.collections = self.get_item_collections(o.uuid)
+                    o.relations = self.get_item_relationships(o.uuid)
                 o.contents = self.get_item_bitstreams(o.uuid)
-            if o.get_dspace_object_type() == 'Collection':
-                o: Collection
-                o.community = self.get_parent_community(o)
-            if o.get_dspace_object_type() == 'Community':
-                o: Community
-                o.parent_community = self.get_parent_community(o)
+            if full_item:
+                if o.get_dspace_object_type() == 'Collection':
+                    o: Collection
+                    o.community = self.get_parent_community(o)
+                if o.get_dspace_object_type() == 'Community':
+                    o: Community
+                    o.parent_community = self.get_parent_community(o)
         logging.info(f'Found {len(dspace_objects)} DSpace Objects.')
         return dspace_objects
 
-    def get_all_items(self, page_size: int = 20, full_item: bool = False) -> list[DSpaceObject]:
+    def get_all_items(self, page_size: int = 20, full_item: bool = False,
+                      get_bitstreams: bool = False) -> list[DSpaceObject]:
         """
         Retrieves all Items from the REST-API. This method simply refers to the `search_items()` method without using
         query_params, thus getting all items.
 
         :param page_size: The number of objects to retrieve per page.
         :param full_item: Whether the full_item including related items and bitstreams shall be downloaded.
+        :param get_bitstreams: If true, also the bitstreams of the item will be connected. Not needed if full_item is
+            True. Default: False.
         :return: A list of all found DSpaceObjects
         """
-        return self.search_items(None, page_size, full_item)
+        return self.search_items(None, page_size, full_item, get_bitstreams)
 
     def get_metadata_field(self, schema: str = '', element: str = '', qualifier: str = '',
                            field_id: int = -1) -> list[dict]:
