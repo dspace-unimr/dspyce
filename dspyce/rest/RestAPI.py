@@ -424,7 +424,8 @@ class RestAPI:
         else:
             for c in collection_list:
                 if c.uuid == '' and c.handle != '':
-                    logging.debug(f'Could not find uuid for collection with handle "{c.handle}". Retrieving uuid from api.')
+                    logging.debug(f'Could not find uuid for collection with handle "{c.handle}".'
+                                  'Retrieving uuid from api.')
                     c.uuid = self.get_dso(identifier=c.handle).uuid
         dso = self.add_object(item)
         bundles = {i.name: i for i in [self.add_bundle(b, dso.uuid) for b in item.get_bundles()]}
