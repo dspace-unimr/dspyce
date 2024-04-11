@@ -528,12 +528,12 @@ class RestAPI:
         :param bundle: The bundle object to retrieve the bitstreams to.
         :return: The updated bundle object containing the bitstreams associated.
         """
-        bitstream_link = f"/core_bundles/{bundle.uuid}/bitstreams"
+        bitstream_link = f"/core/bundles/{bundle.uuid}/bitstreams"
         logging.debug(f'Retrieving bitstreams for bundle({bundle.name}) with uuid: {bundle.uuid}')
         for o in self.get_paginated_objects(bitstream_link, 'bitstreams'):
             description = o['metadata']['dc.description'][0]['value'] if ('dc.description'
                                                                           in o['metadata'].keys()) else ''
-            bitstream = Bitstream('other', o['name'], o['_links']['content']['href'],
+            bitstream = Bitstream(o['name'], o['_links']['content']['href'],
                                   bundle=bundle, uuid=o['uuid'])
             bitstream.add_description(description)
             bundle.add_bitstream(bitstream)
