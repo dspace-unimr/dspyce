@@ -91,6 +91,8 @@ class RestAPI:
     """The active session."""
     authenticated: bool = False
     """Provides information about the authentication status."""
+    dspace_version: str
+    """The dspace version used by the API endpoint."""
 
     def __init__(self, api_endpoint: str, username: str = None, password: str = None,
                  log_level: int | str = logging.INFO, log_file: str = None):
@@ -115,11 +117,42 @@ class RestAPI:
                             format='%(asctime)s - %(levelname)s: %(message)s')
         self.session = requests.Session()
         self.api_endpoint = api_endpoint
+        endpoint_info = RestAPI.get_endpoint_info(api_endpoint)
+        if endpoint_info is None:
+            logging.critical(f'Couldn\'t reach the api_endpoint with the address "{api_endpoint}".')
+            raise requests.exceptions.ConnectionError(f'Could not reach the endpoint {api_endpoint}.')
+        else:
+            self.dspace_version = endpoint_info['dspaceVersion']
         self.username = username
         self.password = password
         self.req_headers = {'Content-type': 'application/json', 'User-Agent': 'Python REST Client'}
         if username is not None and password is not None:
             self.authenticated = self.authenticate_api()
+
+    @staticmethod
+    def get_endpoint_info(api: str) -> dict[str, str] | None:
+        """
+        Checks if the request endpoint is reachable and returns name, ui_address, server_address and dspace-Version
+
+        :param api: The url of the API endpoint.
+        """
+        logging.debug(f'Checking endpoint status.')
+        req = requests.get(api)
+        if req.status_code in (204, 201, 200):
+            try:
+                logging.debug(f'Established connection with the endpoint. Status code: {req.status_code}')
+                resp = req.json()
+                logging.info(f'Connection with endpoint "{api}" established. Instance-name: "{resp["dspaceName"]}",'
+                             f'UI-address: "{resp["dspaceUI"]}", Server-address: "{resp["dspaceServer"]}",'
+                             f'DSpace-Version: "{resp["dspaceVersion"]}"')
+                return resp
+            except json.decoder.JSONDecodeError:
+                logging.critical('The reponse could not be parsed. Are you sure, that you\'ve provided the url of a '
+                                 'valid dspace 7.x endpoint?')
+                return None
+        else:
+            logging.warning(f'Problems with establishing a connection to the endpoint. Status code: {req.status_code}')
+            return None
 
     def update_csrf_token(self, req: requests.models.Request | requests.models.Response):
         """

@@ -16,7 +16,9 @@ def authenticate_to_rest(rest_api: str, user: str = None, log_level=logging.INFO
         console.
     :return: An object of the class Rest.
     """
-    print(f'Establishing connection to the REST-API "{rest_api}":')
+    print(
+        f'Establishing connection to the REST-API "{rest_api}"' + (f' with user "{user}":' if user is not None else ':')
+    )
     authentication = False
     rest_server = None
     while not authentication:
