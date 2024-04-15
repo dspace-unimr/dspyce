@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<dublin_core schema="dspace">
+ <dcvalue element="entity" qualifier="type">Publication</dcvalue>
+</dublin_core>

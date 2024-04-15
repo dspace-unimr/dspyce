@@ -85,16 +85,14 @@ class Item(DSpaceObject):
             raise TypeError('Could not add relations to a non entity item for item:\n' + str(self))
         self.relations.append(Relation(relation_type, (self, Item(uuid=identifier))))
 
-    def add_content(self, content_file: str, path: str, description: str = '', primary: bool = False,
-                    bundle: str | Bundle = Bundle(), permissions: list[tuple[str, str]] = None,
-                    iiif: bool = False, width: int = 0, iiif_toc: str = ''):
+    def add_content(self, content_file: str, path: str, description: str = '', bundle: str | Bundle = Bundle(),
+                    permissions: list[tuple[str, str]] = None, iiif: bool = False, width: int = 0, iiif_toc: str = ''):
         """
         Adds additional content-files to the item.
 
         :param content_file: The name of the document, which should be added.
         :param path: The path where to find the document.
         :param description: A description of the content file.
-        :param primary: Whether the added content should be the primary bitstream.
         :param bundle: The bundle where the item is stored in. The default is bundle.DEFAULT_BUNDLE
         :param permissions: Add permissions to a content file. This variable expects a list of tuples containing the
             permission-type and the group name to which it is granted to.
@@ -113,7 +111,7 @@ class Item(DSpaceObject):
             name = content_file.split('.')[0]
             cf.add_iiif(description, name if iiif_toc == '' else iiif_toc, w=width)
             if self.metadata.get('dspace.iiif.enabled') is None:
-                self.add_metadata('dspace', 'iiif', 'enabled', 'true', 'en')
+                self.add_metadata('dspace.iiif.enabled', 'true', 'en')
         else:
             cf = Bitstream(content_file, path, bundle=bundle)
 
@@ -131,7 +129,7 @@ class Item(DSpaceObject):
 
         :param entity_type: The type of the entity.
         """
-        self.add_metadata('dspace', 'entity', 'type', entity_type)
+        self.add_metadata('dspace.entity.type', entity_type)
 
     def get_owning_collection(self) -> Collection | None:
         """

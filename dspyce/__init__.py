@@ -4,7 +4,7 @@ import logging
 import dspyce.saf
 import dspyce.rest
 import dspyce.statistics
-from dspyce.DSpaceObject import DSpaceObject, parse_metadata_label
+from dspyce.DSpaceObject import DSpaceObject
 from dspyce.Item import Item
 from dspyce.Collection import Collection
 from dspyce.Community import Community
@@ -73,18 +73,16 @@ def from_dict(obj_dict: dict, obj_type: str = None) -> DSpaceObject | Item | Com
                             f'but got {obj_type}')
     for key in filter(lambda x: re.search(r'[a-zA-Z0-9\-]\.[a-zA-Z0-9\-](\.[a-zA-Z0-9\-])?', x),
                       obj_dict.keys()):
-        schema, element, qualifier = parse_metadata_label(key)
         if not isinstance(obj_dict[key], list) and not isinstance(obj_dict[key], dict):
-            obj.add_metadata(schema, element, qualifier, value=obj_dict[key])
+            obj.add_metadata(tag=key, value=obj_dict[key])
         elif isinstance(obj_dict[key], list):
             for o in obj_dict[key]:
                 if isinstance(o, dict) and 'value' in o.keys():
-                    obj.add_metadata(schema, element, qualifier, value=o['value'],
+                    obj.add_metadata(tag=key, value=o['value'],
                                      language=o['language'] if 'language' in o.keys() else None)
                 else:
-                    obj.add_metadata(schema, element, qualifier, value=o)
+                    obj.add_metadata(tag=key, value=o)
         else:
             val = obj_dict[key]
-            obj.add_metadata(schema, element, qualifier, value=val['value'],
-                             language=val['language'] if 'language' in val.keys() else None)
+            obj.add_metadata(tag=key, value=val['value'], language=val['language'] if 'language' in val.keys() else None)
     return obj

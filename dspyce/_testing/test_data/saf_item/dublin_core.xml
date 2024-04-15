@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<dublin_core>
+ <dcvalue element="title" language="en">Test Publication</dcvalue>
+ <dcvalue element="type" language="en">article</dcvalue>
+ <dcvalue element="contributor" qualifier="author">Smith, Adam</dcvalue>
+</dublin_core>
