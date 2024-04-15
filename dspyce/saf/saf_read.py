@@ -25,6 +25,7 @@ def read_saf_package(path: str) -> Item:
     :param path: The path where to find the directory of the saf-package.
     :return: The Item object for the saf-package.
     """
+    path = path[:-1] if path.endswith('/') else path
     files = os.listdir(path)
     metadata_files = filter(lambda x: re.search(r'((metadata_[a-zA-Z\-]+)|(dublin_core))\.xml$', x), files)
     further_information: dict[str: list] = {'contents': [], 'collections': [], 'relationships': []}
@@ -33,8 +34,8 @@ def read_saf_package(path: str) -> Item:
         if file_name in files:
             with open(f'{path}/{file_name}', encoding='utf-8') as f:
                 further_information[file_name] = f.read().splitlines()
-    if handle in files:
-        with open(f'{path}/{handle}', encoding='utf-8') as f:
+    if 'handle' in files:
+        with open(f'{path}/handle', encoding='utf-8') as f:
             handle = f.read().splitlines()[0].strip()
     item = Item(handle=handle)
     for md_file in metadata_files:
@@ -48,8 +49,9 @@ def read_saf_package(path: str) -> Item:
             element = field.get('element')
             qualifier = field.get('qualifier')
             qualifier = None if qualifier is None or qualifier == 'none' else qualifier
+            tag = f'{schema}.{element}' + (f'.{qualifier}' if qualifier is not None else '')
             lang = field.get('language')
-            item.add_metadata(schema, element, qualifier, language=lang, value=field.getText())
+            item.add_metadata(tag, field.get_text(), lang)
 
     for c in further_information['collections']:
         try:

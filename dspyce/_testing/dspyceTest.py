@@ -1,11 +1,10 @@
 import unittest
 import dspyce as ds
 from dspyce.DSpaceObject import DSpaceObject
-from dspyce.DSpaceObject import parse_metadata_label
 from dspyce.Item import Item
 from dspyce.Collection import Collection
 from dspyce.Community import Community
-from dspyce.metadata import MetaDataList
+from dspyce.metadata import MetaData
 
 
 class DSpaceObjectTest(unittest.TestCase):
@@ -13,16 +12,6 @@ class DSpaceObjectTest(unittest.TestCase):
     Tests for dspyce.DSpaceObject objects.
     """
     obj: DSpaceObject = DSpaceObject('123445-123jljl1-234kjj', 'doc/12345', 'test-name')
-
-    def test_parse_metadata_label(self):
-        """
-        Tests function parse_metadata_label from DSpaceObject.py
-        """
-        self.assertEqual(parse_metadata_label('dc.identifier.uri'), ('dc', 'identifier', 'uri'))
-        self.assertEqual(parse_metadata_label('dc.type'), ('dc', 'type', None))
-        self.assertRaises(ValueError, parse_metadata_label, 'dc-title')
-        self.assertRaises(ValueError, parse_metadata_label, 'dc.identifier.uri.url')
-        self.assertRaises(AttributeError, parse_metadata_label, 134)
 
     def test_init_object(self):
         """
@@ -39,35 +28,34 @@ class DSpaceObjectTest(unittest.TestCase):
         """
         Tests add_metadata method from DSpaceObject
         """
-        self.obj.add_dc_value('title', None, 'hello', 'en')
-        self.assertEqual(list(filter(lambda x: x.schema == 'dc' and x.element == 'title', self.obj.metadata))[0].value,
+        self.obj.add_metadata('dc.title', 'hello', 'en')
+        self.assertEqual(self.obj.metadata['dc.title'][0].value,
                          'hello')
-        self.assertEqual(list(filter(lambda x: x.schema == 'dc' and x.element == 'title',
-                                     self.obj.metadata))[0].language, 'en')
-        self.obj.add_metadata('relation', 'isAuthorOfPublication', 'latestForDiscovery',
+        self.assertEqual(self.obj.metadata['dc.title'][0].language, 'en')
+        self.obj.add_metadata('relation.isAuthorOfPublication.latestForDiscovery',
                               'kidll88-uuid999-duwkke1222', 'en')
         self.assertEqual(self.obj.get_metadata_values('relation.isAuthorOfPublication.latestForDiscovery')[0],
                          'kidll88-uuid999-duwkke1222')
-        self.obj.metadata = MetaDataList([])
+        self.obj.metadata = MetaData({})
 
     def test_remove_metadata(self):
-        self.obj.add_dc_value('title', None, 'hello', 'en')
+        self.obj.add_metadata('dc.title', 'hello', 'en')
         self.assertEqual(['hello'], self.obj.get_metadata_values('dc.title'))
-        self.obj.remove_metadata('dc', 'title', None)
+        self.obj.remove_metadata('dc.title')
         self.assertIsNone(self.obj.get_metadata_values('dc.title'))
-        self.obj.add_dc_value('title', None, 'hello', 'en')
-        self.obj.add_dc_value('title', None, 'hallo', 'de')
+        self.obj.add_metadata('dc.title', 'hello', 'en')
+        self.obj.add_metadata('dc.title', 'hallo', 'de')
         self.assertEqual(['hello', 'hallo'], self.obj.get_metadata_values('dc.title'))
-        self.obj.remove_metadata('dc', 'title', None, 'hallo')
+        self.obj.remove_metadata('dc.title', 'hallo')
         self.assertEqual(['hello'], self.obj.get_metadata_values('dc.title'))
-        self.obj.remove_metadata('dc', 'title', None)
+        self.obj.remove_metadata('dc.title')
 
     def test_replace_metadata(self):
-        self.obj.add_dc_value('title', None, 'hello', 'en')
+        self.obj.add_metadata('dc.title', 'hello', 'en')
         self.assertEqual(['hello'], self.obj.get_metadata_values('dc.title'))
-        self.obj.replace_metadata('dc', 'title', None, 'salut')
+        self.obj.replace_metadata('dc.title', 'salut')
         self.assertEqual(['salut'], self.obj.get_metadata_values('dc.title'))
-        self.obj.remove_metadata('dc', 'title', None)
+        self.obj.remove_metadata('dc.title')
 
     def test_object_type(self):
         """
@@ -97,8 +85,8 @@ class DSpaceObjectTest(unittest.TestCase):
         """
         Tests to_dict method from DSpaceObject.
         """
-        self.assertEqual({'uuid': '123445-123jljl1-234kjj', 'handle': 'doc/12345', 'name': 'test-name'},
-                         self.obj.to_dict())
+        self.assertEqual({'uuid': '123445-123jljl1-234kjj', 'handle': 'doc/12345', 'name': 'test-name',
+                          'metadata': {}}, self.obj.to_dict())
 
     def test_from_dict(self):
         """
@@ -111,8 +99,8 @@ class DSpaceObjectTest(unittest.TestCase):
         self.assertEqual('doc/12345', obj.handle)
         self.assertEqual('test-name', obj.name)
         self.assertTrue(obj.get_metadata_values('dc.title'), ['test-title', 'Test-Titel'])
-        self.assertEqual('en', obj.metadata[0].language)
-        self.assertEqual('de', obj.metadata[1].language)
+        self.assertEqual('en', obj.metadata['dc.title'][0].language)
+        self.assertEqual('de', obj.metadata['dc.title'][1].language)
         self.assertRaises(TypeError, ds.from_dict, dict_obj, 'test')
 
     def test_statistics(self):

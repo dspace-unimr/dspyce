@@ -8,7 +8,6 @@ from ..Community import Community
 from ..Collection import Collection
 from ..Relation import Relation
 from ..bitstreams import Bundle, Bitstream, IIIFBitstream
-from ..DSpaceObject import parse_metadata_label
 from ..metadata import MetaData
 
 
@@ -36,11 +35,10 @@ def json_to_object(json_content: dict) -> DSpaceObject | Item | Community | Coll
         case _:
             obj = DSpaceObject(uuid, handle, name)
     for m in metadata.keys():
-        prefix, element, qualifier = parse_metadata_label(m)
         for v in metadata[m]:
             value = v['value']
             lang = v['language'] if 'language' in v.keys() else None
-            obj.add_metadata(prefix, element, qualifier, value, lang)
+            obj.add_metadata(tag=m, value=value, language=lang)
     return obj
 
 
@@ -54,16 +52,7 @@ def object_to_json(obj: DSpaceObject) -> dict:
     handle = obj.handle
     name = obj.name
     obj_type = obj.get_dspace_object_type().lower()
-    metadata = {}
-    for m in obj.metadata:
-        value = m.value if isinstance(m.value, list) else [m.value]
-        values = []
-        for v in value:
-            tmp = {'value': v}
-            if m.language is not None and m.language != '':
-                tmp['language'] = m.language
-            values.append(tmp)
-        metadata[m.get_tag()] = values if m.get_tag() not in metadata.keys() else metadata[m.get_tag()] + values
+    metadata = {key: [dict(v) for v in obj.metadata[key]] for key in obj.metadata.keys()}
 
     json_object = {}
     if uuid is not None and uuid != '':
@@ -882,7 +871,7 @@ class RestAPI:
         json_resp = self.patch_api(f'{url}/{object_uuid}', patch_json)
         return json_to_object(json_resp)
 
-    def add_metadata(self, metadata: list[MetaData] | dict[str, list[dict]], object_uuid: str,
+    def add_metadata(self, metadata: MetaData | dict[str, list[dict]], object_uuid: str,
                      obj_type: str, position_end: bool = False) -> DSpaceObject:
         """
         Add a new metadata value information to a DSpace object, identified by its uuid.
@@ -896,14 +885,8 @@ class RestAPI:
         :raises ValueError: If a not existing objectType is used.
         """
 
-        if not isinstance(metadata, dict):
-            metadata_dict = {}
-            for m in metadata:
-                values = [{"value": v,
-                           "language": m.language} for v in (m.value if isinstance(m.value, list) else [m.value])]
-                values += metadata_dict[m.get_tag()] if m.get_tag() in metadata_dict.keys() else []
-                metadata_dict[m.get_tag()] = values
-            metadata = metadata_dict
+        if isinstance(metadata, MetaData):
+            metadata = {key: [dict(v) for v in metadata[key]] for key in metadata.keys()}
         else:
             # Checks if there is only one metadata key with only one value.
             if len(metadata.keys()) == 1 and position_end and len(metadata[list(metadata.keys())[0]]) == 1:
@@ -926,11 +909,7 @@ class RestAPI:
         """
         if isinstance(metadata, MetaData):
             metadata: MetaData
-            values = [{"value": v,
-                       "language": metadata.language} for v in (metadata.value if (isinstance(metadata.value, list))
-                                                                else [metadata.value])]
-
-            patch_data = {metadata.get_tag(): values}
+            patch_data = {key: [dict(v) for v in metadata[key]] for key in metadata.keys()}
         else:
             metadata: dict[str, list[dict] | dict]
             # Check if position argument is not used correctly

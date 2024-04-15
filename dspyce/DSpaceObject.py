@@ -1,29 +1,4 @@
-from .metadata import MetaDataList, MetaData
-
-
-def parse_metadata_label(label: str) -> tuple[str, str, str | None]:
-    """
-    Parses a dspace metadata label string from the format <schema>.<element>.<qualifier>
-
-    >>> parse_metadata_label('dc.type')
-    ('dc', 'type', None)
-    >>> parse_metadata_label('dspace.entity.type')
-    ('dspace, 'entity', 'type')
-
-    :param label: The metadata label to parse.
-    :return: A tuple containing prefix, element and qualifier of a label.
-    :raises ValueError: Raises a value-error if the label can not be parsed.
-    :raises AttributeError: Raises a attribute-error if the label isn't a string.
-    """
-    if not isinstance(label, str):
-        raise AttributeError('The label must be from type string.')
-    label = label.split('.')
-    if len(label) == 2:
-        return label[0], label[1], None
-    if len(label) == 3:
-        return label[0], label[1], label[2]
-
-    raise ValueError(f'Could not parse dspace-metadata label "{label}"')
+from .metadata import MetaData, MetaDataValue
 
 
 class DSpaceObject:
@@ -37,7 +12,7 @@ class DSpaceObject:
     """The name of the DSpaceObject, if existing"""
     handle: str
     """The handle of the Object"""
-    metadata: MetaDataList
+    metadata: MetaData
     """The metadata provided for the object."""
     statistic_reports: dict
     """A dictionary of statistic report objects."""
@@ -53,65 +28,46 @@ class DSpaceObject:
         self.uuid = uuid
         self.handle = handle
         self.name = name
-        self.metadata = MetaDataList([])
+        self.metadata = MetaData({})
         self.statistic_reports = {}
 
-    def add_dc_value(self, element: str, qualifier: str | None, value: str, language: str = None):
+    def add_metadata(self, tag: str, value: str, language: str = None):
         """
-        Creates a new dc- metadata field with the given value.
+        Creates a new metadata field with the given value.
 
-        :param element: Type of the metadata-field. For example 'title'.
-        :param qualifier: The qualifier of the field.
+        :param tag: The correct metadata tag. The string must use the format <schema>.<element>.<qualifier>.
         :param value: The value of the metadata-field.
-        :param language: The language of the metadata field. Default: None.
-        """
-        self.add_metadata('dc', element, qualifier, value, language)
-
-    def add_metadata(self, prefix: str, element: str, qualifier: str | None, value: str, language: str = None):
-        """
-        Creates a new metadata field with the given value. The schema is specified through the prefix parameter.
-
-        :param element: Type of the metadata-field. For example 'title'.
-        :param value: The value of the metadata-field.
-        :param prefix: The prefix of the schema, which should be used.
-        :param qualifier: The qualifier of the field.
         :param language: The language of the metadata field.
-        """
-        self.metadata.append(MetaData(prefix, element, qualifier, value, language))
 
-    def remove_metadata(self, prefix: str, element: str, qualifier: str | None, value: str = None):
+        :raises KeyError: If the metadata tag doesn't use the format <schema>.<element>.<qualifier>.'
+        """
+        self.metadata[tag] = MetaDataValue(value, language)
+
+    def remove_metadata(self, tag: str, value: str = None):
         """
         Remove a specific metadata field from the DSpaceObject. Can either be all values for a field or ony a specific
         value based on the *value* parameter.
 
-        :param prefix: The prefix of the schema, which should be used.
-        :param element: Type of the metadata-field. For example 'title'.
-        :param qualifier: The qualifier of the field. Or None, if not existing.
+        :param tag: The correct metadata tag. The string must use the format <schema>.<element>.<qualifier>.
         :param value: The value of the metadata field to delete. Can be used, if only one value in a list of values
             should be deleted. If None, all values from the given tag will be deleted.
         """
-        qualifier = '' if qualifier is None else qualifier
-        self.metadata = MetaDataList(filter(
-            lambda m: not (m.schema == prefix and
-                           m.element == element and
-                           m.qualifier == qualifier and
-                           (value is None or m.value == value)),
-            self.metadata))
+        if value is None:
+            self.metadata.pop(tag)
+        else:
+            self.metadata[tag] = list(filter(lambda x: x.value != value, self.metadata[tag]))
 
-    def replace_metadata(self, prefix: str, element: str, qualifier: str | None, value: str, language: str = None):
+    def replace_metadata(self, tag: str, value: str, language: str = None):
         """
-        Replaces a specific metadata field from the DSpaceObject. Replaces all values of a given tag. If the tag,
-        doesn't exist, new metadata field will be created.
+        Replaces a specific metadata field from the DSpaceObject. Replaces all values of a given tag.
 
-        :param prefix: The prefix of the schema, which should be used.
-        :param element: Type of the metadata-field. For example 'title'.
-        :param qualifier: The qualifier of the field. Or None, if not existing.
-        :param value: The value of the metadata field to delete. Can be used, if only one value in a list of values
+        :param tag: The correct metadata tag. The string must use the format <schema>.<element>.<qualifier>.
+        :param value: The value of the metadata field to add. Can be used, if only one value in a list of values
             should be deleted. If None, all values from the given tag will be deleted.
         :param language: The language of the metadata value to add.
         """
-        self.remove_metadata(prefix, element, qualifier)
-        self.add_metadata(prefix, element, qualifier, value, language)
+        self.remove_metadata(tag)
+        self.add_metadata(tag, value, language)
 
     def get_dspace_object_type(self) -> str:
         """
@@ -132,31 +88,18 @@ class DSpaceObject:
         return None
 
     def __eq__(self, other):
-        if self.uuid == '' and other.uuid == '':
-            raise ValueError('Can not compare objects without a uuid')
-        return self.uuid == other.uuid
+        if self.uuid == '' and other.uuid == '' and self.handle == '' and other.handle == '':
+            raise ValueError('Can not compare objects without a uuid or handle.')
+        return (self.uuid == other.uuid) if self.uuid != '' else (self.handle == other.handle)
 
     def __str__(self):
-        self.metadata.sort()
-        data = '\n'.join(f'\t{str(m)}' for m in self.metadata)
-        return f'DSpace object with the uuid {self.uuid}:\n{data}'
+        return f'DSpace object with the uuid {self.uuid}:\n\t' + '\n\t'.join(str(self.metadata).split('\n'))
 
     def to_dict(self) -> dict:
         """
             Converts the current item object to a dictionary object containing all available metadata.
         """
-        dict_obj = {'uuid': self.uuid, 'handle': self.handle, 'name': self.name}
-        for m in self.metadata:
-            m: MetaData
-            tag = m.get_tag()
-            value = m.value
-            if m.language is not None:
-                value = {m.language: value}
-                if tag in dict_obj.keys():
-                    value.update(dict_obj[tag] if isinstance(dict_obj[tag], dict) else {'': dict_obj[tag]})
-                    # TODO: Correct language implementation in dictionary representations of DSpaceObject.
-            dict_obj[tag] = value
-        return dict_obj
+        return {'uuid': self.uuid, 'handle': self.handle, 'name': self.name, 'metadata': self.metadata}
 
     def get_metadata_values(self, tag: str) -> list | None:
         """
@@ -165,10 +108,8 @@ class DSpaceObject:
         :param tag: The metadata tag: prefix.element.qualifier
         :return: The values as a list or None, if the tag doesn't exist.
         """
-        values = self.metadata.get(tag)
-        if values is None:
-            return None
-        return [v.value for v in (values if isinstance(values, list) else [values])]
+        m = self.metadata.get(tag)
+        return [v.value for v in m] if m else None
 
     def add_statistic_report(self, report: dict | list[dict] | None):
         """

@@ -1,28 +1,23 @@
-class MetaData:
+import re
+
+
+class MetaDataValue:
     """
     This class represents a metadata field for a DSpace object. Containing information about the schema, element,
     qualifier and value.
     """
-
-    schema: str
-    element: str
-    qualifier: str
     language: str | None
-    value: any
+    """The language of the metadata value. For example 'en' for English."""
+    value: str | int | float | bool
+    """The actual metadata value."""
 
-    def __init__(self, schema: str, element: str, qualifier: str | None, value, language: str = None):
+    def __init__(self, value: str | int | float | bool, language: str = None):
         """
-        Creates a new MetaData object. <schema>.<element>.<qualifier>:<value>
+        Creates a new MetaDataValue object.
 
-        :param schema: The schema of the metadata field, for example dc, dspace, local, ...
-        :param element: The element of the field.
-        :param qualifier: The qualifier of the field. If None, no qualifier will be used.
         :param value: The value stored in the metadata field.
         :param language: Optional language parameter for a metadata field.
         """
-        self.schema = schema
-        self.element = element
-        self.qualifier = qualifier if qualifier is not None else ''
         self.value = value
         self.language = language if language != '' else None
 
@@ -34,200 +29,76 @@ class MetaData:
         :return: True if the two objects are equal, False otherwise
         :raises TypeError: If the parameter other is not of Type Metadata.
         """
-        if not isinstance(other, MetaData):
-            raise TypeError(f'Can not use = between type(Metadata) and type({type(other)})')
-        other: MetaData
-        return self.get_tag() == other.get_tag() and self.value == other.value and self.language == other.language
-
-    def __gt__(self, other):
-        """
-        Checks if this object is greater than "other".
-
-        :param other: The object to compare to
-        :return: True if this object is greater than the other.
-        :raises TypeError: If the parameter other is not of Type Metadata.
-        """
-        if not isinstance(other, MetaData):
-            raise TypeError(f'Can not use > between type(Metadata) and type({type(other)})')
-        other: MetaData
-        return self.__str__() > other.__str__()
-
-    def __lt__(self, other):
-        """
-        Checks if this object is lower than "other".
-
-        :param other: The object to compare to
-        :return: True if this object is lower than the other.
-        :raises TypeError: If the parameter other is not of Type Metadata.
-        """
-        if not isinstance(other, MetaData):
-            raise TypeError(f'Can not use < between type(Metadata) and type({type(other)})')
-        other: MetaData
-        return self.__str__() < other.__str__()
-
-    def __ge__(self, other):
-        """
-        Checks if this object is greater or equally to "other".
-
-        :param other: The object to compare to
-        :return: True if this object is greater or equally to the other.
-        :raises TypeError: If the parameter other is not of Type Metadata.
-        """
-        if not isinstance(other, MetaData):
-            raise TypeError(f'Can not use > between type(Metadata) and type({type(other)})')
-        other: MetaData
-        return self > other or self == other
-
-    def __le__(self, other):
-        """
-        Checks if this object is lower or equally to "other".
-
-        :param other: The object to compare to
-        :return: True if this object is lower or equally tot the other.
-        :raises TypeError: If the parameter other is not of Type Metadata.
-        """
-        if not isinstance(other, MetaData):
-            raise TypeError(f'Can not use > between type(Metadata) and type({type(other)})')
-        other: MetaData
-        return self < other or self == other
+        if not isinstance(other, MetaDataValue):
+            raise TypeError(f'Can not use = between type(MetadataValue) and type({type(other)})')
+        other: MetaDataValue
+        return (isinstance(self.value, type(other.value)) and
+                self.value == other.value and self.language == other.language)
 
     def __str__(self):
         """
         Creates a string representation of this object.
         """
-        return f'{self.get_tag()}:{self.value}' + (f'[{self.language}]' if self.language is not None else '')
+        return (f'{self.language}:\t' if self.language else '') + str(self.value)
 
-    def is_field(self, other) -> bool:
+    def set_value(self, value):
         """
-        Looks up, if the name (<schema>.<element>.<qualifier>) of two fields are identical.
-        :param other: The MetaData object to compare it with.
-        :return: True, if the names are identical
-        :raise TypeError: If the tag is not in the correct schema.
-        """
-        if isinstance(other, MetaData):
-            return self.get_tag() == other.get_tag() and self.language == other.language
-        if isinstance(other, str):
-            field = other.split('.')
-            if len(field) == 3:
-                return self.schema == field[0] and self.element == field[1] and self.qualifier == field[2]
-            if len(field) == 2:
-                return self.schema == field[0] and self.element == field[1] and self.qualifier == ''
-
-            raise TypeError(f'Could not parse tag "{other}"')
-
-        return False
-
-    def add_value(self, value):
-        """
-        Adds a value to the metadata field, if it already has a value.
+        Adds a value to the metadata field, if it already has a value, the old value will be overwritten.
         :param value: The value to add.
         """
-        if self.value is None:
-            self.value = value
-        elif isinstance(self.value, list):
-            self.value.append(value)
-        else:
-            self.value = [self.value, value]
+        self.value = value
 
-    def get_tag(self) -> str:
+    def __iter__(self):
         """
-        Creates the corresponding classical metadata tag, based on <schema>.<element>.<qualifier>
-        :return: The tag as a string.
+        Returns a dictionary representation of this object.
         """
-        return f'{self.schema}.{self.element}.{self.qualifier}'.strip('.')
-
-    def to_dict(self) -> dict:
-        """
-        Create a DSpace compatible json version of the metadata object,
-        aka: {<tag>: [{"value": <value>, "language": <language>}]}
-
-        :return: The json representation of the metadata object as dict object.
-        """
-        values = [self.value] if not isinstance(self.value, list) else self.value
-        return {self.get_tag(): [
-            {"value": v} if self.language is None else {"value": v, "language": self.language} for v in values]}
+        yield 'value', self.value
+        if self.language is not None:
+            yield 'language', self.language
 
 
-class MetaDataList(list):
+class MetaData(dict):
     """
-    A list of metadata fields. Provides all methods of a classic list, but only for MetaData objects. If an object is
-    appended to the list. The MetaDataList checks first, if there is already a metadata field with this tag.
+    A dict of metadata fields using the following format: "<tag>": list(MetaDataValue)
     """
-    def __init__(self, iterable: list[MetaData]):
-        """
-        Creates a new object of MetaDataList
-        """
-        super().__init__(iterable)
 
-    def __setitem__(self, index, item: MetaData):
+    @staticmethod
+    def is_valid_tag(tag) -> bool:
         """
-        Sets a new MetaData item on position <index>
+        Checks if the given tag is valid using RegEx.
 
-        :param index: The index of the position.
-        :param item: The MetaData item to add
-        :raise TypeError: If type(item) is not MetaData.
+        :param tag: The tag to check.
+        :return: True if the tag is valid, False otherwise.
         """
-        if not isinstance(item, MetaData):
-            raise TypeError('Only items from type MetaData can be added to this list.')
-        super().__setitem__(index, item)
-
-    def insert(self, index, item: MetaData):
-        """
-        Inserts an object before a specific index.
-        """
-        if not isinstance(item, MetaData):
-            raise TypeError('Only items from type MetaData can be added to this list.')
-        super().insert(index, item)
-
-    def append(self, item: MetaData):
-        """
-        Appends a new object at the end of the MetaDataList. If the tag of the item already exists with same language,
-        the value will be appended to the existing object.
-
-        :param item: The object to add.
-        :raise TypeError: If type(item) is not MetaData
-        """
-        if not isinstance(item, MetaData):
-            raise TypeError('Only items from type MetaData can be added to this list.')
-        for i, v in enumerate(self):
-            if item.is_field(v):
-                self[i].add_value(item.value)
-                return
-        super().append(item)
-
-    def extend(self, other):
-        """
-        Expanding the list by adding objects from another MetaDataList.
-        """
-        if isinstance(other, type(self)):
-            super().extend(other)
+        if re.search(r'^[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-]+(\.[a-zA-Z0-9\-]+)?$', tag):
+            return True
         else:
-            raise TypeError('The type of the other list must correspond to MetadataList')
+            return False
 
-    def __str__(self):
+    def __setitem__(self, key: str, value: MetaDataValue | list[MetaDataValue]):
         """
-        Converts the MetaDataList into a string object.
-        """
-        return ', '.join([str(i) for i in self])
+        Adds a value to the metadata field defined by key. If the metadata field already exists, the value will be
+        appended. If value is a list of MetaDataValues, the values will be replaced with the new value list.
 
-    def __add__(self, other):
+        :param key: The key of the metadata field to add (must be in the correct format).
+        :param value: The value to add. If this is of type list, the new list of MetadataValues will replace the old one
+        :raises TypeError: If the parameter value is not of type MetaDataValue.
+        :raises KeyError: If the parameter key has not a valid format.
         """
-        Adds another MetaDataList to this and returns the result. Aka ` + `.
-        """
-        if isinstance(other, type(self)):
-            super().__add__(other)
+        if not isinstance(value, MetaDataValue) and not isinstance(value, list):
+            raise TypeError(f'The value must be of type MetaDataValue, but found {type(value)}')
+        if not MetaData.is_valid_tag(key):
+            raise KeyError(f'The key "{key}" is not a valid metadata key.')
+        if isinstance(value, list):
+            for v in value:
+                if not isinstance(v, MetaDataValue):
+                    raise TypeError(f'All values must be of type MetaDataValue, but found {type(value)}')
+            super().__setitem__(key, value)
         else:
-            raise TypeError('The type of the other list must correspond to MetadataList')
-
-    def get(self, tag: str):
-        """
-        Returns the value of a given metadata field.
-
-        :param tag: The name of the metadata field. <schema>.<element>.<qualifier>
-        :return: The value of the metadata field, or None if it doesn't exist.
-        """
-        lst = list(filter(lambda x: x.get_tag() == tag, self))
-        return lst if len(lst) > 0 else None
+            if key not in self.keys():
+                super().__setitem__(key, [value])
+            else:
+                super().__getitem__(key).append(value)
 
     def get_schemas(self) -> set[str]:
         """
@@ -235,20 +106,28 @@ class MetaDataList(list):
 
         :return: A list of schema names a strings.
         """
-        return {i.schema for i in self}
+        return {k.split('.')[0] for k in self.keys()}
 
-    def to_dict(self) -> dict:
-        """
-        Create a DSpace compatible json version of the MetadataList object,
-        aka: [{<tag>: [{"value": <value>, "language": <language>}]}, ...]
+    def __getitem__(self, item) -> list[MetaDataValue]:
+        return super().__getitem__(item)
 
-        :return: The json representation of the MetadataList object as dict object.
+    def get(self, key, default=None) -> list[MetaDataValue]:
+        return super().get(key, default)
+
+    def __str__(self):
         """
-        metadata_json = {}
-        for tag in self:
-            md_json = tag.to_dict()
-            if tag.get_tag() in metadata_json.keys():
-                metadata_json[tag.get_tag()] += md_json[tag.get_tag()]
-            else:
-                metadata_json.update(md_json)
-        return metadata_json
+        Creates a string representation of the Metadata object.
+        """
+        return '\n'.join([f'{k}:\n' + '\n'.join([f'\t{v}' for v in self.get(k)]) for k in self.keys()])
+
+    def get_by_schema(self, schema: str):
+        """
+        Returns a sub-dictionary only including metadata fields from the given schema.
+
+        :param schema: The schema name.
+        :return: A sub-dictionary of the given schema.
+        :raises KeyError: If the given schema does not have any metadata fields.
+        """
+        if schema not in self.get_schemas():
+            raise KeyError(f'The schema "{schema}" is not used.')
+        return MetaData({k: self.__getitem__(k) for k in filter(lambda x: x.split('.')[0] == schema, self.keys())})

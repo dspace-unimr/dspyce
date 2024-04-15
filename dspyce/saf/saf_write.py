@@ -12,7 +12,7 @@ from bs4.formatter import XMLFormatter
 
 from dspyce.Item import Item
 from dspyce.Relation import Relation
-from dspyce.metadata import MetaDataList
+from dspyce.metadata import MetaData
 
 
 LOG_LEVEL = logging.INFO
@@ -80,11 +80,11 @@ def create_bitstreams(item: Item, save_path: str):
         save_text_file(save_path, 'contents', '\n'.join(contents))
 
 
-def export_schemas(metadata: MetaDataList) -> dict:
+def export_schemas(metadata: MetaData) -> dict:
     """
     Creates the content of the xml files metadata_[prefix].xml based on the given metadata.
 
-    :param metadata: The metadata list containing all metadata fields.
+    :param metadata: The metadata object containing all metadata fields.
     :return: The content of the xml file for this schema prefix in a dictionary.
     """
     class SAFFormatter(XMLFormatter):
@@ -101,15 +101,17 @@ def export_schemas(metadata: MetaDataList) -> dict:
             schema_xml.append(schema_xml.new_tag('dublin_core'))
         else:
             schema_xml.append(schema_xml.new_tag('dublin_core', schema=prefix))
-        for m in filter(lambda x: x.schema == prefix, metadata):
-            value = [m.value] if not isinstance(m.value, list) else m.value
-            for v in value:
-                mv_field = schema_xml.new_tag("dcvalue", element=m.element)
-                if m.qualifier != '':
-                    mv_field["qualifier"] = m.qualifier
-                if m.language is not None and m.language != '':
-                    mv_field["language"] = m.language
-                mv_field.string = v
+        metadata_dict = metadata.get_by_schema(prefix)
+        for m in metadata_dict.keys():
+            tag = m.split('.')
+            element, qualifier = tag[1], tag[2] if len(tag) > 2 else None
+            for v in metadata_dict[m]:
+                mv_field = schema_xml.new_tag("dcvalue", element=element)
+                if qualifier is not None:
+                    mv_field["qualifier"] = qualifier
+                if v.language is not None and v.language != '':
+                    mv_field["language"] = v.language
+                mv_field.string = v.value
                 schema_xml.contents[0].append(mv_field)
         xml_schemas[file_name] = schema_xml.prettify(formatter=SAFFormatter())
     return xml_schemas
