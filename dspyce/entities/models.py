@@ -1,3 +1,10 @@
+# entities/models.py
+"""
+Python package for analysing and working with entity modells in DSpace.
+This module contains the EntityModell class and three functions to work with entities. You can create a new EntityModell
+object based on the relationship-types.xml file or a given REST-endpoint and you can check whether a given endpoint
+has an entity modell enabled or not.
+"""
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 import networkx as nx
