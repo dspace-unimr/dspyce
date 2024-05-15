@@ -583,8 +583,8 @@ class RestAPI:
         :param entity_type: The entity_type to look for.
         :return: Return s a list of relations.
         """
-        add_url = f'{self.api_endpoint}/core/relationshiptypes/search/byEntityType'
-        params = {type: entity_type}
+        add_url = f'/core/relationshiptypes/search/byEntityType'
+        params = {'type': entity_type}
         rel_list = []
         relations = self.get_paginated_objects(add_url, 'relationshiptypes', params)
         for r in relations:
