@@ -292,6 +292,7 @@ class RestAPI:
         if resp.status_code in (204, 200):
             # Success put request
             logging.info(f'Successfully performed put request on endpoint {url}.')
+            return
 
         logging.error(f'Could not PUT content: {data}.\n\tWith params: {params}\n\tOn endpoint: {url}')
         logging.error(f'Statuscode: {resp.status_code}')
