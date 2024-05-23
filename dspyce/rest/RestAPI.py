@@ -269,6 +269,35 @@ class RestAPI:
         exception = requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
                                                          f'Could not put content: \n\t{json_data}'
                                                          f'\nWith params: {params}\nOn endpoint:\n\t{url}')
+
+    def put_api(self, url: str, data: list | dict | str, params: dict = None, content_type: str = None) -> None:
+        """
+        Sends a PUT request to the api.
+
+        :param url: The path in the api.
+        :param data: The data object containing action information.
+        :param params: Additional params for the operation.
+        :param content_type: The content_type of the data. The default ist self.request.headers['Content-Type']
+        :raise RequestException: If the JSON response doesn't have the status code 200 or 201
+        """
+        url = f'{self.api_endpoint}/{url}' if self.api_endpoint not in url else url
+        logging.debug(f'Performing PUT request in "{url}" with params({params}):{data}')
+        req = self.session.put(url)
+        self.update_csrf_token(req)
+        headers = self.req_headers
+        if content_type != headers['Content-type']:
+            headers['Content-type'] = content_type
+        resp = self.session.put(url, data=data, headers=headers)
+
+        if resp.status_code in (204, 200):
+            # Success put request
+            logging.info(f'Successfully performed put request on endpoint {url}.')
+
+        logging.error(f'Could not PUT content: {data}.\n\tWith params: {params}\n\tOn endpoint: {url}')
+        logging.error(f'Statuscode: {resp.status_code}')
+        exception = requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
+                                                         f'Could not put content: \n\t{data}'
+                                                         f'\nWith params: {params}\nOn endpoint:\n\t{url}')
         raise exception
 
     def add_object(self, obj: DSpaceObject) -> DSpaceObject | Collection | Item | Community:
@@ -468,6 +497,20 @@ class RestAPI:
             self.add_relationship(r)
         logging.debug(f'Created item {item}')
         return item
+
+    def move_item(self, item: Item, new_collection: Collection | str):
+        """
+        Moves an item to a new collection (completely replacing the old one).
+
+        :param item: The item to move.
+        :param new_collection: The new collection to put the item. This can eather be a Collection object or a string
+            containing the uuid of the collection.
+        """
+        endpoint = f'core/items/{item.uuid}/owningCollection'
+        new_collection = new_collection.uuid if isinstance(new_collection, Collection) else new_collection
+        logging.info(f'Moving item with uuid {item.uuid} into new owning collection {new_collection}.')
+        self.put_api(endpoint, f'{self.api_endpoint}/core/collections/{new_collection}',
+                     content_type='text/uri-list')
 
     def get_dso(self, uuid: str = '', endpoint: str = '',
                 identifier: str = None) -> DSpaceObject | Item | Collection | Community:
