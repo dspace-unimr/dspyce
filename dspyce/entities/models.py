@@ -12,6 +12,10 @@ from dspyce.rest import RestAPI
 
 
 class EntityModell:
+    """
+    The EntityModell class provides methods and attributes to work with entity modells. An object of this class
+    represents entities and relationships of a DSpace repository.
+    """
 
     entities: list[str]
     """A list of existing entities."""
@@ -103,7 +107,7 @@ class EntityModell:
         if path is not None:
             fig.savefig(path)
         if show:
-            plt.show()
+            fig.show()
 
     def get_relation_list(self) -> list[tuple[tuple[str, str], str]]:
         """
