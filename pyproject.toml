@@ -12,10 +12,12 @@ description = "The *dspyce* package helps to communicate with dspace interfaces.
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "Pillow>=10.0.0",
+    "pillow>=10.0.0",
     "requests>=2.28.0",
     "beautifulsoup4>=4.0",
     "lxml>=5.0",
+    "networkx>=3.3",
+    "matplotlib>=3.6"
 ]
 
 classifiers = [
