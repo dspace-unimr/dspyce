@@ -1,6 +1,7 @@
 import json
 import logging
 import requests
+from requests.exceptions import InvalidJSONError
 
 from ..DSpaceObject import DSpaceObject
 from ..Item import Item
@@ -224,7 +225,11 @@ class RestAPI:
         req = self.session.post(url)
         self.update_csrf_token(req)
         logging.debug(f'Performing POST request in "{url}" with params({params}):{json_data}')
-        resp = self.session.post(url, json=json_data, headers=self.req_headers, params=params)
+        try:
+            resp = self.session.post(url, json=json_data, headers=self.req_headers, params=params)
+        except InvalidJSONError as e:
+            logging.error(f'Invalid json format in the query data: {json_data}')
+            raise e
         if resp.status_code in (201, 200):
             # Success post request
             json_resp = resp.json()
@@ -402,6 +407,20 @@ class RestAPI:
         if not self.authenticated:
             logging.critical('Could not add object, authentication required!')
             raise ConnectionRefusedError('Authentication needed.')
+        if relation.relation_type is None:
+            logging.info('No relation type specified, trying to find relation-type via the rest endpoint.')
+            left_item_type = relation.items[0].get_entity_type()
+            rels = self.get_relations_by_type(left_item_type)
+            rels = list(filter(lambda x: x.relation_key == relation.relation_key, rels))
+            if len(rels) != 1:
+                if len(rels) > 1:
+                    logging.critical('Something went wrong with on the rest-endpoint: found more than one relation with'
+                                     f' the name {relation.relation_key}')
+                else:
+                    logging.error(f'Didn\'t find relation with name {relation.relation_key}')
+            else:
+                relation.relation_type = rels[0].relation_type
+                logging.debug(f'Found relationtype "{relation.relation_type}" for the name "{relation.relation_key}"')
         add_url = f'{self.api_endpoint}/core/relationships?relationshipType={relation.relation_type}'
         if relation.items[0] is None or relation.items[1] is None:
             logging.error(f'Could not create Relation because of missing item information in relation: {relation}')
