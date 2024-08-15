@@ -271,9 +271,9 @@ class RestAPI:
 
         logging.error(f'Could not PATCH content: {json_data}.\n\tWith params: {params}\n\tOn endpoint: {url}')
         logging.error(f'Statuscode: {resp.status_code}')
-        exception = requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
-                                                         f'Could not put content: \n\t{json_data}'
-                                                         f'\nWith params: {params}\nOn endpoint:\n\t{url}')
+        raise requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
+                                                   f'Could not put content: \n\t{json_data}'
+                                                   f'\nWith params: {params}\nOn endpoint:\n\t{url}')
 
     def put_api(self, url: str, data: list | dict | str, params: dict = None, content_type: str = None) -> None:
         """
@@ -301,8 +301,37 @@ class RestAPI:
 
         logging.error(f'Could not PUT content: {data}.\n\tWith params: {params}\n\tOn endpoint: {url}')
         logging.error(f'Statuscode: {resp.status_code}')
+        raise requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
+                                                   f'Could not put content: \n\t{data}'
+                                                   f'\nWith params: {params}\nOn endpoint:\n\t{url}')
+
+    def delete_api(self, url: str, params: dict = None, content_type: str = None) -> None:
+        """
+        Sends a DELETE request to the api.
+
+        :param url: The path in the api.
+        :param params: Additional params for the operation.
+        :param content_type: The content_type of the data. The default ist self.request.headers['Content-Type']
+        :raise RequestException: If the JSON response doesn't have the status code 200 or 201
+        """
+        url = f'{self.api_endpoint}/{url}' if self.api_endpoint not in url else url
+        logging.debug(f'Performing DELETE request in "{url}" with params({params})')
+        params = {} if params is None else params
+        req = self.session.delete(url)
+        self.update_csrf_token(req)
+        headers = self.req_headers
+        if content_type != headers['Content-type']:
+            headers['Content-type'] = content_type
+        resp = self.session.delete(url, params=params, headers=headers)
+
+        if resp.status_code in (204, 200):
+            # Success DELETE request
+            logging.info(f'Successfully performed DELETE request on endpoint {url}.')
+            return
+
+        logging.error(f'Could not DELETE on endpoint: {url} With params: {params}')
+        logging.error(f'Statuscode: {resp.status_code}')
         exception = requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
-                                                         f'Could not put content: \n\t{data}'
                                                          f'\nWith params: {params}\nOn endpoint:\n\t{url}')
         raise exception
 
@@ -776,6 +805,20 @@ class RestAPI:
         logging.debug(f'Successfully retrieved collection {dso} from endpoint.')
         return dso
 
+    def get_bundle(self, uuid: str) -> Bundle | None:
+        """
+        Retrieves a DSpace-Bundel object from the API.
+
+        :param uuid: The UUID of the bundle to get.
+        :return: The bundle found.
+        """
+        bundle_json = self.get_api(f'core/bundles/{uuid}')
+        bundle: Bundle = Bundle(bundle_json['name'], uuid=bundle_json['uuid'])
+        bundle = self.get_bitstreams_in_bundle(bundle)
+        logging.debug(f'Successfully retrieved bundle {bundle} including {len(bundle.bitstreams)} bitstreams from'
+                      f'endpoint.')
+        return bundle
+
     def get_items_in_scope(self, scope_uuid: str, query: str = '', size: int = -1, page: int = -1,
                            full_item: bool = False) -> list[Item]:
         """
@@ -1061,3 +1104,24 @@ class RestAPI:
         patch_call = [{"op": "remove", "path": f"/bitstreams/{uuid}"} for uuid in bitstream_uuid]
         self.patch_api("core/bitstreams", patch_call)
         logging.info(f'Successfully deleted bitstream with uuid "{bitstream_uuid}".')
+
+    def delete_bundles(self, bundle_uuid: str | list[str], include_bitstreams: bool = False):
+        """
+        Permanently removes a bundle or a list of bundles from the repository. Handle carefully when using the method,
+        there won't be a confirmation step. Can not delete a bundle with bitstreams still included, unless
+        include_bitstreams is set to true.
+
+        :param bundle_uuid: The uuid or list of uuids of the bundles to be deleted.
+        :param include_bitstreams: Default: False. WARNING! If this is set to true all bitsreams in the bundle will be
+            deleted as well.
+        """
+        bundles = bundle_uuid if isinstance(bundle_uuid, list) else [bundle_uuid]
+        for b in bundles:
+            if not include_bitstreams:
+                bundle = self.get_bitstreams_in_bundle(Bundle(uuid=b))
+                if len(bundle.bitstreams) > 0:
+                    logging.error(f'Could not delete bundle with uuid "{b}" because there are still '
+                                  f'{len(bundle.bitstreams)} bitstreams.')
+                    continue
+            self.delete_api(f'core/bundles/{b}')
+            logging.info(f'Successfully deleted bundle with uuid "{b}"')
