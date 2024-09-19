@@ -399,15 +399,7 @@ class RestAPI:
             logging.critical('Could not add object, authentication required!')
             raise ConnectionRefusedError('Authentication needed.')
         add_url = f'{self.api_endpoint}/core/bundles/{bundle.uuid}/bitstreams'
-        obj_json = {'name': bitstream.file_name, 'metadata': {'dc.title': [{'value': bitstream.file_name}],
-                                                              'dc.description': [{'value': bitstream.description}]},
-                    'bundleName': bundle.name}
-        if isinstance(bitstream, IIIFBitstream):
-            bitstream: IIIFBitstream
-            obj_json['metadata']['iiif.label'] = [{'value': bitstream.iiif['label']}]
-            obj_json['metadata']['iiif.toc'] = [{'value': bitstream.iiif['toc']}]
-            obj_json['metadata']['iiif.image.width'] = [{'value': bitstream.iiif['w']}]
-            obj_json['metadata']['iiif.image.height'] = [{'value': bitstream.iiif['h']}]
+        obj_json = bitstream.to_dict()
         logging.debug(f'Adding bitstream: {obj_json}')
         bitstream_file = bitstream.get_bitstream_file()
         data_file = {'file': (bitstream.file_name, bitstream_file)} if bitstream_file is not None else None

@@ -2,8 +2,10 @@ import os
 import re
 import requests
 
+from .. import DSpaceObject
 
-class Bitstream:
+
+class Bitstream(DSpaceObject):
     """
         A class for managing bitstream files in the DSpace context.
     """
@@ -11,8 +13,6 @@ class Bitstream:
     """The name of the file."""
     path: str
     """The path, where the file can be found."""
-    description: str
-    """A possible description of the bitstream."""
     permissions: list[dict[str, str]]
     """Permission which group shall have access to this file."""
     show: bool
@@ -37,10 +37,11 @@ class Bitstream:
         self.path = path
         self.path += '/' if len(self.path) > 0 and self.path[-1] != '/' else ''
         self.permissions = []
-        self.description = ''
         self.bundle = bundle
         self.uuid = uuid
         self.primary = primary
+        super().__init__(uuid, '', name)
+        self.add_metadata('dc.title', name)
 
     def __str__(self):
         """
@@ -51,8 +52,8 @@ class Bitstream:
         export_name = self.file_name
         if self.bundle is not None:
             export_name += f'\tbundle:{self.bundle.name}'
-        if self.description != '':
-            export_name += f'\tdescription:{self.description}'
+        if self.get_description() is not None:
+            export_name += f'\tdescription:{self.get_description()}'
         if len(self.permissions) > 0:
             for p in self.permissions:
                 export_name += f'\tpermissions:-{p["type"]} \'{p["group"]}\''
@@ -60,13 +61,20 @@ class Bitstream:
             export_name += '\tprimary:true'
         return export_name
 
-    def add_description(self, description):
+    def get_description(self):
+        """
+        Returns the current description of the current bitstream.
+        """
+        return self.get_first_metadata_value('dc.description')
+
+    def add_description(self, description: str, language: str = None):
         """
             Creates a description to the content-file.
 
             :param description: String which provides the description.
+            :param language: The language of the description.
         """
-        self.description = description
+        self.add_metadata('dc.description', description, language)
 
     def add_permission(self, rw: str, group_name: str):
         """
@@ -118,3 +126,25 @@ class Bitstream:
         return (self.file_name == other.file_name and
                 self.path == other.path and
                 ((self.uuid is None or other.uuid is None) or self.uuid == other.uuid))
+
+    def get_dspace_object_type(self) -> str:
+        """
+        Return the DSpaceObject type for the bitstream object, aka "Bitstream"
+        """
+        return 'Bitstream'
+
+    def get_identifier(self) -> str | None:
+        """
+        Overwrites the standard DSpace-Object get_identifier method: only returns uuid for bitstreams (no handles
+        allowed)
+        """
+        return self.uuid
+
+    def to_dict(self) -> dict:
+        """
+        Returns a dictionary representation of the bitstream object.
+        """
+        return {'uuid': self.uuid,
+                'name': self.name,
+                'metadata': self.metadata,
+                'bundleName': self.bundle.name}
