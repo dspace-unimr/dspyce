@@ -631,9 +631,10 @@ class RestAPI:
         :return: A list of Bitstream objects.
         """
         bitstreams = []
-        bundles = self.get_item_bundles(item_uuid)
+        bundles = self.get_item_bundles(item_uuid, True)
+
         for b in bundles:
-            bitstreams += self.get_bitstreams_in_bundle(b).bitstreams
+            bitstreams += b.bitstreams
         return bitstreams
 
     def get_bitstreams_in_bundle(self, bundle: Bundle) -> Bundle:
@@ -656,17 +657,22 @@ class RestAPI:
         logging.debug(f'Retrieved {len(bundle.bitstreams)} bitstreams.')
         return bundle
 
-    def get_item_bundles(self, item_uuid: str) -> list[Bundle]:
+    def get_item_bundles(self, item_uuid: str, include_bitstreams: bool = True) -> list[Bundle]:
         """
         Retrieves the bundles connected to a DSpaceObject and returns them as list.
 
         :param item_uuid: The uuid of the item to retrieve the bundles from.
+        :param include_bitstreams: Whether bitstreams should be downloaded as well. Default: True
         :return: The list of Bundle objects.
         """
         bundle_json = self.get_paginated_objects(f'/core/items/{item_uuid}/bundles', 'bundles')
-        return [Bundle(b["name"],
-                       b['dc.description'][0]['value'] if 'dc.description' in b["metadata"].keys() else '',
-                       b['uuid']) for b in bundle_json]
+        bundles = [Bundle(b["name"],
+                          b['dc.description'][0]['value'] if 'dc.description' in b["metadata"].keys() else '',
+                          b['uuid']) for b in bundle_json]
+        if not include_bitstreams:
+            return bundles
+
+        return [self.get_bitstreams_in_bundle(b) for b in bundles]
 
     def get_relations_by_type(self, entity_type: str) -> list[Relation]:
         """
@@ -773,7 +779,7 @@ class RestAPI:
         if get_related:
             dso.relations = self.get_item_relationships(dso.uuid)
         if get_bitstreams:
-            dso.bundles = [self.get_bitstreams_in_bundle(b) for b in self.get_item_bundles(dso.uuid)]
+            dso.bundles = self.get_item_bundles(dso.uuid, True)
             for b in dso.bundles:
                 dso.contents += b.bitstreams
 
@@ -884,7 +890,7 @@ class RestAPI:
                 if full_item:
                     o.collections = self.get_item_collections(o.uuid)
                     o.relations = self.get_item_relationships(o.uuid)
-                o.contents = self.get_item_bitstreams(o.uuid)
+                o.bundles = self.get_item_bundles(o.uuid, True)
             if full_item:
                 if o.get_dspace_object_type() == 'Collection':
                     o: Collection
