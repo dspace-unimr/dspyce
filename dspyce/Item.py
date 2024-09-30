@@ -174,10 +174,11 @@ class Item(DSpaceObject):
             obj_str += '\n\tRelations:'
             for r in self.relations:
                 obj_str += f'\n\t\t{r}'
-        if len(self.contents) > 0:
+        if len(self.bundles) > 0:
             obj_str += '\n\tBitstreams:'
-            for c in self.contents:
-                obj_str += f'\n\t\t{c}'
+            for b in self.bundles:
+                for c in b.bitstreams:
+                    obj_str += f'\n\t\t{c}'
         if len(self.collections) > 0:
             obj_str += '\n\tCollections:'
             for c in self.collections:
