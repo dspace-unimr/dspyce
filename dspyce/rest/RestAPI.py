@@ -656,8 +656,8 @@ class RestAPI:
         :return: The list of Bundle objects.
         """
         bundle_json = self.get_paginated_objects(f'/core/items/{item_uuid}/bundles', 'bundles')
-        return [Bundle(b["name"],
-                       b['dc.description'][0]['value'] if 'dc.description' in b["metadata"].keys() else '',
+        return [Bundle(b['name'],
+                       b['metadata']['dc.description'][0]['value'] if 'dc.description' in b['metadata'].keys() else '',
                        b['uuid']) for b in bundle_json]
 
     def get_relations_by_type(self, entity_type: str) -> list[Relation]:
