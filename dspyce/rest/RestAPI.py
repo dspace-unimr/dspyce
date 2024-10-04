@@ -1,6 +1,8 @@
 import json
 import logging
 import requests
+import requests.adapters
+from concurrent.futures import ThreadPoolExecutor
 from requests.exceptions import InvalidJSONError
 
 from ..DSpaceObject import DSpaceObject
@@ -94,9 +96,11 @@ class RestAPI:
     """Provides information about the authentication status."""
     dspace_version: str
     """The dspace version used by the API endpoint."""
+    workers: int
+    """The number of worker threads used by the ThreadPoolExecutor."""
 
     def __init__(self, api_endpoint: str, username: str = None, password: str = None,
-                 log_level: int | str = logging.INFO, log_file: str = None):
+                 log_level: int | str = logging.INFO, log_file: str = None, workers: int = 0):
         """
         Creates a new object of the RestAPI class using
 
@@ -107,6 +111,8 @@ class RestAPI:
             the following: DEBUG, INFO, WARNING, ERROR, CRITICAL. Default is INFO.
         :param log_file: A possible name and path of the log file. If None provided, all output will be logged to the
             console.
+        :param workers: The number of worker threads to use, if this value equals 0 no ThreadPoolExecutor is used.
+            Default is 0.
         """
         log_level_types = {'DEBUG': logging.DEBUG, 'INFO': logging.INFO, 'WARNING': logging.WARNING,
                            'ERROR': logging.ERROR, 'CRITICAL': logging.CRITICAL}
@@ -129,6 +135,7 @@ class RestAPI:
         self.req_headers = {'Content-type': 'application/json', 'User-Agent': 'Python REST Client'}
         if username is not None and password is not None:
             self.authenticated = self.authenticate_api()
+        self.set_workers(workers)
 
     @staticmethod
     def get_endpoint_info(api: str) -> dict[str, str] | None:
@@ -165,6 +172,17 @@ class RestAPI:
             csrf = req.headers['DSPACE-XSRF-TOKEN']
             self.session.headers.update({'X-XSRF-Token': csrf})
             self.session.cookies.update({'X-XSRF-Token': csrf})
+
+    def set_workers(self, workers: int):
+        """
+        Set the number of workers to be used by the TreadPoolExecutor.
+
+        :param workers: The number of worker threads to use.
+        """
+        self.workers = workers
+        if self.workers > requests.adapters.DEFAULT_POOLSIZE:
+            adapter = requests.adapters.HTTPAdapter(pool_maxsize=self.workers)
+            self.session.mount(self.api_endpoint, adapter)
 
     def authenticate_api(self) -> bool:
         """
@@ -619,8 +637,16 @@ class RestAPI:
             raise e
         if page == -1:
             page_info = endpoint_json["page"]
-            for p in range(1, page_info['totalPages']):
-                object_list += self.get_paginated_objects(endpoint, object_key, query_params, p, size)
+            if self.workers == 0:
+                for p in range(1, page_info['totalPages']):
+                    object_list += self.get_paginated_objects(endpoint, object_key, query_params, p, size)
+            else:
+                pool = ThreadPoolExecutor(max_workers=self.workers if self.workers > 0 else None)
+                pool_threads = [pool.submit(self.get_paginated_objects, endpoint, object_key, query_params, p, size) for
+                                p in range(1, page_info['totalPages'])]
+                for p in pool_threads:
+                    object_list += p.result()
+                pool.shutdown(wait=True)
         return object_list
 
     def get_item_bitstreams(self, item_uuid: str) -> list[Bitstream]:
