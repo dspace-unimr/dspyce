@@ -155,7 +155,7 @@ def create_saf_package(item: Item, element_id: int, path: str, overwrite: bool =
     xml_files = export_schemas(item.metadata)
     for file_name in xml_files.keys():
         save_text_file(path, file_name, str(xml_files[file_name]))
-        logging.debug(f'Wrote %s to item folder item_%s' % (file_name, element_id))
+        logging.debug('Wrote %s to item folder item_%s' % (file_name, element_id))
 
     if len(item.relations) > 0:
         save_text_file(path, 'relations', export_relations(item.relations))

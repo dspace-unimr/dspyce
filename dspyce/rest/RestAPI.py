@@ -1,8 +1,8 @@
+from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
 import requests
 import requests.adapters
-from concurrent.futures import ThreadPoolExecutor
 from requests.exceptions import InvalidJSONError
 
 from ..DSpaceObject import DSpaceObject

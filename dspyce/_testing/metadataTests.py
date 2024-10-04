@@ -45,6 +45,9 @@ class MetadataTest(unittest.TestCase):
         self.assertEqual({'value': 'Hello World', 'language': 'en'}, dict(self.mdValue))
 
     def test_pop_value(self):
+        """
+        Test the pop method from MetaData class.
+        """
         obj = md.MetaData({'dc.title': [md.MetaDataValue('Hello World', 'en')]})
         self.assertEqual(md.MetaDataValue('Hello World', 'en'), obj['dc.title'][0])
         obj.pop('dc.title')
