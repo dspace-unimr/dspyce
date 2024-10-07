@@ -48,7 +48,7 @@ def read_saf_package(path: str) -> Item:
         for field in bs.find_all('dcvalue'):
             element = field.get('element')
             qualifier = field.get('qualifier')
-            qualifier = None if qualifier is None or qualifier == 'none' else qualifier
+            qualifier = None if qualifier is None or qualifier == 'none' or qualifier.strip() == '' else qualifier
             tag = f'{schema}.{element}' + (f'.{qualifier}' if qualifier is not None else '')
             lang = field.get('language')
             item.add_metadata(tag, field.get_text(), lang)
