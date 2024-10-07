@@ -65,7 +65,10 @@ def read_saf_package(path: str) -> Item:
     for b in filter(lambda x: x.strip() != '', further_information['contents']):
         bitstream = b.split('\t')
         name = bitstream[0]
-        attributes = {i.split(':')[0]: i.split(':')[1] for i in bitstream[1:]}
+        try:
+            attributes = {i.split(':')[0]: i.split(':')[1] for i in bitstream[1:]}
+        except IndexError:
+            raise AttributeError(f'Found incorrect formated attributes could not parse attribute in {bitstream[1:]}')
         description = attributes.get('description') if attributes.get('description') is not None else ''
         bundle = attributes.get('bundle') if attributes.get('bundle') is not None else Bundle.DEFAULT_BUNDLE
         permissions = [(p.split(' ')[0], p.split(' ')[1])
