@@ -180,8 +180,11 @@ class RestAPI:
         :param workers: The number of worker threads to use.
         """
         self.workers = workers
+        logging.debug('Initializing with %i workers.' % workers)
         if self.workers > requests.adapters.DEFAULT_POOLSIZE:
             adapter = requests.adapters.HTTPAdapter(pool_maxsize=self.workers)
+            logging.info('The number of workers (%i) exceeds the number of default connections. '
+                         'Increasing the number of default connections.' % workers)
             self.session.mount(self.api_endpoint, adapter)
 
     def authenticate_api(self) -> bool:
