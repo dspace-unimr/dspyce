@@ -285,7 +285,7 @@ class RestAPI:
             return json_resp
 
         if resp.status_code == 204:
-            operation = [int((i["op"] if "op" in i.keys() else '') == "remove") - 1 for i in json_data]
+            operation = [int((i['op'] if 'op' in i.keys() else '') == 'remove') - 1 for i in json_data]
             if sum(operation) == 0:
                 logging.info('Successfully deleted objects.')
                 return None
@@ -639,7 +639,7 @@ class RestAPI:
             logging.error(f'Problems with parsing paginated object list. A Key-Error occurred.\n{endpoint_json}')
             raise e
         if page == -1:
-            page_info = endpoint_json["page"]
+            page_info = endpoint_json['page']
             if self.workers == 0:
                 for p in range(1, page_info['totalPages']):
                     object_list += self.get_paginated_objects(endpoint, object_key, query_params, p, size)
@@ -695,8 +695,8 @@ class RestAPI:
         :return: The list of Bundle objects.
         """
         bundle_json = self.get_paginated_objects(f'/core/items/{item_uuid}/bundles', 'bundles')
-        bundles = [Bundle(b["name"],
-                          b['dc.description'][0]['value'] if 'dc.description' in b["metadata"].keys() else '',
+        bundles = [Bundle(b['name'],
+                          b['metadata']['dc.description'][0]['value'] if 'dc.description' in b['metadata'].keys() else '',
                           b['uuid']) for b in bundle_json]
         if not include_bitstreams:
             return bundles
@@ -1035,19 +1035,19 @@ class RestAPI:
                 rank = ''
                 if isinstance(metadata[k], dict):
                     metadata[k]: dict
-                    rank = f'/{metadata[k]["position"]}' if "position" in metadata[k].keys() else ''
+                    rank = f'/{metadata[k]["position"]}' if 'position' in metadata[k].keys() else ''
                     rank = f'/{position}' if rank == '' and str(position) != '-1' else rank
-                    values = {"value": metadata[k]["value"]}
-                    if "language" in metadata[k].keys():
-                        values.update({"language": metadata[k]["language"]})
-                patch_json.append({"op": operation, "path": f"/metadata/{k}" + rank, "value": values})
+                    values = {'value': metadata[k]['value']}
+                    if 'language' in metadata[k].keys():
+                        values.update({'language': metadata[k]['language']})
+                patch_json.append({'op': operation, 'path': f'/metadata/{k}' + rank, 'value': values})
         else:
             for k in metadata.keys():
                 rank = [i['position'] for i in metadata[k]]
                 if len(rank) > 0:
-                    patch_json += [{"op": operation, "path": f"/metadata/{k}/{r}"} for r in rank]
+                    patch_json += [{'op': operation, 'path': f'/metadata/{k}/{r}'} for r in rank]
                 else:
-                    patch_json.append({"op": operation, "path": f"/metadata/{k}" +
+                    patch_json.append({'op': operation, 'path': f'/metadata/{k}' +
                                                                 (f'/{position}' if str(position) != '-1' else '')})
 
         url = 'core/' + (f'{obj_type}s' if obj_type in ('item', 'collection') else 'communities')
@@ -1136,8 +1136,8 @@ class RestAPI:
         :param bitstream_uuid: The uuid of the bitstream to delete
         """
         bitstream_uuid = [bitstream_uuid] if isinstance(bitstream_uuid, str) else bitstream_uuid
-        patch_call = [{"op": "remove", "path": f"/bitstreams/{uuid}"} for uuid in bitstream_uuid]
-        self.patch_api("core/bitstreams", patch_call)
+        patch_call = [{'op': 'remove', 'path': f'/bitstreams/{uuid}'} for uuid in bitstream_uuid]
+        self.patch_api('core/bitstreams', patch_call)
         logging.info(f'Successfully deleted bitstream with uuid "{bitstream_uuid}".')
 
     def delete_bundles(self, bundle_uuid: str | list[str], include_bitstreams: bool = False):
