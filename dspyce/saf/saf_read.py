@@ -48,7 +48,7 @@ def read_saf_package(path: str) -> Item:
         for field in bs.find_all('dcvalue'):
             element = field.get('element')
             qualifier = field.get('qualifier')
-            qualifier = None if qualifier is None or qualifier == 'none' else qualifier
+            qualifier = None if qualifier is None or qualifier == 'none' or qualifier.strip() == '' else qualifier
             tag = f'{schema}.{element}' + (f'.{qualifier}' if qualifier is not None else '')
             lang = field.get('language')
             item.add_metadata(tag, field.get_text(), lang)
@@ -65,7 +65,10 @@ def read_saf_package(path: str) -> Item:
     for b in filter(lambda x: x.strip() != '', further_information['contents']):
         bitstream = b.split('\t')
         name = bitstream[0]
-        attributes = {i.split(':')[0]: i.split(':')[1] for i in bitstream[1:]}
+        try:
+            attributes = {i.split(':')[0]: i.split(':')[1] for i in bitstream[1:]}
+        except IndexError:
+            raise AttributeError(f'Found incorrect formated attributes could not parse attribute in {bitstream[1:]}')
         description = attributes.get('description') if attributes.get('description') is not None else ''
         bundle = attributes.get('bundle') if attributes.get('bundle') is not None else Bundle.DEFAULT_BUNDLE
         permissions = [(p.split(' ')[0], p.split(' ')[1])
