@@ -72,8 +72,7 @@ class MetaData(dict):
         """
         if re.search(r'^[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-]+(\.[a-zA-Z0-9\-]+)?$', tag):
             return True
-        else:
-            return False
+        return False
 
     def __setitem__(self, key: str, value: MetaDataValue | list[MetaDataValue]):
         """

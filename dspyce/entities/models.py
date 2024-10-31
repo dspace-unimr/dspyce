@@ -156,7 +156,7 @@ def from_rest_api(url: str) -> EntityModell:
         raise ValueError(f'No entity types found in instance "{url}"')
     em = EntityModell()
     [em.add_entity(e['label']) for e in entity_objects]
-    relations = rest.get_paginated_objects(f'core/relationshiptypes', 'relationshiptypes')
+    relations = rest.get_paginated_objects('core/relationshiptypes', 'relationshiptypes')
     for r in relations:
         leftward_type = r['leftwardType']
         rightward_type = r['rightwardType']

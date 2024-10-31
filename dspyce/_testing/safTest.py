@@ -1,13 +1,21 @@
 import logging
+import os
 import unittest
+
 from dspyce import saf
 from dspyce import Item, Collection
 from dspyce.metadata import MetaDataValue
-import os
 
 
 class SAFTest(unittest.TestCase):
+    """
+    Test class for saf module.
+    """
+
     def test_saf(self):
+        """
+        Test method for saf package.
+        """
         saf.saf_write.LOG_LEVEL = logging.DEBUG
         created_dir = False
         if 'test_data' not in os.listdir():
@@ -40,10 +48,10 @@ class SAFTest(unittest.TestCase):
         for file in os.listdir('./test_data/archive_directory/item_0'):
             logging.debug(f'Remove file: ./test_data/archive_directory/item_0/{file}')
             os.remove(f'./test_data/archive_directory/item_0/{file}')
-        os.rmdir(f'./test_data/archive_directory/item_0')
-        logging.debug(f'Remove directory: ./test_data/archive_directory/item_0')
-        os.rmdir(f'./test_data/archive_directory')
-        logging.debug(f'Remove directory: ./test_data/archive_directory')
+        os.rmdir('./test_data/archive_directory/item_0')
+        logging.debug('Remove directory: ./test_data/archive_directory/item_0')
+        os.rmdir('./test_data/archive_directory')
+        logging.debug('Remove directory: ./test_data/archive_directory')
         if created_dir:
             os.rmdir('./test_data')
-            logging.debug(f'Remove directory: ./test_data')
+            logging.debug('Remove directory: ./test_data')
