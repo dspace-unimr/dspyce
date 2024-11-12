@@ -625,12 +625,12 @@ class RestAPI:
         :param size: The page size, aka the number of objects per page.
         :return: The list of retrieved objects.
         """
-        query_params = {} if query_params is None else query_params
+        query = {} if query_params is None else dict(query_params)
         if size > -1:
-            query_params.update({'size': size})
+            query.update({'size': size})
         if page > -1:
-            query_params.update({'page': page})
-        endpoint_json = self.get_api(endpoint, params=query_params)
+            query.update({'page': page})
+        endpoint_json = self.get_api(endpoint, params=query)
         if 'discover/search/objects' in endpoint:
             endpoint_json = endpoint_json['_embedded']['searchResult']
         try:
@@ -642,14 +642,14 @@ class RestAPI:
             page_info = endpoint_json['page']
             if self.workers == 0:
                 for p in range(1, page_info['totalPages']):
-                    object_list += self.get_paginated_objects(endpoint, object_key, query_params, p, size)
+                    object_list += self.get_paginated_objects(endpoint, object_key, query, p, size)
             else:
                 pool = ThreadPoolExecutor(max_workers=self.workers if self.workers > 0 else None)
-                pool_threads = [pool.submit(self.get_paginated_objects, endpoint, object_key, query_params, p, size) for
+                pool_threads = [pool.submit(self.get_paginated_objects, endpoint, object_key, query, p, size) for
                                 p in range(1, page_info['totalPages'])]
+                pool.shutdown(wait=True)
                 for p in pool_threads:
                     object_list += p.result()
-                pool.shutdown(wait=True)
         return object_list
 
     def get_item_bitstreams(self, item_uuid: str) -> list[Bitstream]:
