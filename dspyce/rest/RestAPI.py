@@ -854,43 +854,24 @@ class RestAPI:
                       f'endpoint.')
         return bundle
 
-    def get_items_in_scope(self, scope_uuid: str, query: str = '', size: int = -1, page: int = -1,
-                           full_item: bool = False) -> list[Item]:
+    def get_objects_in_scope(self, scope_uuid: str, query: dict = None, size: int = 20, full_item: bool = False,
+                           get_bitstreams: bool = False) -> list[DSpaceObject]:
         """
-        Returns a list of DSpace items in a given collection or community. Can be further reduced by query parameter.
+        Returns a list of DSpace Objects in a given collection or community. Can be further reduced by query parameter.
 
         :param scope_uuid: The uuid of the collection to retrieve the items from.
         :param query: Additional query parameters for the request.
         :param size: The number of objects per page. Use -1 to select the default.
-        :param page: The page to retrieve if a paginated list is returned. Use -1 to retrieve all.
         :param full_item: If the full item information should be downloaded (Including relationships, bundles and
             bitstreams. This can be slower due to additional api calls).
+        :param get_bitstreams: If true, also the bitstreams of the item will be connected. Not needed if full_item is
+            True. Default: False.
         :return: A list of Item objects.
         """
         query_params = {'scope': scope_uuid}
-        if query != '':
-            query_params.update({'query': query})
-        if page > -1:
-            query_params.update({'page': page})
-
-        search_req = self.get_api('discover/search/objects', query_params)
-        json_res = search_req['_embedded']['searchResult']
-        try:
-            item_list = [json_to_object(i['_embedded']['indexableObject']) for i in json_res['_embedded']['objects']]
-            item_list = list(filter(lambda x: isinstance(x, Item), item_list))
-            if full_item:
-                item_list = [self.get_item(i.uuid, True, True, i) for i in item_list]
-        except KeyError as e:
-            logging.error(f'Problem with parsing the following request anser:\n{json_res}')
-            raise e
-
-        if page == -1:
-            number_pages = json_res['page']['totalPages']
-            logging.debug(f'Parsing {number_pages} with items.')
-            for n in range(1, number_pages):
-                item_list += self.get_items_in_scope(scope_uuid, query, size, n, full_item)
-
-        return list(filter(lambda x: x is not None, item_list))
+        if query is not None:
+            query_params.update(query)
+        return self.search_items(query_params, size, full_item, get_bitstreams)
 
     def search_items(self, query_params: dict = None, size: int = 20, full_item: bool = False,
                      get_bitstreams: bool = False) -> list[DSpaceObject]:

@@ -158,7 +158,7 @@ def create_saf_package(item: Item, element_id: int, path: str, overwrite: bool =
         logging.debug('Wrote %s to item folder item_%s' % (file_name, element_id))
 
     if len(item.relations) > 0:
-        save_text_file(path, 'relations', export_relations(item.relations))
+        save_text_file(path, 'relationships', export_relations(item.relations))
         logging.debug(f'Created relations file for item {element_id}')
     if item.handle != '':
         save_text_file(path, 'handle', item.handle)
