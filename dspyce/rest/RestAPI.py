@@ -1,6 +1,8 @@
+from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
 import requests
+import requests.adapters
 from requests.exceptions import InvalidJSONError
 
 from ..DSpaceObject import DSpaceObject
@@ -94,9 +96,11 @@ class RestAPI:
     """Provides information about the authentication status."""
     dspace_version: str
     """The dspace version used by the API endpoint."""
+    workers: int
+    """The number of worker threads used by the ThreadPoolExecutor."""
 
     def __init__(self, api_endpoint: str, username: str = None, password: str = None,
-                 log_level: int | str = logging.INFO, log_file: str = None):
+                 log_level: int | str = logging.INFO, log_file: str = None, workers: int = 0):
         """
         Creates a new object of the RestAPI class using
 
@@ -107,6 +111,8 @@ class RestAPI:
             the following: DEBUG, INFO, WARNING, ERROR, CRITICAL. Default is INFO.
         :param log_file: A possible name and path of the log file. If None provided, all output will be logged to the
             console.
+        :param workers: The number of worker threads to use, if this value equals 0 no ThreadPoolExecutor is used.
+            Default is 0.
         """
         log_level_types = {'DEBUG': logging.DEBUG, 'INFO': logging.INFO, 'WARNING': logging.WARNING,
                            'ERROR': logging.ERROR, 'CRITICAL': logging.CRITICAL}
@@ -129,6 +135,7 @@ class RestAPI:
         self.req_headers = {'Content-type': 'application/json', 'User-Agent': 'Python REST Client'}
         if username is not None and password is not None:
             self.authenticated = self.authenticate_api()
+        self.set_workers(workers)
 
     @staticmethod
     def get_endpoint_info(api: str) -> dict[str, str] | None:
@@ -165,6 +172,20 @@ class RestAPI:
             csrf = req.headers['DSPACE-XSRF-TOKEN']
             self.session.headers.update({'X-XSRF-Token': csrf})
             self.session.cookies.update({'X-XSRF-Token': csrf})
+
+    def set_workers(self, workers: int):
+        """
+        Set the number of workers to be used by the TreadPoolExecutor.
+
+        :param workers: The number of worker threads to use.
+        """
+        self.workers = workers
+        logging.debug('Initializing with %i workers.' % workers)
+        if self.workers > requests.adapters.DEFAULT_POOLSIZE:
+            adapter = requests.adapters.HTTPAdapter(pool_maxsize=self.workers)
+            logging.info('The number of workers (%i) exceeds the number of default connections. '
+                         'Increasing the number of default connections.' % workers)
+            self.session.mount(self.api_endpoint, adapter)
 
     def authenticate_api(self) -> bool:
         """
@@ -264,7 +285,7 @@ class RestAPI:
             return json_resp
 
         if resp.status_code == 204:
-            operation = [int((i["op"] if "op" in i.keys() else '') == "remove") - 1 for i in json_data]
+            operation = [int((i['op'] if 'op' in i.keys() else '') == 'remove') - 1 for i in json_data]
             if sum(operation) == 0:
                 logging.info('Successfully deleted objects.')
                 return None
@@ -604,12 +625,12 @@ class RestAPI:
         :param size: The page size, aka the number of objects per page.
         :return: The list of retrieved objects.
         """
-        query_params = {} if query_params is None else query_params
+        query = {} if query_params is None else dict(query_params)
         if size > -1:
-            query_params.update({'size': size})
+            query.update({'size': size})
         if page > -1:
-            query_params.update({'page': page})
-        endpoint_json = self.get_api(endpoint, params=query_params)
+            query.update({'page': page})
+        endpoint_json = self.get_api(endpoint, params=query)
         if 'discover/search/objects' in endpoint:
             endpoint_json = endpoint_json['_embedded']['searchResult']
         try:
@@ -618,9 +639,17 @@ class RestAPI:
             logging.error(f'Problems with parsing paginated object list. A Key-Error occurred.\n{endpoint_json}')
             raise e
         if page == -1:
-            page_info = endpoint_json["page"]
-            for p in range(1, page_info['totalPages']):
-                object_list += self.get_paginated_objects(endpoint, object_key, query_params, p, size)
+            page_info = endpoint_json['page']
+            if self.workers == 0:
+                for p in range(1, page_info['totalPages']):
+                    object_list += self.get_paginated_objects(endpoint, object_key, query, p, size)
+            else:
+                pool = ThreadPoolExecutor(max_workers=self.workers if self.workers > 0 else None)
+                pool_threads = [pool.submit(self.get_paginated_objects, endpoint, object_key, query, p, size) for
+                                p in range(1, page_info['totalPages'])]
+                pool.shutdown(wait=True)
+                for p in pool_threads:
+                    object_list += p.result()
         return object_list
 
     def get_item_bitstreams(self, item_uuid: str) -> list[Bitstream]:
@@ -666,8 +695,8 @@ class RestAPI:
         :return: The list of Bundle objects.
         """
         bundle_json = self.get_paginated_objects(f'/core/items/{item_uuid}/bundles', 'bundles')
-        bundles = [Bundle(b["name"],
-                          b['dc.description'][0]['value'] if 'dc.description' in b["metadata"].keys() else '',
+        bundles = [Bundle(b['name'],
+                          b['metadata']['dc.description'][0]['value'] if 'dc.description' in b['metadata'].keys() else '',
                           b['uuid']) for b in bundle_json]
         if not include_bitstreams:
             return bundles
@@ -987,19 +1016,19 @@ class RestAPI:
                 rank = ''
                 if isinstance(metadata[k], dict):
                     metadata[k]: dict
-                    rank = f'/{metadata[k]["position"]}' if "position" in metadata[k].keys() else ''
+                    rank = f'/{metadata[k]["position"]}' if 'position' in metadata[k].keys() else ''
                     rank = f'/{position}' if rank == '' and str(position) != '-1' else rank
-                    values = {"value": metadata[k]["value"]}
-                    if "language" in metadata[k].keys():
-                        values.update({"language": metadata[k]["language"]})
-                patch_json.append({"op": operation, "path": f"/metadata/{k}" + rank, "value": values})
+                    values = {'value': metadata[k]['value']}
+                    if 'language' in metadata[k].keys():
+                        values.update({'language': metadata[k]['language']})
+                patch_json.append({'op': operation, 'path': f'/metadata/{k}' + rank, 'value': values})
         else:
             for k in metadata.keys():
                 rank = [i['position'] for i in metadata[k]]
                 if len(rank) > 0:
-                    patch_json += [{"op": operation, "path": f"/metadata/{k}/{r}"} for r in rank]
+                    patch_json += [{'op': operation, 'path': f'/metadata/{k}/{r}'} for r in rank]
                 else:
-                    patch_json.append({"op": operation, "path": f"/metadata/{k}" +
+                    patch_json.append({'op': operation, 'path': f'/metadata/{k}' +
                                                                 (f'/{position}' if str(position) != '-1' else '')})
 
         url = 'core/' + (f'{obj_type}s' if obj_type in ('item', 'collection') else 'communities')
@@ -1088,8 +1117,8 @@ class RestAPI:
         :param bitstream_uuid: The uuid of the bitstream to delete
         """
         bitstream_uuid = [bitstream_uuid] if isinstance(bitstream_uuid, str) else bitstream_uuid
-        patch_call = [{"op": "remove", "path": f"/bitstreams/{uuid}"} for uuid in bitstream_uuid]
-        self.patch_api("core/bitstreams", patch_call)
+        patch_call = [{'op': 'remove', 'path': f'/bitstreams/{uuid}'} for uuid in bitstream_uuid]
+        self.patch_api('core/bitstreams', patch_call)
         logging.info(f'Successfully deleted bitstream with uuid "{bitstream_uuid}".')
 
     def delete_bundles(self, bundle_uuid: str | list[str], include_bitstreams: bool = False):
