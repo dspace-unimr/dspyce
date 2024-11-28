@@ -19,11 +19,6 @@ The **dspyce** packages contains the following classes and packages.
 3. [saf](https://github.com/dspace-unimr/dspyce/tree/main/dspyce/rest) -> The saf packages helps you to create saf packages based on given DSpaceObject objects.
 4. [rest](https://github.com/dspace-unimr/dspyce/tree/main/dspyce/saf) -> The rest packages handles the communication with the RestAPI of a given DSpace instance.
 
-### UML-Diagramm:
-
-The following class diagramm is the basis of the package:
-
-![dspyce.svg](https://raw.githubusercontent.com/dspace-unimr/dspyce/main/docs/uml_diagramm.svg)
 
 ## Requirements
 Requirements are defined in [requirements.txt](https://github.com/dspace-unimr/dspyce/blob/main/requirements.txt), to use the package a python
@@ -32,4 +27,3 @@ version >= 3.10 is necessary.
 ```shell
 pip install -r requirements.txt
 ```
-
