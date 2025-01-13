@@ -1169,3 +1169,13 @@ class RestAPI:
                     continue
             self.delete_api(f'core/bundles/{b}')
             logging.info(f'Successfully deleted bundle with uuid "{b}"')
+
+    def remove_mapped_collection(self, item: Item, collection: Collection | str):
+        """
+        Removes the mapped collection of a given Item.
+        :param item: The item to remove mapped collection from.
+        :param collection: The mapped collection to remove. Can be either a collection object or the uuid of the
+        collection.
+        """
+        collection_uuid = collection.uuid if isinstance(collection, Collection) else collection
+        self.delete_api(f'core/items/{item.uuid}/mappedCollections/{collection_uuid}')
