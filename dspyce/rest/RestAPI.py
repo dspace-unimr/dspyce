@@ -239,27 +239,34 @@ class RestAPI:
 
         raise requests.exceptions.RequestException(f'Could not get item with from endpoint: {url}')
 
-    def post_api(self, url: str, json_data: dict, params: dict) -> dict:
+    def post_api(self, url: str, data: dict | list | str, params: dict, content_type: str = 'application/json') -> dict:
         """
         Performs a post action on the RestAPI endpoint.
         """
         req = self.session.post(url)
         self.update_csrf_token(req)
-        logging.debug(f'Performing POST request in "{url}" with params({params}):{json_data}')
-        try:
-            resp = self.session.post(url, json=json_data, headers=self.req_headers, params=params)
-        except InvalidJSONError as e:
-            logging.error(f'Invalid json format in the query data: {json_data}')
-            raise e
-        if resp.status_code in (201, 200):
-            # Success post request
-            json_resp = resp.json()
-            logging.info(f'Successfully added object with uuid: {json_resp["uuid"]}')
-            return json_resp
-        logging.error(f'Could not POST content: {json_data}.\n\tWith params: {params}\n\tOn endpoint: {url}')
+        logging.debug(f'Performing POST request in "{url}" with params({params}):{data}')
+        if content_type == 'application/json':
+            try:
+                resp = self.session.post(url, json=data, headers=self.req_headers, params=params)
+            except InvalidJSONError as e:
+                logging.error(f'Invalid json format in the query data: {data}')
+                raise e
+            if resp.status_code in (201, 200):
+                # Success post request
+                json_resp = resp.json()
+                logging.info(f'Successfully added object with uuid: {json_resp["uuid"]}')
+                return json_resp
+        else:
+            headers = self.req_headers.copy()
+            headers['Content-Type'] = content_type
+            resp = self.session.post(url, data=data, headers=headers, params=params)
+            if resp.status_code in (200, 201, 204):
+                return {}
+        logging.error(f'Could not POST content({content_type}): {data}.\n\tWith params: {params}\n\tOn endpoint: {url}')
         logging.error(f'Statuscode: {resp.status_code}')
         raise requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
-                                                   f'Could not post content: \n\t{json_data}'
+                                                   f'Could not post content: \n\t{data}'
                                                    f'\nWith params: {params}\nOn endpoint:\n\t{url}')
 
     def patch_api(self, url: str, json_data: list, params: dict = None) -> dict | None:
@@ -387,7 +394,7 @@ class RestAPI:
                 raise ValueError(f'Object type {obj.get_dspace_object_type()} is not allowed as a parameter!')
         obj_json = object_to_json(obj)
 
-        return json_to_object(self.post_api(add_url, json_data=obj_json, params=params))
+        return json_to_object(self.post_api(add_url, data=obj_json, params=params))
 
     def add_bundle(self, bundle: Bundle, item_uuid: str) -> Bundle:
         """
@@ -404,7 +411,7 @@ class RestAPI:
         obj_json = {'name': bundle.name}
         if bundle.description != '':
             obj_json['metadata'] = {'dc.description': [{'value': bundle.description}]}
-        resp = self.post_api(add_url, json_data=obj_json, params=params)
+        resp = self.post_api(add_url, data=obj_json, params=params)
         uuid = resp['uuid']
         name = resp['name']
         return Bundle(name=name, uuid=uuid)
@@ -549,6 +556,8 @@ class RestAPI:
                                   'Retrieving uuid from api.')
                     c.uuid = self.get_dso(identifier=c.handle).uuid
         dso = self.add_object(item)
+        if len(collection_list) > 1:
+            self.add_mapped_collections(dso, collection_list[1:])
         bundles = {i.name: i for i in [self.add_bundle(b, dso.uuid) for b in item.get_bundles()]}
         for b in bitstreams:
             self.add_bitstream(b, bundles[b.bundle.name])
@@ -567,6 +576,25 @@ class RestAPI:
             self.add_relationship(r)
         logging.debug(f'Created item {item}')
         return item
+
+    def add_mapped_collections(self, item: Item, collections: list[Collection]):
+        """
+        Add new mapped collections between item and collections. Changes the collection list of the given item in-place.
+        :param item: The item to add mapped collection to.
+        :param collections: The collections to map the item to.
+        """
+
+        api_endpoint = f'{self.api_endpoint}/core/items/{item.uuid}/mappedCollections'
+        content_type = 'text/uri-list'
+        collection_uris = []
+        item_collections = [c.uuid for c in item.collections]
+        for c in collections:
+            if c.uuid in item_collections:
+                logging.warning('The collection with the uuid "%s" is already a mapped collection.' % c.uuid)
+            else:
+                collection_uris.append(f'{self.api_endpoint}/core/collections/{c.uuid}')
+        if len(collection_uris) > 0:
+            self.post_api(api_endpoint, '\n'.join(collection_uris), {}, content_type=content_type)
 
     def move_item(self, item: Item, new_collection: Collection | str):
         """
@@ -1141,3 +1169,13 @@ class RestAPI:
                     continue
             self.delete_api(f'core/bundles/{b}')
             logging.info(f'Successfully deleted bundle with uuid "{b}"')
+
+    def remove_mapped_collection(self, item: Item, collection: Collection | str):
+        """
+        Removes the mapped collection of a given Item.
+        :param item: The item to remove mapped collection from.
+        :param collection: The mapped collection to remove. Can be either a collection object or the uuid of the
+        collection.
+        """
+        collection_uuid = collection.uuid if isinstance(collection, Collection) else collection
+        self.delete_api(f'core/items/{item.uuid}/mappedCollections/{collection_uuid}')
