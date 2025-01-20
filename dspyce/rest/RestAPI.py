@@ -326,7 +326,7 @@ class RestAPI:
                                                    f'Could not put content: \n\t{data}'
                                                    f'\nWith params: {params}\nOn endpoint:\n\t{url}')
 
-    def delete_api(self, url: str, params: dict = None, content_type: str = None) -> None:
+    def delete_api(self, url: str, params: any = None, content_type: str = None) -> None:
         """
         Sends a DELETE request to the api.
 
@@ -347,7 +347,7 @@ class RestAPI:
 
         if resp.status_code in (204, 200):
             # Success DELETE request
-            logging.info(f'Successfully performed DELETE request on endpoint {url}.')
+            logging.debug(f'Successfully performed DELETE request on endpoint {url}.')
             return
 
         logging.error(f'Could not DELETE on endpoint: {url} With params: {params}')
@@ -1141,3 +1141,23 @@ class RestAPI:
                     continue
             self.delete_api(f'core/bundles/{b}')
             logging.info(f'Successfully deleted bundle with uuid "{b}"')
+
+    def delete_item(self, item: Item, copy_virtual_metadata: bool = False,
+                    by_relationships: Relation | list[Relation] = None):
+        """
+        Deletes an item from the rest API by using its uuid. If you delete an item, you can request to transform
+        possible virtual metadata fields for related items to real metadata fields. If you want to only transform
+        virtual metadata fields of specific relations, you can add those relations.
+        :param item: The item to delete.
+        :param copy_virtual_metadata: Whether to copy virtual metadata of related items. Default: False.
+        :param by_relationships: Relationships to copy the metadata for. If none provided and `copy_virtual_metadata` is
+            True, all metadata will be copied.
+        """
+        params = {}
+        if copy_virtual_metadata:
+            if by_relationships is None:
+                params['copyVirtualMetadata'] = 'all'
+            else:
+                params = '&'.join([f'copyVirtualMetadata={r.relation_type}' for r in by_relationships])
+        self.delete_api(f'core/items/{item.uuid}',  params)
+        logging.info('Successfully deleted item with uuid "%s".' % item.uuid)
