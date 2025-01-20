@@ -326,26 +326,31 @@ class RestAPI:
                                                    f'Could not put content: \n\t{data}'
                                                    f'\nWith params: {params}\nOn endpoint:\n\t{url}')
 
-    def delete_api(self, url: str, params: any = None, content_type: str = None) -> None:
+    def delete_api(self, url: str, params: any = None, content_type: str = None, retry: bool = False) -> None:
         """
         Sends a DELETE request to the api.
 
         :param url: The path in the api.
         :param params: Additional params for the operation.
         :param content_type: The content_type of the data. The default ist self.request.headers['Content-Type']
+        :param retry: Use this, if csrf token has to be updated.
         :raise RequestException: If the JSON response doesn't have the status code 200 or 201
         """
         url = f'{self.api_endpoint}/{url}' if self.api_endpoint not in url else url
         logging.debug(f'Performing DELETE request in "{url}" with params({params})')
         params = {} if params is None else params
-        req = self.session.delete(url)
-        self.update_csrf_token(req)
         headers = self.req_headers
         if content_type != headers['Content-type']:
             headers['Content-type'] = content_type
-        resp = self.session.delete(url, params=params, headers=headers)
-
-        if resp.status_code in (204, 200):
+        resp = self.session.delete(url, params=params, headers=self.req_headers)
+        self.update_csrf_token(resp)
+        if resp.status_code == 403:
+            if retry:
+                logging.warning('To many retries updating csrf token.')
+            else:
+                logging.debug('Retry request wit updated csrf token.')
+                return self.delete_api(url, params, content_type, True)
+        elif resp.status_code in (204, 200):
             # Success DELETE request
             logging.debug(f'Successfully performed DELETE request on endpoint {url}.')
             return
@@ -1161,3 +1166,22 @@ class RestAPI:
                 params = '&'.join([f'copyVirtualMetadata={r.relation_type}' for r in by_relationships])
         self.delete_api(f'core/items/{item.uuid}',  params)
         logging.info('Successfully deleted item with uuid "%s".' % item.uuid)
+
+    def delete_collection(self, collection: Collection, all_items: bool = False):
+        """
+        Deletes the given collection from the rest_api. Raises an error, if the collection still includes items and
+        all_items is set to false.
+        :param collection: The collection to delete.
+        :param all_items: Whether to delete all items in the collection as well.
+        :raises BlockingIOError: If collection still includes items and all_items is set to false.
+        """
+        items = self.get_objects_in_scope(collection.uuid)
+        if not all_items and len(items) > 0:
+            raise BlockingIOError(f'Collection {collection.uuid} has {len(items)} items and all_items is set to False.')
+        elif len(items) > 0:
+            for i in items:
+                if isinstance(i, Item):
+                    self.delete_item(i)
+            logging.info('Successfully deleted %i items from the collection.' % len(items))
+        self.delete_api(f'core/collections/{collection.uuid}')
+        logging.info('Successfully deleted collection with uuid "%s".' % collection.uuid)
