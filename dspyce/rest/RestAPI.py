@@ -1181,7 +1181,30 @@ class RestAPI:
         elif len(items) > 0:
             for i in items:
                 if isinstance(i, Item):
-                    self.delete_item(i)
+                    collections = self.get_item_collections(i.uuid)
+                    if collections[0].uuid == collection.uuid:
+                        self.delete_item(i)
             logging.info('Successfully deleted %i items from the collection.' % len(items))
         self.delete_api(f'core/collections/{collection.uuid}')
         logging.info('Successfully deleted collection with uuid "%s".' % collection.uuid)
+
+    def delete_community(self, community: Community, all_objects: bool = False):
+        """
+        Deletes the given community from the rest_api. Raises an error, if the community still includes items or
+        collections and all_objects is set to false.
+        :param community: The community to delete.
+        :param all_objects: Whether to delete all items and collections in the community as well.
+        :raises BlockingIOError: If community still includes items or collections and all_objects is set to false.
+        """
+        objects = self.get_objects_in_scope(community.uuid)
+        if not all_objects and len(objects) > 0:
+            raise BlockingIOError(f'Community {community.uuid} has {len(objects)} objects and all_objects is set to'
+                                  'False.')
+        elif len(objects) > 0:
+            for c in filter(lambda x: isinstance(x, Collection), objects):
+                self.delete_collection(c, all_objects)
+            for c in filter(lambda x: isinstance(x, Community), objects):
+                self.delete_community(c, all_objects)
+            logging.info('Successfully deleted %i objects from the community.' % len(objects))
+        self.delete_api(f'core/communities/{community.uuid}')
+        logging.info('Successfully deleted community with uuid "%s".' % community.uuid)
