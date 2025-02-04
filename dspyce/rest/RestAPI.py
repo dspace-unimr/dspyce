@@ -1,3 +1,4 @@
+from argparse import ArgumentError
 from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
@@ -958,6 +959,29 @@ class RestAPI:
         """
         return self.search_items(None, page_size, full_item, get_bitstreams)
 
+    def get_subcommunities(self, community: Community) -> list[Community]:
+        """
+        Returns all sub communities from a given community.
+        :param community: The community to retrieve sub communities from.
+        :return: A list of sub communities
+        """
+        url = f'/core/communities/{community.uuid}/subcommunities'
+        objs = self.get_paginated_objects(url, 'subcommunities')
+        logging.debug('Retrieved %i subcommunities for community %s.', len(objs), community.uuid)
+        return [json_to_object(o) for o in objs]
+
+    def get_subcollections(self, community: Community) -> list[Collection]:
+        """
+        Returns all sub collections from a given community.
+        :param community: The community to retrieve sub collections from.
+        :return: A list of sub collections
+        """
+        url = f'/core/communities/{community.uuid}/collections'
+        objs = self.get_paginated_objects(url, 'collections')
+        logging.debug('Retrieved %i collections for community %s.', len(objs), community.uuid)
+        return [json_to_object(o) for o in objs]
+
+
     def get_metadata_field(self, schema: str = '', element: str = '', qualifier: str = '',
                            field_id: int = -1) -> list[dict]:
         """
@@ -1211,17 +1235,28 @@ class RestAPI:
         all_items is set to false.
         :param collection: The collection to delete.
         :param all_items: Whether to delete all items in the collection as well.
-        :raises BlockingIOError: If collection still includes items and all_items is set to false.
+        :raises AttributeError: If collection still includes items and all_items is set to false.
         """
+        def delete_item_owned(it: DSpaceObject, coll: Collection):
+            """Delete the item, if owned by the given collection."""
+            if not isinstance(it, Item):
+                return
+            cols = self.get_item_collections(it.uuid)
+            if cols[0].uuid == coll.uuid:
+                self.delete_item(it)
+
         items = self.get_objects_in_scope(collection.uuid)
         if not all_items and len(items) > 0:
-            raise BlockingIOError(f'Collection {collection.uuid} has {len(items)} items and all_items is set to False.')
+            raise AttributeError(f'Collection {collection.uuid} has {len(items)} items and all_items is set to False.')
         elif len(items) > 0:
-            for i in items:
-                if isinstance(i, Item):
-                    collections = self.get_item_collections(i.uuid)
-                    if collections[0].uuid == collection.uuid:
-                        self.delete_item(i)
+            if self.workers > 1:
+                with ThreadPoolExecutor(max_workers=self.workers) as pool:
+                    pool_threads = [pool.submit(delete_item_owned, i, collection) for i in items]
+                for p in pool_threads:
+                    p.result()
+            else:
+                for i in items:
+                    delete_item_owned(i, collection)
             logging.info('Successfully deleted %i items from the collection.' % len(items))
         self.delete_api(f'core/collections/{collection.uuid}')
         logging.info('Successfully deleted collection with uuid "%s".' % collection.uuid)
@@ -1232,17 +1267,18 @@ class RestAPI:
         collections and all_objects is set to false.
         :param community: The community to delete.
         :param all_objects: Whether to delete all items and collections in the community as well.
-        :raises BlockingIOError: If community still includes items or collections and all_objects is set to false.
+        :raises AttributeError: If community still includes items or collections and all_objects is set to false.
         """
-        objects = self.get_objects_in_scope(community.uuid)
-        if not all_objects and len(objects) > 0:
-            raise BlockingIOError(f'Community {community.uuid} has {len(objects)} objects and all_objects is set to'
-                                  'False.')
-        elif len(objects) > 0:
-            for c in filter(lambda x: isinstance(x, Collection), objects):
+        sub_communities = self.get_subcommunities(community)
+        sub_collections = self.get_subcollections(community)
+        sub_objs = len(sub_communities) + len(sub_collections)
+        if not all_objects and sub_objs > 0:
+            raise AttributeError(f'Community {community.uuid} has {sub_objs} objects and all_objects is set to False.')
+        else:
+            for c in sub_collections:
                 self.delete_collection(c, all_objects)
-            for c in filter(lambda x: isinstance(x, Community), objects):
+            for c in sub_communities:
                 self.delete_community(c, all_objects)
-            logging.info('Successfully deleted %i objects from the community.' % len(objects))
+            logging.info('Successfully deleted %i objects from the community.' % sub_objs)
         self.delete_api(f'core/communities/{community.uuid}')
         logging.info('Successfully deleted community with uuid "%s".' % community.uuid)
