@@ -10,11 +10,11 @@ from ..Item import Item
 from ..Community import Community
 from ..Collection import Collection
 from ..Relation import Relation
-from ..bitstreams import Bundle, Bitstream, IIIFBitstream
+from ..bitstreams import Bundle, Bitstream
 from ..metadata import MetaData
 
 
-def json_to_object(json_content: dict) -> DSpaceObject | Item | Community | Collection | None:
+def json_to_object(json_content: dict) -> DSpaceObject | Item | Community | Collection | Bitstream | None:
     """
     Converts a dict based on REST-format in to a DSpace Object.
 
@@ -26,6 +26,7 @@ def json_to_object(json_content: dict) -> DSpaceObject | Item | Community | Coll
     handle = json_content['handle']
     metadata = json_content['metadata']
     doc_type = json_content['type']
+    _links = json_content['_links']
     if json_content is None:
         return None
     match doc_type:
@@ -35,6 +36,10 @@ def json_to_object(json_content: dict) -> DSpaceObject | Item | Community | Coll
             obj = Collection(uuid, handle=handle, name=name)
         case 'item':
             obj = Item(uuid, handle=handle, name=name)
+        case 'bitstream':
+            href = _links['content'].get('href') if 'content' in _links else None
+            obj = Bitstream(name, href, None, uuid, False, json_content.get('sizeBytes'),
+                            json_content.get('checkSum').get('value'))
         case _:
             obj = DSpaceObject(uuid, handle, name)
     for m in metadata.keys():
@@ -608,7 +613,7 @@ class RestAPI:
                      content_type='text/uri-list')
 
     def get_dso(self, uuid: str = '', endpoint: str = '',
-                identifier: str = None) -> DSpaceObject | Item | Collection | Community:
+                identifier: str = None) -> DSpaceObject | Item | Collection | Community | Bitstream:
         """
         Retrieves a DSpace object from the api based on its uuid and the endpoint information.
 
@@ -623,9 +628,9 @@ class RestAPI:
                 raise ValueError(f'If no other identifier is used, the uuid must be provided. "{uuid}" is not correct.')
             params = {}
             url = f'core/{endpoint}/{uuid}'
-            if endpoint not in ('items', 'collections', 'communities'):
+            if endpoint not in ('items', 'collections', 'communities', 'bitstreams'):
                 raise ValueError(f"The endpoint '{endpoint}' does not exist. endpoint must be one of"
-                                 "('items', 'collections', 'communities')")
+                                 "('items', 'collections', 'communities', 'bitstreams')")
         else:
             url = 'pid/find'
             params = {'id': identifier}
@@ -700,14 +705,13 @@ class RestAPI:
         """
         bitstream_link = f"/core/bundles/{bundle.uuid}/bitstreams"
         logging.debug(f'Retrieving bitstreams for bundle({bundle.name}) with uuid: {bundle.uuid}')
-        for o in self.get_paginated_objects(bitstream_link, 'bitstreams'):
-            description = o['metadata']['dc.description'][0]['value'] if ('dc.description'
-                                                                          in o['metadata'].keys()) else ''
-            bitstream = Bitstream(o['name'], o['_links']['content']['href'],
-                                  bundle=bundle, uuid=o['uuid'])
-            bitstream.add_description(description)
-            bundle.add_bitstream(bitstream)
-            logging.debug(f'Retrieved bitstreams: {bitstream}')
+
+        dspace_objects = [json_to_object(obj)
+                          for obj in self.get_paginated_objects(bitstream_link, 'bitstreams')]
+        for o in dspace_objects:
+            bundle.add_bitstream(o)
+            o.bundle = bundle
+            logging.debug(f'Retrieved bitstream with uuid: {o.uuid}')
         logging.debug(f'Retrieved {len(bundle.bitstreams)} bitstreams.')
         return bundle
 
@@ -815,7 +819,7 @@ class RestAPI:
     def get_item(self, uuid: str = '', get_related: bool = True, get_bitstreams: bool = True,
                  pre_downloaded_item: Item = None, identifier: str = None) -> Item | None:
         """
-        Retrieves a DSpace-Item by its uuid (or other identifieres) from the API.
+        Retrieves a DSpace-Item by its uuid (or other identifiers) from the API.
 
         :param uuid: The uuid of the item to get.
         :param get_related: If true, also retrieves related items from the API.
@@ -875,9 +879,30 @@ class RestAPI:
         bundle_json = self.get_api(f'core/bundles/{uuid}')
         bundle: Bundle = Bundle(bundle_json['name'], uuid=bundle_json['uuid'])
         bundle = self.get_bitstreams_in_bundle(bundle)
-        logging.debug(f'Successfully retrieved bundle {bundle} including {len(bundle.bitstreams)} bitstreams from'
+        logging.debug(f'Successfully retrieved bundle {bundle}\nincluding {len(bundle.bitstreams)} bitstreams from'
                       f'endpoint.')
         return bundle
+
+    def get_bitstream(self, uuid: str) -> Bitstream | None:
+        """
+        Retrieves a DSpace bitstream from the API.
+        :param uuid: The UUID of the bitstream to get.
+        :return: The bitstream found.
+        """
+        dso = self.get_dso(uuid, 'bitstreams')
+        dso: Bitstream
+        if dso is None:
+            return None
+        dso.bundle = self.get_bundle_for_bitstream(dso)
+        return dso
+
+    def get_bundle_for_bitstream(self, bitstream: Bitstream) -> Bundle:
+        """
+        Retrieves the bundle of a given bitstream.
+        :param bitstream: The bitstream to retrieve the bundle for.
+        """
+        bundle_json = self.get_api(f'core/bitstreams/{bitstream.uuid}/bundle')
+        return Bundle(bundle_json['name'], uuid=bundle_json['uuid'])
 
     def get_objects_in_scope(self, scope_uuid: str, query: dict = None, size: int = 20, full_item: bool = False,
                            get_bitstreams: bool = False) -> list[DSpaceObject]:
