@@ -333,28 +333,33 @@ class RestAPI:
                                                    f'Could not put content: \n\t{data}'
                                                    f'\nWith params: {params}\nOn endpoint:\n\t{url}')
 
-    def delete_api(self, url: str, params: dict = None, content_type: str = None) -> None:
+    def delete_api(self, url: str, params: any = None, content_type: str = None, retry: bool = False) -> None:
         """
         Sends a DELETE request to the api.
 
         :param url: The path in the api.
         :param params: Additional params for the operation.
         :param content_type: The content_type of the data. The default ist self.request.headers['Content-Type']
+        :param retry: Use this, if csrf token has to be updated.
         :raise RequestException: If the JSON response doesn't have the status code 200 or 201
         """
         url = f'{self.api_endpoint}/{url}' if self.api_endpoint not in url else url
         logging.debug(f'Performing DELETE request in "{url}" with params({params})')
         params = {} if params is None else params
-        req = self.session.delete(url)
-        self.update_csrf_token(req)
         headers = self.req_headers
         if content_type != headers['Content-type']:
             headers['Content-type'] = content_type
-        resp = self.session.delete(url, params=params, headers=headers)
-
-        if resp.status_code in (204, 200):
+        resp = self.session.delete(url, params=params, headers=self.req_headers)
+        self.update_csrf_token(resp)
+        if resp.status_code == 403:
+            if retry:
+                logging.warning('To many retries updating csrf token.')
+            else:
+                logging.debug('Retry request wit updated csrf token.')
+                return self.delete_api(url, params, content_type, True)
+        elif resp.status_code in (204, 200):
             # Success DELETE request
-            logging.info(f'Successfully performed DELETE request on endpoint {url}.')
+            logging.debug(f'Successfully performed DELETE request on endpoint {url}.')
             return
 
         logging.error(f'Could not DELETE on endpoint: {url} With params: {params}')
@@ -953,6 +958,29 @@ class RestAPI:
         """
         return self.search_items(None, page_size, full_item, get_bitstreams)
 
+    def get_subcommunities(self, community: Community) -> list[Community]:
+        """
+        Returns all sub communities from a given community.
+        :param community: The community to retrieve sub communities from.
+        :return: A list of sub communities
+        """
+        url = f'/core/communities/{community.uuid}/subcommunities'
+        objs = self.get_paginated_objects(url, 'subcommunities')
+        logging.debug('Retrieved %i subcommunities for community %s.', len(objs), community.uuid)
+        return [json_to_object(o) for o in objs]
+
+    def get_subcollections(self, community: Community) -> list[Collection]:
+        """
+        Returns all sub collections from a given community.
+        :param community: The community to retrieve sub collections from.
+        :return: A list of sub collections
+        """
+        url = f'/core/communities/{community.uuid}/collections'
+        objs = self.get_paginated_objects(url, 'collections')
+        logging.debug('Retrieved %i collections for community %s.', len(objs), community.uuid)
+        return [json_to_object(o) for o in objs]
+
+
     def get_metadata_field(self, schema: str = '', element: str = '', qualifier: str = '',
                            field_id: int = -1) -> list[dict]:
         """
@@ -1179,3 +1207,77 @@ class RestAPI:
         """
         collection_uuid = collection.uuid if isinstance(collection, Collection) else collection
         self.delete_api(f'core/items/{item.uuid}/mappedCollections/{collection_uuid}')
+
+    def delete_item(self, item: Item, copy_virtual_metadata: bool = False,
+                    by_relationships: Relation | list[Relation] = None):
+        """
+        Deletes an item from the rest API by using its uuid. If you delete an item, you can request to transform
+        possible virtual metadata fields for related items to real metadata fields. If you want to only transform
+        virtual metadata fields of specific relations, you can add those relations.
+        :param item: The item to delete.
+        :param copy_virtual_metadata: Whether to copy virtual metadata of related items. Default: False.
+        :param by_relationships: Relationships to copy the metadata for. If none provided and `copy_virtual_metadata` is
+            True, all metadata will be copied.
+        """
+        params = {}
+        if copy_virtual_metadata:
+            if by_relationships is None:
+                params['copyVirtualMetadata'] = 'all'
+            else:
+                params = '&'.join([f'copyVirtualMetadata={r.relation_type}' for r in by_relationships])
+        self.delete_api(f'core/items/{item.uuid}',  params)
+        logging.info('Successfully deleted item with uuid "%s".' % item.uuid)
+
+    def delete_collection(self, collection: Collection, all_items: bool = False):
+        """
+        Deletes the given collection from the rest_api. Raises an error, if the collection still includes items and
+        all_items is set to false.
+        :param collection: The collection to delete.
+        :param all_items: Whether to delete all items in the collection as well.
+        :raises AttributeError: If collection still includes items and all_items is set to false.
+        """
+        def delete_item_owned(it: DSpaceObject, coll: Collection):
+            """Delete the item, if owned by the given collection."""
+            if not isinstance(it, Item):
+                return
+            cols = self.get_item_collections(it.uuid)
+            if cols[0].uuid == coll.uuid:
+                self.delete_item(it)
+
+        items = self.get_objects_in_scope(collection.uuid)
+        if not all_items and len(items) > 0:
+            raise AttributeError(f'Collection {collection.uuid} has {len(items)} items and all_items is set to False.')
+        elif len(items) > 0:
+            if self.workers > 1:
+                with ThreadPoolExecutor(max_workers=self.workers) as pool:
+                    pool_threads = [pool.submit(delete_item_owned, i, collection) for i in items]
+                for p in pool_threads:
+                    p.result()
+            else:
+                for i in items:
+                    delete_item_owned(i, collection)
+            logging.info('Successfully deleted %i items from the collection.' % len(items))
+        self.delete_api(f'core/collections/{collection.uuid}')
+        logging.info('Successfully deleted collection with uuid "%s".' % collection.uuid)
+
+    def delete_community(self, community: Community, all_objects: bool = False):
+        """
+        Deletes the given community from the rest_api. Raises an error, if the community still includes items or
+        collections and all_objects is set to false.
+        :param community: The community to delete.
+        :param all_objects: Whether to delete all items and collections in the community as well.
+        :raises AttributeError: If community still includes items or collections and all_objects is set to false.
+        """
+        sub_communities = self.get_subcommunities(community)
+        sub_collections = self.get_subcollections(community)
+        sub_objs = len(sub_communities) + len(sub_collections)
+        if not all_objects and sub_objs > 0:
+            raise AttributeError(f'Community {community.uuid} has {sub_objs} objects and all_objects is set to False.')
+        else:
+            for c in sub_collections:
+                self.delete_collection(c, all_objects)
+            for c in sub_communities:
+                self.delete_community(c, all_objects)
+            logging.info('Successfully deleted %i objects from the community.' % sub_objs)
+        self.delete_api(f'core/communities/{community.uuid}')
+        logging.info('Successfully deleted community with uuid "%s".' % community.uuid)
