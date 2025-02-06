@@ -2,7 +2,7 @@ import os
 import re
 import requests
 
-from .. import DSpaceObject
+from dspyce.DSpaceObject import DSpaceObject
 
 
 class Bitstream(DSpaceObject):
@@ -23,8 +23,13 @@ class Bitstream(DSpaceObject):
     """If the bitstream shall be the primary bitstream for the item."""
     uuid: str
     """A uuid if the Bitstream already exists in a DSpace-Instance."""
+    size_bytes: int
+    """The size of the Bitstream in bytes."""
+    check_sum: str
+    """The checksum of the Bitstream."""
 
-    def __init__(self, name: str, path: str, bundle: any = None, uuid: str = None, primary: bool = False):
+    def __init__(self, name: str, path: str, bundle: any = None, uuid: str = None, primary: bool = False,
+                 size_bytes: int = None, check_sum: str = None):
         """
         Creates a new Bitstream object.
         :param name: The name of the bitstream.
@@ -32,6 +37,8 @@ class Bitstream(DSpaceObject):
         :param bundle: The bundle, where the bitstream should be placed in. The default is ORIGINAL.
         :param uuid: The uuid of the bitstream if existing.
         :param primary: Primary is used to specify the primary bitstream.
+        :param size_bytes: The size of the bitstream in bytes.
+        :param check_sum: The checksum of the bitstream.
         """
         self.file_name = name
         self.path = path
@@ -40,6 +47,8 @@ class Bitstream(DSpaceObject):
         self.bundle = bundle
         self.uuid = uuid
         self.primary = primary
+        self.size_bytes = size_bytes
+        self.check_sum = check_sum
         super().__init__(uuid, '', name)
         self.add_metadata('dc.title', name)
 
@@ -93,7 +102,7 @@ class Bitstream(DSpaceObject):
 
         :param timeout: The connection timeout for reading bitstreams from remote resources.
         """
-        if re.search(r'^http(s)?://', self.path):
+        if self.is_remote_resource():
             return requests.get(self.path, timeout=timeout).content
         with open(self.path + self.file_name, 'rb') as f:
             return f.read()
@@ -148,3 +157,27 @@ class Bitstream(DSpaceObject):
                 'name': self.name,
                 'metadata': self.metadata,
                 'bundleName': self.bundle.name}
+
+    def set_size(self, size: int = None):
+        """
+        Sets the size of the bitstream. If parameter size is None, this method is calculating the size of the Bitstream.
+        :param size: The size of the bitstream.
+        """
+        if size is None:
+            if self.is_remote_resource():
+                headers = requests.head(self.path).headers
+                if 'Content-Length' in headers:
+                    self.size_bytes = int(headers['Content-Length'])
+                else:
+                    raise requests.exceptions.InvalidHeader('Did not get "Content-Length key in the header."')
+            else:
+                self.size_bytes = os.path.getsize(self.path)
+        else:
+            self.size_bytes = size
+
+    def is_remote_resource(self) -> bool:
+        """
+        Checks if the resources should be retrieved from an url.
+        :return: True if the path starts with http(s)?://
+        """
+        return re.search(r'^http(s)?://', self.path) is not None

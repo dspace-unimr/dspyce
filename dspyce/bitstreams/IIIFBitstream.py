@@ -11,7 +11,8 @@ class IIIFBitstream(Bitstream):
         A class for managing iiif-specific content files in the saf-packages.
     """
 
-    def __init__(self, name: str, path: str, bundle: any = None, uuid: str = None, primary: bool = False):
+    def __init__(self, name: str, path: str, bundle: any = None, uuid: str = None, primary: bool = False,
+                 size_bytes: int = None, check_sum: str = None):
         """
         Creates a new IIIF-Bitstream object.
 
@@ -20,8 +21,10 @@ class IIIFBitstream(Bitstream):
         :param bundle: The bundle, where the bitstream should be placed in. The default is ORIGINAL.
         :param uuid: The uuid of the bitstream if existing.
         :param primary: Primary is used to specify the primary bitstream.
+        :param size_bytes: The size of the bitstream in bytes.
+        :param check_sum: The checksum of the bitstream.
         """
-        super().__init__(name, path, bundle, uuid, primary)
+        super().__init__(name, path, bundle, uuid, primary, size_bytes, check_sum)
 
     def __str__(self):
         """
