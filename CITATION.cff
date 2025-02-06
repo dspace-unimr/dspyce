@@ -1,0 +1,28 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: dspyce
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Eike Martin
+    family-names: Löhden
+    affiliation: Philipps-Universität Marburg (UMR)
+    orcid: 'https://orcid.org/0000-0001-9315-3660'
+repository-code: 'https://github.com/dspace-unimr/dspyce'
+url: 'https://pypi.org/project/dspyce/'
+abstract: >-
+  The package dspyce helps to communicate with dspace
+  interfaces. Currently, saf (Simple Archive Format)
+  packages and the RestAPI are supported.
+keywords:
+  - dspace
+  - rest-api
+  - metadata
+license: MIT
+commit: 57b6fc8
+version: ' dspyce-v0.0.6'
+date-released: '2024-09-30'

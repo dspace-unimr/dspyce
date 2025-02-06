@@ -5,6 +5,10 @@ from dspyce.bitstreams import Bundle
 
 
 class ItemTest(unittest.TestCase):
+    """
+    Test class for the item class.
+    """
+
     item: ds.Item = ds.Item('xyz', '123456789/1', 'test', ds.Collection('abc'))
 
     def test_entity(self):

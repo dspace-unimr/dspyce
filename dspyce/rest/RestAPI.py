@@ -1,6 +1,8 @@
+from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
 import requests
+import requests.adapters
 from requests.exceptions import InvalidJSONError
 
 from ..DSpaceObject import DSpaceObject
@@ -94,9 +96,11 @@ class RestAPI:
     """Provides information about the authentication status."""
     dspace_version: str
     """The dspace version used by the API endpoint."""
+    workers: int
+    """The number of worker threads used by the ThreadPoolExecutor."""
 
     def __init__(self, api_endpoint: str, username: str = None, password: str = None,
-                 log_level: int | str = logging.INFO, log_file: str = None):
+                 log_level: int | str = logging.INFO, log_file: str = None, workers: int = 0):
         """
         Creates a new object of the RestAPI class using
 
@@ -107,6 +111,8 @@ class RestAPI:
             the following: DEBUG, INFO, WARNING, ERROR, CRITICAL. Default is INFO.
         :param log_file: A possible name and path of the log file. If None provided, all output will be logged to the
             console.
+        :param workers: The number of worker threads to use, if this value equals 0 no ThreadPoolExecutor is used.
+            Default is 0.
         """
         log_level_types = {'DEBUG': logging.DEBUG, 'INFO': logging.INFO, 'WARNING': logging.WARNING,
                            'ERROR': logging.ERROR, 'CRITICAL': logging.CRITICAL}
@@ -129,6 +135,7 @@ class RestAPI:
         self.req_headers = {'Content-type': 'application/json', 'User-Agent': 'Python REST Client'}
         if username is not None and password is not None:
             self.authenticated = self.authenticate_api()
+        self.set_workers(workers)
 
     @staticmethod
     def get_endpoint_info(api: str) -> dict[str, str] | None:
@@ -165,6 +172,20 @@ class RestAPI:
             csrf = req.headers['DSPACE-XSRF-TOKEN']
             self.session.headers.update({'X-XSRF-Token': csrf})
             self.session.cookies.update({'X-XSRF-Token': csrf})
+
+    def set_workers(self, workers: int):
+        """
+        Set the number of workers to be used by the TreadPoolExecutor.
+
+        :param workers: The number of worker threads to use.
+        """
+        self.workers = workers
+        logging.debug('Initializing with %i workers.' % workers)
+        if self.workers > requests.adapters.DEFAULT_POOLSIZE:
+            adapter = requests.adapters.HTTPAdapter(pool_maxsize=self.workers)
+            logging.info('The number of workers (%i) exceeds the number of default connections. '
+                         'Increasing the number of default connections.' % workers)
+            self.session.mount(self.api_endpoint, adapter)
 
     def authenticate_api(self) -> bool:
         """
@@ -218,27 +239,34 @@ class RestAPI:
 
         raise requests.exceptions.RequestException(f'Could not get item with from endpoint: {url}')
 
-    def post_api(self, url: str, json_data: dict, params: dict) -> dict:
+    def post_api(self, url: str, data: dict | list | str, params: dict, content_type: str = 'application/json') -> dict:
         """
         Performs a post action on the RestAPI endpoint.
         """
         req = self.session.post(url)
         self.update_csrf_token(req)
-        logging.debug(f'Performing POST request in "{url}" with params({params}):{json_data}')
-        try:
-            resp = self.session.post(url, json=json_data, headers=self.req_headers, params=params)
-        except InvalidJSONError as e:
-            logging.error(f'Invalid json format in the query data: {json_data}')
-            raise e
-        if resp.status_code in (201, 200):
-            # Success post request
-            json_resp = resp.json()
-            logging.info(f'Successfully added object with uuid: {json_resp["uuid"]}')
-            return json_resp
-        logging.error(f'Could not POST content: {json_data}.\n\tWith params: {params}\n\tOn endpoint: {url}')
+        logging.debug(f'Performing POST request in "{url}" with params({params}):{data}')
+        if content_type == 'application/json':
+            try:
+                resp = self.session.post(url, json=data, headers=self.req_headers, params=params)
+            except InvalidJSONError as e:
+                logging.error(f'Invalid json format in the query data: {data}')
+                raise e
+            if resp.status_code in (201, 200):
+                # Success post request
+                json_resp = resp.json()
+                logging.info(f'Successfully added object with uuid: {json_resp["uuid"]}')
+                return json_resp
+        else:
+            headers = self.req_headers.copy()
+            headers['Content-Type'] = content_type
+            resp = self.session.post(url, data=data, headers=headers, params=params)
+            if resp.status_code in (200, 201, 204):
+                return {}
+        logging.error(f'Could not POST content({content_type}): {data}.\n\tWith params: {params}\n\tOn endpoint: {url}')
         logging.error(f'Statuscode: {resp.status_code}')
         raise requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
-                                                   f'Could not post content: \n\t{json_data}'
+                                                   f'Could not post content: \n\t{data}'
                                                    f'\nWith params: {params}\nOn endpoint:\n\t{url}')
 
     def patch_api(self, url: str, json_data: list, params: dict = None) -> dict | None:
@@ -264,7 +292,7 @@ class RestAPI:
             return json_resp
 
         if resp.status_code == 204:
-            operation = [int((i["op"] if "op" in i.keys() else '') == "remove") - 1 for i in json_data]
+            operation = [int((i['op'] if 'op' in i.keys() else '') == 'remove') - 1 for i in json_data]
             if sum(operation) == 0:
                 logging.info('Successfully deleted objects.')
                 return None
@@ -305,28 +333,33 @@ class RestAPI:
                                                    f'Could not put content: \n\t{data}'
                                                    f'\nWith params: {params}\nOn endpoint:\n\t{url}')
 
-    def delete_api(self, url: str, params: dict = None, content_type: str = None) -> None:
+    def delete_api(self, url: str, params: any = None, content_type: str = None, retry: bool = False) -> None:
         """
         Sends a DELETE request to the api.
 
         :param url: The path in the api.
         :param params: Additional params for the operation.
         :param content_type: The content_type of the data. The default ist self.request.headers['Content-Type']
+        :param retry: Use this, if csrf token has to be updated.
         :raise RequestException: If the JSON response doesn't have the status code 200 or 201
         """
         url = f'{self.api_endpoint}/{url}' if self.api_endpoint not in url else url
         logging.debug(f'Performing DELETE request in "{url}" with params({params})')
         params = {} if params is None else params
-        req = self.session.delete(url)
-        self.update_csrf_token(req)
         headers = self.req_headers
         if content_type != headers['Content-type']:
             headers['Content-type'] = content_type
-        resp = self.session.delete(url, params=params, headers=headers)
-
-        if resp.status_code in (204, 200):
+        resp = self.session.delete(url, params=params, headers=self.req_headers)
+        self.update_csrf_token(resp)
+        if resp.status_code == 403:
+            if retry:
+                logging.warning('To many retries updating csrf token.')
+            else:
+                logging.debug('Retry request wit updated csrf token.')
+                return self.delete_api(url, params, content_type, True)
+        elif resp.status_code in (204, 200):
             # Success DELETE request
-            logging.info(f'Successfully performed DELETE request on endpoint {url}.')
+            logging.debug(f'Successfully performed DELETE request on endpoint {url}.')
             return
 
         logging.error(f'Could not DELETE on endpoint: {url} With params: {params}')
@@ -366,7 +399,7 @@ class RestAPI:
                 raise ValueError(f'Object type {obj.get_dspace_object_type()} is not allowed as a parameter!')
         obj_json = object_to_json(obj)
 
-        return json_to_object(self.post_api(add_url, json_data=obj_json, params=params))
+        return json_to_object(self.post_api(add_url, data=obj_json, params=params))
 
     def add_bundle(self, bundle: Bundle, item_uuid: str) -> Bundle:
         """
@@ -383,7 +416,7 @@ class RestAPI:
         obj_json = {'name': bundle.name}
         if bundle.description != '':
             obj_json['metadata'] = {'dc.description': [{'value': bundle.description}]}
-        resp = self.post_api(add_url, json_data=obj_json, params=params)
+        resp = self.post_api(add_url, data=obj_json, params=params)
         uuid = resp['uuid']
         name = resp['name']
         return Bundle(name=name, uuid=uuid)
@@ -520,6 +553,8 @@ class RestAPI:
                                   'Retrieving uuid from api.')
                     c.uuid = self.get_dso(identifier=c.handle).uuid
         dso = self.add_object(item)
+        if len(collection_list) > 1:
+            self.add_mapped_collections(dso, collection_list[1:])
         bundles = {i.name: i for i in [self.add_bundle(b, dso.uuid) for b in item.get_bundles()]}
         for b in bitstreams:
             self.add_bitstream(b, bundles[b.bundle.name])
@@ -538,6 +573,25 @@ class RestAPI:
             self.add_relationship(r)
         logging.debug(f'Created item {item}')
         return item
+
+    def add_mapped_collections(self, item: Item, collections: list[Collection]):
+        """
+        Add new mapped collections between item and collections. Changes the collection list of the given item in-place.
+        :param item: The item to add mapped collection to.
+        :param collections: The collections to map the item to.
+        """
+
+        api_endpoint = f'{self.api_endpoint}/core/items/{item.uuid}/mappedCollections'
+        content_type = 'text/uri-list'
+        collection_uris = []
+        item_collections = [c.uuid for c in item.collections]
+        for c in collections:
+            if c.uuid in item_collections:
+                logging.warning('The collection with the uuid "%s" is already a mapped collection.' % c.uuid)
+            else:
+                collection_uris.append(f'{self.api_endpoint}/core/collections/{c.uuid}')
+        if len(collection_uris) > 0:
+            self.post_api(api_endpoint, '\n'.join(collection_uris), {}, content_type=content_type)
 
     def move_item(self, item: Item, new_collection: Collection | str):
         """
@@ -596,12 +650,12 @@ class RestAPI:
         :param size: The page size, aka the number of objects per page.
         :return: The list of retrieved objects.
         """
-        query_params = {} if query_params is None else query_params
+        query = {} if query_params is None else dict(query_params)
         if size > -1:
-            query_params.update({'size': size})
+            query.update({'size': size})
         if page > -1:
-            query_params.update({'page': page})
-        endpoint_json = self.get_api(endpoint, params=query_params)
+            query.update({'page': page})
+        endpoint_json = self.get_api(endpoint, params=query)
         if 'discover/search/objects' in endpoint:
             endpoint_json = endpoint_json['_embedded']['searchResult']
         try:
@@ -610,9 +664,17 @@ class RestAPI:
             logging.error(f'Problems with parsing paginated object list. A Key-Error occurred.\n{endpoint_json}')
             raise e
         if page == -1:
-            page_info = endpoint_json["page"]
-            for p in range(1, page_info['totalPages']):
-                object_list += self.get_paginated_objects(endpoint, object_key, query_params, p, size)
+            page_info = endpoint_json['page']
+            if self.workers == 0:
+                for p in range(1, page_info['totalPages']):
+                    object_list += self.get_paginated_objects(endpoint, object_key, query, p, size)
+            else:
+                pool = ThreadPoolExecutor(max_workers=self.workers if self.workers > 0 else None)
+                pool_threads = [pool.submit(self.get_paginated_objects, endpoint, object_key, query, p, size) for
+                                p in range(1, page_info['totalPages'])]
+                pool.shutdown(wait=True)
+                for p in pool_threads:
+                    object_list += p.result()
         return object_list
 
     def get_item_bitstreams(self, item_uuid: str) -> list[Bitstream]:
@@ -623,9 +685,10 @@ class RestAPI:
         :return: A list of Bitstream objects.
         """
         bitstreams = []
-        bundles = self.get_item_bundles(item_uuid)
+        bundles = self.get_item_bundles(item_uuid, True)
+
         for b in bundles:
-            bitstreams += self.get_bitstreams_in_bundle(b).bitstreams
+            bitstreams += b.bitstreams
         return bitstreams
 
     def get_bitstreams_in_bundle(self, bundle: Bundle) -> Bundle:
@@ -648,17 +711,22 @@ class RestAPI:
         logging.debug(f'Retrieved {len(bundle.bitstreams)} bitstreams.')
         return bundle
 
-    def get_item_bundles(self, item_uuid: str) -> list[Bundle]:
+    def get_item_bundles(self, item_uuid: str, include_bitstreams: bool = True) -> list[Bundle]:
         """
         Retrieves the bundles connected to a DSpaceObject and returns them as list.
 
         :param item_uuid: The uuid of the item to retrieve the bundles from.
+        :param include_bitstreams: Whether bitstreams should be downloaded as well. Default: True
         :return: The list of Bundle objects.
         """
         bundle_json = self.get_paginated_objects(f'/core/items/{item_uuid}/bundles', 'bundles')
-        return [Bundle(b['name'],
+        bundles = [Bundle(b['name'],
                        b['metadata']['dc.description'][0]['value'] if 'dc.description' in b['metadata'].keys() else '',
                        b['uuid']) for b in bundle_json]
+        if not include_bitstreams:
+            return bundles
+
+        return [self.get_bitstreams_in_bundle(b) for b in bundles]
 
     def get_relations_by_type(self, entity_type: str) -> list[Relation]:
         """
@@ -765,7 +833,7 @@ class RestAPI:
         if get_related:
             dso.relations = self.get_item_relationships(dso.uuid)
         if get_bitstreams:
-            dso.bundles = [self.get_bitstreams_in_bundle(b) for b in self.get_item_bundles(dso.uuid)]
+            dso.bundles = self.get_item_bundles(dso.uuid, True)
             for b in dso.bundles:
                 dso.contents += b.bitstreams
 
@@ -811,43 +879,24 @@ class RestAPI:
                       f'endpoint.')
         return bundle
 
-    def get_items_in_scope(self, scope_uuid: str, query: str = '', size: int = -1, page: int = -1,
-                           full_item: bool = False) -> list[Item]:
+    def get_objects_in_scope(self, scope_uuid: str, query: dict = None, size: int = 20, full_item: bool = False,
+                           get_bitstreams: bool = False) -> list[DSpaceObject]:
         """
-        Returns a list of DSpace items in a given collection or community. Can be further reduced by query parameter.
+        Returns a list of DSpace Objects in a given collection or community. Can be further reduced by query parameter.
 
         :param scope_uuid: The uuid of the collection to retrieve the items from.
         :param query: Additional query parameters for the request.
         :param size: The number of objects per page. Use -1 to select the default.
-        :param page: The page to retrieve if a paginated list is returned. Use -1 to retrieve all.
         :param full_item: If the full item information should be downloaded (Including relationships, bundles and
             bitstreams. This can be slower due to additional api calls).
+        :param get_bitstreams: If true, also the bitstreams of the item will be connected. Not needed if full_item is
+            True. Default: False.
         :return: A list of Item objects.
         """
         query_params = {'scope': scope_uuid}
-        if query != '':
-            query_params.update({'query': query})
-        if page > -1:
-            query_params.update({'page': page})
-
-        search_req = self.get_api('discover/search/objects', query_params)
-        json_res = search_req['_embedded']['searchResult']
-        try:
-            item_list = [json_to_object(i['_embedded']['indexableObject']) for i in json_res['_embedded']['objects']]
-            item_list = list(filter(lambda x: isinstance(x, Item), item_list))
-            if full_item:
-                item_list = [self.get_item(i.uuid, True, True, i) for i in item_list]
-        except KeyError as e:
-            logging.error(f'Problem with parsing the following request anser:\n{json_res}')
-            raise e
-
-        if page == -1:
-            number_pages = json_res['page']['totalPages']
-            logging.debug(f'Parsing {number_pages} with items.')
-            for n in range(1, number_pages):
-                item_list += self.get_items_in_scope(scope_uuid, query, size, n, full_item)
-
-        return list(filter(lambda x: x is not None, item_list))
+        if query is not None:
+            query_params.update(query)
+        return self.search_items(query_params, size, full_item, get_bitstreams)
 
     def search_items(self, query_params: dict = None, size: int = 20, full_item: bool = False,
                      get_bitstreams: bool = False) -> list[DSpaceObject]:
@@ -876,7 +925,7 @@ class RestAPI:
                 if full_item:
                     o.collections = self.get_item_collections(o.uuid)
                     o.relations = self.get_item_relationships(o.uuid)
-                o.contents = self.get_item_bitstreams(o.uuid)
+                o.bundles = self.get_item_bundles(o.uuid, True)
             if full_item:
                 if o.get_dspace_object_type() == 'Collection':
                     o: Collection
@@ -900,6 +949,29 @@ class RestAPI:
         :return: A list of all found DSpaceObjects
         """
         return self.search_items(None, page_size, full_item, get_bitstreams)
+
+    def get_subcommunities(self, community: Community) -> list[Community]:
+        """
+        Returns all sub communities from a given community.
+        :param community: The community to retrieve sub communities from.
+        :return: A list of sub communities
+        """
+        url = f'/core/communities/{community.uuid}/subcommunities'
+        objs = self.get_paginated_objects(url, 'subcommunities')
+        logging.debug('Retrieved %i subcommunities for community %s.', len(objs), community.uuid)
+        return [json_to_object(o) for o in objs]
+
+    def get_subcollections(self, community: Community) -> list[Collection]:
+        """
+        Returns all sub collections from a given community.
+        :param community: The community to retrieve sub collections from.
+        :return: A list of sub collections
+        """
+        url = f'/core/communities/{community.uuid}/collections'
+        objs = self.get_paginated_objects(url, 'collections')
+        logging.debug('Retrieved %i collections for community %s.', len(objs), community.uuid)
+        return [json_to_object(o) for o in objs]
+
 
     def get_metadata_field(self, schema: str = '', element: str = '', qualifier: str = '',
                            field_id: int = -1) -> list[dict]:
@@ -992,19 +1064,19 @@ class RestAPI:
                 rank = ''
                 if isinstance(metadata[k], dict):
                     metadata[k]: dict
-                    rank = f'/{metadata[k]["position"]}' if "position" in metadata[k].keys() else ''
+                    rank = f'/{metadata[k]["position"]}' if 'position' in metadata[k].keys() else ''
                     rank = f'/{position}' if rank == '' and str(position) != '-1' else rank
-                    values = {"value": metadata[k]["value"]}
-                    if "language" in metadata[k].keys():
-                        values.update({"language": metadata[k]["language"]})
-                patch_json.append({"op": operation, "path": f"/metadata/{k}" + rank, "value": values})
+                    values = {'value': metadata[k]['value']}
+                    if 'language' in metadata[k].keys():
+                        values.update({'language': metadata[k]['language']})
+                patch_json.append({'op': operation, 'path': f'/metadata/{k}' + rank, 'value': values})
         else:
             for k in metadata.keys():
                 rank = [i['position'] for i in metadata[k]]
                 if len(rank) > 0:
-                    patch_json += [{"op": operation, "path": f"/metadata/{k}/{r}"} for r in rank]
+                    patch_json += [{'op': operation, 'path': f'/metadata/{k}/{r}'} for r in rank]
                 else:
-                    patch_json.append({"op": operation, "path": f"/metadata/{k}" +
+                    patch_json.append({'op': operation, 'path': f'/metadata/{k}' +
                                                                 (f'/{position}' if str(position) != '-1' else '')})
 
         url = 'core/' + (f'{obj_type}s' if obj_type in ('item', 'collection') else 'communities')
@@ -1093,8 +1165,8 @@ class RestAPI:
         :param bitstream_uuid: The uuid of the bitstream to delete
         """
         bitstream_uuid = [bitstream_uuid] if isinstance(bitstream_uuid, str) else bitstream_uuid
-        patch_call = [{"op": "remove", "path": f"/bitstreams/{uuid}"} for uuid in bitstream_uuid]
-        self.patch_api("core/bitstreams", patch_call)
+        patch_call = [{'op': 'remove', 'path': f'/bitstreams/{uuid}'} for uuid in bitstream_uuid]
+        self.patch_api('core/bitstreams', patch_call)
         logging.info(f'Successfully deleted bitstream with uuid "{bitstream_uuid}".')
 
     def delete_bundles(self, bundle_uuid: str | list[str], include_bitstreams: bool = False):
@@ -1117,3 +1189,87 @@ class RestAPI:
                     continue
             self.delete_api(f'core/bundles/{b}')
             logging.info(f'Successfully deleted bundle with uuid "{b}"')
+
+    def remove_mapped_collection(self, item: Item, collection: Collection | str):
+        """
+        Removes the mapped collection of a given Item.
+        :param item: The item to remove mapped collection from.
+        :param collection: The mapped collection to remove. Can be either a collection object or the uuid of the
+        collection.
+        """
+        collection_uuid = collection.uuid if isinstance(collection, Collection) else collection
+        self.delete_api(f'core/items/{item.uuid}/mappedCollections/{collection_uuid}')
+
+    def delete_item(self, item: Item, copy_virtual_metadata: bool = False,
+                    by_relationships: Relation | list[Relation] = None):
+        """
+        Deletes an item from the rest API by using its uuid. If you delete an item, you can request to transform
+        possible virtual metadata fields for related items to real metadata fields. If you want to only transform
+        virtual metadata fields of specific relations, you can add those relations.
+        :param item: The item to delete.
+        :param copy_virtual_metadata: Whether to copy virtual metadata of related items. Default: False.
+        :param by_relationships: Relationships to copy the metadata for. If none provided and `copy_virtual_metadata` is
+            True, all metadata will be copied.
+        """
+        params = {}
+        if copy_virtual_metadata:
+            if by_relationships is None:
+                params['copyVirtualMetadata'] = 'all'
+            else:
+                params = '&'.join([f'copyVirtualMetadata={r.relation_type}' for r in by_relationships])
+        self.delete_api(f'core/items/{item.uuid}',  params)
+        logging.info('Successfully deleted item with uuid "%s".' % item.uuid)
+
+    def delete_collection(self, collection: Collection, all_items: bool = False):
+        """
+        Deletes the given collection from the rest_api. Raises an error, if the collection still includes items and
+        all_items is set to false.
+        :param collection: The collection to delete.
+        :param all_items: Whether to delete all items in the collection as well.
+        :raises AttributeError: If collection still includes items and all_items is set to false.
+        """
+        def delete_item_owned(it: DSpaceObject, coll: Collection):
+            """Delete the item, if owned by the given collection."""
+            if not isinstance(it, Item):
+                return
+            cols = self.get_item_collections(it.uuid)
+            if cols[0].uuid == coll.uuid:
+                self.delete_item(it)
+
+        items = self.get_objects_in_scope(collection.uuid)
+        if not all_items and len(items) > 0:
+            raise AttributeError(f'Collection {collection.uuid} has {len(items)} items and all_items is set to False.')
+        elif len(items) > 0:
+            if self.workers > 1:
+                with ThreadPoolExecutor(max_workers=self.workers) as pool:
+                    pool_threads = [pool.submit(delete_item_owned, i, collection) for i in items]
+                for p in pool_threads:
+                    p.result()
+            else:
+                for i in items:
+                    delete_item_owned(i, collection)
+            logging.info('Successfully deleted %i items from the collection.' % len(items))
+        self.delete_api(f'core/collections/{collection.uuid}')
+        logging.info('Successfully deleted collection with uuid "%s".' % collection.uuid)
+
+    def delete_community(self, community: Community, all_objects: bool = False):
+        """
+        Deletes the given community from the rest_api. Raises an error, if the community still includes items or
+        collections and all_objects is set to false.
+        :param community: The community to delete.
+        :param all_objects: Whether to delete all items and collections in the community as well.
+        :raises AttributeError: If community still includes items or collections and all_objects is set to false.
+        """
+        sub_communities = self.get_subcommunities(community)
+        sub_collections = self.get_subcollections(community)
+        sub_objs = len(sub_communities) + len(sub_collections)
+        if not all_objects and sub_objs > 0:
+            raise AttributeError(f'Community {community.uuid} has {sub_objs} objects and all_objects is set to False.')
+        else:
+            for c in sub_collections:
+                self.delete_collection(c, all_objects)
+            for c in sub_communities:
+                self.delete_community(c, all_objects)
+            logging.info('Successfully deleted %i objects from the community.' % sub_objs)
+        self.delete_api(f'core/communities/{community.uuid}')
+        logging.info('Successfully deleted community with uuid "%s".' % community.uuid)

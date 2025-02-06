@@ -1,7 +1,7 @@
 from getpass import getpass
-from .RestAPI import RestAPI
-import requests
 import logging
+import requests
+from .RestAPI import RestAPI
 
 
 def authenticate_to_rest(rest_api: str, user: str = None, log_level=logging.INFO, log_file: str = None) -> RestAPI:
