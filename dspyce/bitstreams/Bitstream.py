@@ -21,8 +21,6 @@ class Bitstream(DSpaceObject):
     """The bundle where to store the file. The default is set to the variable DEFAULT_BUNDLE."""
     primary: bool
     """If the bitstream shall be the primary bitstream for the item."""
-    uuid: str
-    """A uuid if the Bitstream already exists in a DSpace-Instance."""
     size_bytes: int
     """The size of the Bitstream in bytes."""
     check_sum: str
@@ -45,7 +43,6 @@ class Bitstream(DSpaceObject):
         self.path += '/' if len(self.path) > 0 and self.path[-1] != '/' else ''
         self.permissions = []
         self.bundle = bundle
-        self.uuid = uuid
         self.primary = primary
         self.size_bytes = size_bytes
         self.check_sum = check_sum
