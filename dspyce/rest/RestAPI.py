@@ -36,10 +36,18 @@ def json_to_object(json_content: dict) -> DSpaceObject | Item | Community | Coll
             obj = Collection(uuid, handle=handle, name=name)
         case 'item':
             obj = Item(uuid, handle=handle, name=name)
+            if 'inArchive' in json_content.keys():
+                obj.inArchive = str(json_content['inArchive']).lower() == 'true'
+            if 'discoverable' in json_content.keys():
+                obj.discoverable = str(json_content['discoverable']).lower() == 'true'
+            if 'withdrawn' in json_content.keys():
+                obj.withdrawn = str(json_content['withdrawn']).lower() == 'true'
         case 'bitstream':
             href = _links['content'].get('href') if 'content' in _links else None
             obj = Bitstream(name, href, None, uuid, False, json_content.get('sizeBytes'),
                             json_content.get('checkSum').get('value'))
+        case 'bundle':
+            obj = Bundle(name, '', uuid)
         case _:
             obj = DSpaceObject(uuid, handle, name)
     for m in metadata.keys():

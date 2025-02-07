@@ -10,12 +10,19 @@ class Item(DSpaceObject):
     to other items, if it's an entity.
     """
     collections: list[Collection]
+    """Collections where this item belongs."""
     relations: list[Relation]
+    """The relations of the item."""
     contents: list[Bitstream]
+    """The list of bitstreams for this item."""
     bundles: list[Bundle]
+    """The list of bundles for this item."""
     in_archive: bool = True
+    """Whether an item is archived in DSpace."""
     discoverable: bool = True
+    """Whether an item is discoverable in DSpace."""
     withdrawn: bool = False
+    """Whether an item is withdrawn from DSpace."""
 
     def __init__(self, uuid: str = '', handle: str = '', name: str = '',
                  collections: Collection | list[Collection] | str = None):
