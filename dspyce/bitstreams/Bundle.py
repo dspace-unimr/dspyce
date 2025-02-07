@@ -1,4 +1,4 @@
-from dspyce import DSpaceObject
+from dspyce.DSpaceObject import DSpaceObject
 from dspyce.bitstreams import Bitstream
 
 
@@ -21,15 +21,16 @@ class Bundle(DSpaceObject):
         :param description: A description if existing.
         :param uuid: The uuid of the bundle, if known.
         :param bitstreams: A list of bitstreams associated with this bundle.
-        :raises AttributeError: If the bundle name is not of type <str> or is empty.
+        :raises AttributeError: If the bundle name is not of type <str> or is empty and no uuid is provided.
         """
-        if not isinstance(name, str) or name.strip() == '':
+        if not isinstance(name, str) or (name.strip() == '' and uuid is None):
             raise AttributeError('You have to provide a correct bundle name expected not-empty string,'
-                                 f'but got "{name}"')
+                                 f'but got "{name}".')
         super().__init__(uuid, '', name)
-
-        self.add_metadata('dc.description', description)
-        self.add_metadata('dc.title', name)
+        if description != '':
+            self.add_metadata('dc.description', description)
+        if name != '':
+            self.add_metadata('dc.title', name)
         self.bitstreams = []
         if bitstreams is not None:
             [self.add_bitstream(b) for b in bitstreams]

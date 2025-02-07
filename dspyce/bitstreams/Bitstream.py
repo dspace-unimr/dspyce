@@ -47,7 +47,8 @@ class Bitstream(DSpaceObject):
         self.size_bytes = size_bytes
         self.check_sum = check_sum
         super().__init__(uuid, '', name)
-        self.add_metadata('dc.title', name)
+        if name != '':
+            self.add_metadata('dc.title', name)
 
     def __str__(self):
         """

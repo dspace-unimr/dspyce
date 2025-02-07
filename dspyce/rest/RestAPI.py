@@ -44,10 +44,12 @@ def json_to_object(json_content: dict) -> DSpaceObject | Item | Community | Coll
                 obj.withdrawn = str(json_content['withdrawn']).lower() == 'true'
         case 'bitstream':
             href = _links['content'].get('href') if 'content' in _links else None
-            obj = Bitstream(name, href, None, uuid, False, json_content.get('sizeBytes'),
+            obj = Bitstream('', href, None, uuid, False, json_content.get('sizeBytes'),
                             json_content.get('checkSum').get('value'))
+            obj.name = name # Set here to avoid duplicate 'dc.title'
         case 'bundle':
-            obj = Bundle(name, '', uuid)
+            obj = Bundle('', '', uuid)
+            obj.name = name # Set here to avoid duplicate 'dc.title'
         case _:
             obj = DSpaceObject(uuid, handle, name)
     for m in metadata.keys():
