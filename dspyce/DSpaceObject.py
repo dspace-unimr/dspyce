@@ -111,6 +111,12 @@ class DSpaceObject:
         m = self.metadata.get(tag)
         return [v.value for v in m] if m else None
 
+    def get_first_metadata_value(self, tag: str) -> str | None:
+        """
+        Retrieve the first metadata value of a specific metadata field.
+        """
+        return self.get_metadata_values(tag)[0] if self.get_metadata_values(tag) is not None else None
+
     def add_statistic_report(self, report: dict | list[dict] | None):
         """
         Adds a new report or list of reports as a dict object to the DSpaceObject

@@ -1,19 +1,14 @@
+from dspyce.DSpaceObject import DSpaceObject
 from dspyce.bitstreams import Bitstream
 
 
-class Bundle:
+class Bundle(DSpaceObject):
     """
     The class Bundle represents a bundle in the DSpace context. I can contain several bitstreams.
     """
 
-    uuid: str | None
-    """The uuid of the bundle"""
     DEFAULT_BUNDLE: str = 'ORIGINAL'
     """The default bundle name."""
-    name: str
-    """The bundle name."""
-    description: str
-    """A bundle description if existing."""
     bitstreams: list[Bitstream]
     """A list of bitstream associated with the bundle"""
 
@@ -26,14 +21,16 @@ class Bundle:
         :param description: A description if existing.
         :param uuid: The uuid of the bundle, if known.
         :param bitstreams: A list of bitstreams associated with this bundle.
-        :raises AttributeError: If the bundle name is not of type <str> or is empty.
+        :raises AttributeError: If the bundle name is not of type <str> or is empty and no uuid is provided.
         """
-        if not isinstance(name, str) or name.strip() == '':
+        if not isinstance(name, str) or (name.strip() == '' and uuid is None):
             raise AttributeError('You have to provide a correct bundle name expected not-empty string,'
-                                 f'but got "{name}"')
-        self.name = name
-        self.uuid = uuid
-        self.description = description
+                                 f'but got "{name}".')
+        super().__init__(uuid, '', name)
+        if description != '':
+            self.add_metadata('dc.description', description)
+        if name != '':
+            self.add_metadata('dc.title', name)
         self.bitstreams = []
         if bitstreams is not None:
             [self.add_bitstream(b) for b in bitstreams]
@@ -93,3 +90,15 @@ class Bundle:
         """
         for b in self.bitstreams:
             b.save_bitstream(path)
+
+    def get_description(self) -> str:
+        """
+        Returns the description of this bundle.
+        """
+        return self.get_first_metadata_value('dc.description')
+
+    def get_dspace_object_type(self) -> str:
+        """
+        Returns the DSpaceObject type, aka. "Bundle".
+        """
+        return 'Bundle'
