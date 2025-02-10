@@ -32,10 +32,17 @@ class DSpaceObjectTest(unittest.TestCase):
         self.assertEqual(self.obj.metadata['dc.title'][0].value,
                          'hello')
         self.assertEqual(self.obj.metadata['dc.title'][0].language, 'en')
+        self.assertEqual(self.obj.get_first_metadata('dc.title').language, 'en')
+        self.assertEqual(self.obj.get_first_metadata('dc.title').confidence, -1)
+        self.assertTrue(self.obj.has_metadata('dc.title'))
+        self.assertFalse(self.obj.has_metadata('dc.title.alternative'))
+        self.assertIsNone(self.obj.get_first_metadata('dc.title').authority)
         self.obj.add_metadata('relation.isAuthorOfPublication.latestForDiscovery',
                               'kidll88-uuid999-duwkke1222', 'en')
         self.assertEqual(self.obj.get_metadata_values('relation.isAuthorOfPublication.latestForDiscovery')[0],
                          'kidll88-uuid999-duwkke1222')
+        self.assertEqual(self.obj.get_first_metadata_value('dc.title'), 'hello')
+        self.assertIsNone(self.obj.get_first_metadata('dc.title.alternative'))
         self.obj.metadata = MetaData({})
 
     def test_remove_metadata(self):

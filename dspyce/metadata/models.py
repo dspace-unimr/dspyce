@@ -10,6 +10,10 @@ class MetaDataValue:
     """The language of the metadata value. For example 'en' for English."""
     value: str | int | float | bool
     """The actual metadata value."""
+    authority: str | None = None
+    """A possible authority value of the metadata value."""
+    confidence: int = -1
+    """The confidence level of the metadata value."""
 
     def __init__(self, value: str | int | float | bool, language: str = None):
         """
@@ -55,6 +59,8 @@ class MetaDataValue:
         yield 'value', self.value
         if self.language is not None:
             yield 'language', self.language
+        if self.authority is not None:
+            yield 'authority', self.authority
 
 
 class MetaData(dict):
