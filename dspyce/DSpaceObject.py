@@ -111,6 +111,23 @@ class DSpaceObject:
         obj_dict['metadata'] = self.metadata.to_dict()
         return obj_dict
 
+    def has_metadata(self, tag: str) -> bool:
+        """
+        Checks whether this object has a specific metadata field.
+        :param tag: The metadata tag to check.
+        :returns: True if the metadata field exists, False otherwise.
+        """
+        return tag in self.metadata.keys()
+
+    def get_metadata(self, tag: str) -> list[MetaDataValue]:
+        """
+        Retrieves a list of MetadataValue objects for the given tag.
+        :param tag: The tag to get the metadata for.
+        :return: A list of MetadataValue objects.
+        """
+        md = self.metadata.get(tag)
+        return [] if md is None else md
+
     def get_metadata_values(self, tag: str) -> list | None:
         """
         Retrieves the metadata values of a specific tag as a list.
@@ -118,8 +135,16 @@ class DSpaceObject:
         :param tag: The metadata tag: prefix.element.qualifier
         :return: The values as a list or None, if the tag doesn't exist.
         """
-        m = self.metadata.get(tag)
-        return [v.value for v in m] if m else None
+        m = self.get_metadata(tag)
+        return [v.value for v in m] if len(m) > 0 else None
+
+    def get_first_metadata(self, tag: str) -> MetaDataValue | None:
+        """
+        Retrieve the first metadata value of a specific metadata field.
+        """
+        md = self.get_metadata(tag)
+        return md[0] if len(md) > 0 else None
+
 
     def get_first_metadata_value(self, tag: str) -> str | None:
         """
