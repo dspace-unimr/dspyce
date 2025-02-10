@@ -64,6 +64,23 @@ class DSpaceObjectTest(unittest.TestCase):
         self.assertEqual(['salut'], self.obj.get_metadata_values('dc.title'))
         self.obj.remove_metadata('dc.title')
 
+    def test_move_metadata(self):
+        self.obj.add_metadata('dc.title', 'hello', 'en')
+        self.obj.add_metadata('dc.title', 'salut', 'fr')
+        self.obj.add_metadata('dc.title', 'Hallo', 'de')
+        self.assertListEqual(['hello', 'salut', 'Hallo'], self.obj.get_metadata_values('dc.title'))
+        self.assertEqual('hello', self.obj.get_first_metadata_value('dc.title'))
+        self.obj.move_metadata('dc.title', 2, 0)
+        self.assertEqual('Hallo', self.obj.get_first_metadata_value('dc.title'))
+        self.obj.move_metadata('dc.title', 0, 1)
+        self.assertEqual('hello', self.obj.get_first_metadata_value('dc.title'))
+        self.obj.move_metadata('dc.title', 2, 0)
+        self.assertEqual('salut', self.obj.get_first_metadata_value('dc.title'))
+        self.assertRaises(KeyError, self.obj.move_metadata, 'dc.title.alternative', 2, 0)
+        self.assertRaises(KeyError, self.obj.move_metadata, 'dc.title', 4, 0)
+        self.assertRaises(IndexError, self.obj.move_metadata, 'dc.title', 0, 4)
+        self.obj.remove_metadata('dc.title')
+
     def test_object_type(self):
         """
         Test object_type method from DSpaceObject, Item and Community classes.

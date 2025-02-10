@@ -69,6 +69,26 @@ class DSpaceObject:
         self.remove_metadata(tag)
         self.add_metadata(tag, value, language)
 
+    def move_metadata(self, tag: str, from_position: int, to_position: int):
+        """
+        Moves the MetadataValue object from the given postion to the given "to_position" position.
+        :param tag: The metadata tag.
+        :param from_position: The original position of the metadata value to move.
+        :param to_position: The new position of the metadata value to move (-1 to move it at the end of the array).
+        :raises KeyError: If the from_position doesn't exist in the object's metadata.
+        :raises IndexError: If the to_position is higher than the length of the metadataValue list.
+        """
+        md = self.get_metadata(tag)
+        if len(md) == 0 or from_position >= len(md):
+            raise KeyError('The position of the metadata value to move is out of range or the MetadataValue does not'
+                           'exist')
+        if to_position >= len(md) or to_position <= (len(md)*-1):
+            raise IndexError('The target position of the MetadataValue to move is out of range for the metadata list.')
+        value = md.pop(from_position)
+        md = md[:to_position] + [value] + md[to_position:]
+        self.metadata[tag] = md
+
+
     def get_dspace_object_type(self) -> str:
         """
         This Function serves mainly to be overwritten by subclasses to get the type of DSpaceObject.
