@@ -43,6 +43,7 @@ class MetadataTest(unittest.TestCase):
         Test the dict() implementation of the MetaDataValue class.
         """
         self.assertEqual({'value': 'Hello World', 'language': 'en'}, dict(self.mdValue))
+        self.assertEqual({'dc.title': [{'value': 'Hello World', 'language': 'en'}]}, self.mdList.to_dict())
 
     def test_pop_value(self):
         """

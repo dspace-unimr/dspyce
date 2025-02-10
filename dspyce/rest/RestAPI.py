@@ -1,6 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
+from warnings import warn
+
 import requests
 import requests.adapters
 from requests.exceptions import InvalidJSONError
@@ -12,6 +14,15 @@ from ..Collection import Collection
 from ..Relation import Relation
 from ..bitstreams import Bundle, Bitstream
 from ..metadata import MetaData
+
+
+def deprecated(message):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            warn(message, DeprecationWarning, stacklevel=2)
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
 def json_to_object(json_content: dict) -> DSpaceObject | Item | Community | Collection | Bitstream | Bundle | None:
@@ -60,38 +71,14 @@ def json_to_object(json_content: dict) -> DSpaceObject | Item | Community | Coll
     return obj
 
 
+@deprecated('The function "object_to_json is deprecated. Call the obj.to_dict() method of the DSpace Object instead."')
 def object_to_json(obj: DSpaceObject) -> dict:
     """
     Converts a DSpaceObject class into dict based on a DSpace-Rest format
     :param obj: The object to convert.
     :return: A dictionary in the REST-format.
     """
-    uuid = obj.uuid
-    handle = obj.handle
-    name = obj.name
-    obj_type = obj.get_dspace_object_type().lower()
-    metadata = {key: [dict(v) for v in obj.metadata[key]] for key in obj.metadata.keys()}
-
-    json_object = {}
-    if uuid is not None and uuid != '':
-        json_object['uuid'] = uuid
-    if handle is not None and handle != '':
-        json_object['handle'] = handle
-    if name is not None and name != '':
-        json_object['name'] = name
-    if obj_type is not None and obj_type != '':
-        json_object['type'] = obj_type
-    if isinstance(obj, Item):
-        obj: Item
-        json_object['inArchive'] = obj.in_archive
-        json_object['discoverable'] = obj.discoverable
-        json_object['withdrawn'] = obj.withdrawn
-        if obj.is_entity():
-            json_object['entityType'] = obj.get_entity_type()
-    if obj.handle is not None and obj.handle != '':
-        json_object['handle'] = obj.handle
-    json_object['metadata'] = metadata
-    return json_object
+    return obj.to_dict()
 
 
 class RestAPI:
@@ -418,7 +405,7 @@ class RestAPI:
                 add_url = f'{self.api_endpoint}/core/bitstreams'
             case _:
                 raise ValueError(f'Object type {obj.get_dspace_object_type()} is not allowed as a parameter!')
-        obj_json = object_to_json(obj)
+        obj_json = obj.to_dict()
 
         return json_to_object(self.post_api(add_url, data=obj_json, params=params))
 
@@ -435,7 +422,7 @@ class RestAPI:
             raise ConnectionRefusedError('Authentication needed.')
         params = {}
         add_url = f'{self.api_endpoint}/core/items/{item_uuid}/bundles'
-        obj_json = object_to_json(bundle)
+        obj_json = bundle.to_dict()
         rest_bundle = json_to_object(self.post_api(add_url, data=obj_json, params=params))
         if not isinstance(rest_bundle, Bundle):
             return None
@@ -456,7 +443,7 @@ class RestAPI:
             logging.critical('Could not add object, authentication required!')
             raise ConnectionRefusedError('Authentication needed.')
         add_url = f'{self.api_endpoint}/core/bundles/{bundle.uuid}/bitstreams'
-        obj_json = object_to_json(bitstream)
+        obj_json = bitstream.to_dict()
         logging.debug(f'Adding bitstream: {obj_json}')
         bitstream_file = bitstream.get_bitstream_file()
         data_file = {'file': (bitstream.file_name, bitstream_file)} if bitstream_file is not None else None
@@ -559,7 +546,6 @@ class RestAPI:
         :param create_tree: Creates the owning collections and communities above this item if not yet existing.
         :return: An item object including the new uuid.
         """
-        bitstreams = item.contents
         collection_list = item.collections
         if create_tree:
             if len(collection_list) > 0 and collection_list[0].uuid == '':

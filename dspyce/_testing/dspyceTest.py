@@ -87,6 +87,12 @@ class DSpaceObjectTest(unittest.TestCase):
         """
         self.assertEqual({'uuid': '123445-123jljl1-234kjj', 'handle': 'doc/12345', 'name': 'test-name',
                           'metadata': {}}, self.obj.to_dict())
+        obj = Community('123445-123jljl1-234kjj', '123456789/1', 'community')
+        obj.add_metadata('dc.title', 'hello', 'en')
+        self.assertEqual({'uuid': '123445-123jljl1-234kjj', 'handle': '123456789/1', 'name': 'community',
+                          'metadata': {'dc.title': [{'value': 'hello', 'language': 'en'}]},
+                          'type': 'community'}, obj.to_dict())
+
 
     def test_from_dict(self):
         """
@@ -117,6 +123,10 @@ class DSpaceObjectTest(unittest.TestCase):
         self.assertTrue(isinstance(self.obj.statistic_reports['TotalDownloads'], list))
         self.assertTrue(self.obj.has_statistics())
 
+    def test_rest(self):
+        self.assertWarns(DeprecationWarning, ds.rest.object_to_json, self.obj)
+        self.assertDictEqual(ds.rest.object_to_json(self.obj), {'handle': 'doc/12345', 'name': 'test-name',
+                                                                'uuid': '123445-123jljl1-234kjj', 'metadata': {}})
 
 if __name__ == '__main__':
     unittest.main()

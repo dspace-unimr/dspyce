@@ -130,3 +130,9 @@ class MetaData(dict):
         if schema not in self.get_schemas():
             raise KeyError(f'The schema "{schema}" is not used.')
         return MetaData({k: self.__getitem__(k) for k in filter(lambda x: x.split('.')[0] == schema, self.keys())})
+
+    def to_dict(self):
+        """
+        Returns the metadata including all values as a rest-compatible dictionary.
+        """
+        return {k: list(map(lambda x: dict(x), self.get(k))) for k in self.keys()}

@@ -151,10 +151,10 @@ class Bitstream(DSpaceObject):
         """
         Returns a dictionary representation of the bitstream object.
         """
-        return {'uuid': self.uuid,
-                'name': self.name,
-                'metadata': self.metadata,
-                'bundleName': self.bundle.name}
+        obj_dict = super().to_dict()
+        if self.bundle is not None and self.bundle.name != '':
+            obj_dict['bundleName'] = self.bundle.name
+        return obj_dict
 
     def set_size(self, size: int = None):
         """

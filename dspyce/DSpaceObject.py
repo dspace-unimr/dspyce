@@ -99,7 +99,17 @@ class DSpaceObject:
         """
             Converts the current item object to a dictionary object containing all available metadata.
         """
-        return {'uuid': self.uuid, 'handle': self.handle, 'name': self.name, 'metadata': self.metadata}
+        obj_dict = {}
+        if self.uuid != '':
+            obj_dict['uuid'] = self.uuid
+        if self.handle != '':
+            obj_dict['handle'] = self.handle
+        if self.name != '':
+            obj_dict['name'] = self.name
+        if self.get_dspace_object_type() is not None:
+            obj_dict['type'] = self.get_dspace_object_type().lower()
+        obj_dict['metadata'] = self.metadata.to_dict()
+        return obj_dict
 
     def get_metadata_values(self, tag: str) -> list | None:
         """

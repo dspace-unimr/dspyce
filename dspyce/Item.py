@@ -201,3 +201,13 @@ class Item(DSpaceObject):
         if not self.is_entity():
             return []
         return [r.items[1] for r in self.relations]
+
+    def to_dict(self) -> dict:
+        """
+        Returns a rest-compatible dictionary representation of the item.
+        """
+        obj_dict = super().to_dict()
+        obj_dict.update({'inArchive': self.in_archive, 'discoverable': self.discoverable, 'withdrawn': self.withdrawn})
+        if self.is_entity():
+            obj_dict['entityType'] = self.get_entity_type()
+        return obj_dict
