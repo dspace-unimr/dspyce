@@ -7,6 +7,6 @@ To draw an entity modell based on a RestApi, you must run the following code:
 >>> from dspyce import entities
 >>> entities.from_rest_api('https://sandbox.dspace.org/server/api').draw_graph()
 """
-from .models import EntityModell
-from .models import from_relationship_file, from_rest_api
-from .models import check_entities_rest
+from dspyce.entities.models import EntityModell
+from dspyce.entities.models import from_relationship_file, from_rest_api
+from dspyce.entities.models import check_entities_rest

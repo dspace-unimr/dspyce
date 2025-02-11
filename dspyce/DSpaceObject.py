@@ -1,4 +1,4 @@
-from .metadata import MetaData, MetaDataValue
+from dspyce.metadata.models import MetaData, MetaDataValue
 
 
 class DSpaceObject:

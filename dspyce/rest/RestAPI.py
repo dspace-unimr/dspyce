@@ -7,13 +7,13 @@ import requests
 import requests.adapters
 from requests.exceptions import InvalidJSONError
 
-from ..DSpaceObject import DSpaceObject
-from ..Item import Item
-from ..Community import Community
-from ..Collection import Collection
-from ..Relation import Relation
-from ..bitstreams import Bundle, Bitstream
-from ..metadata import MetaData
+from dspyce.DSpaceObject import DSpaceObject
+from dspyce.Item import Item
+from dspyce.Community import Community
+from dspyce.Collection import Collection
+from dspyce.Relation import Relation
+from dspyce.bitstreams import Bundle, Bitstream
+from dspyce.metadata import MetaData
 
 
 def deprecated(message):

@@ -1,5 +1,4 @@
 import re
-import logging
 
 import dspyce.entities
 import dspyce.saf
