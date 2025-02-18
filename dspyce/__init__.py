@@ -4,10 +4,7 @@ import dspyce.entities
 import dspyce.saf
 import dspyce.rest
 import dspyce.statistics
-from dspyce.DSpaceObject import DSpaceObject
-from dspyce.Item import Item
-from dspyce.Collection import Collection
-from dspyce.Community import Community
+from dspyce.models import DSpaceObject, Community, Collection, Item
 from dspyce.Relation import Relation
 
 
