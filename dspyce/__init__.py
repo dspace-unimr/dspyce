@@ -5,7 +5,7 @@ import dspyce.saf
 import dspyce.rest
 import dspyce.statistics
 from dspyce.models import DSpaceObject, Community, Collection, Item
-from dspyce.Relation import Relation
+from dspyce.entities.models import Relation
 
 
 def from_dict(obj_dict: dict, obj_type: str = None) -> DSpaceObject | Item | Community | Collection:

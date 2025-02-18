@@ -1,3 +1,4 @@
+from dspyce.entities.models import Relation
 from dspyce.metadata.models import MetaData, MetaDataValue
 
 
@@ -252,6 +253,7 @@ class Collection(DSpaceObject):
 
 
 class Item(DSpaceObject):
+    from dspyce.bitstreams.models import Bitstream, Bundle, IIIFBitstream
     """
     The class Item represents a single DSpace item. It can have a owning collection, several Bitstreams or relations
     to other items, if it's an entity.
@@ -355,19 +357,19 @@ class Item(DSpaceObject):
         :param width: The width of an image. Only needed, if the file is a jpg, wich should be reduced and iiif is True.
         :param iiif_toc: A toc information for an iiif-specific bitstream.
         """
-        active_bundle = self.get_bundle(bundle.name if isinstance(bundle, Bundle) else bundle)
+        active_bundle = self.get_bundle(bundle.name if isinstance(bundle, self.Bundle) else bundle)
         if active_bundle is None:
-            active_bundle = bundle if isinstance(bundle, Bundle) else Bundle(bundle)
+            active_bundle = bundle if isinstance(bundle, self.Bundle) else self.Bundle(bundle)
             self.bundles.append(active_bundle)
 
         if iiif:
-            cf = IIIFBitstream(content_file, path, bundle=bundle)
+            cf = self.IIIFBitstream(content_file, path, bundle=bundle)
             name = content_file.split('.')[0]
             cf.add_iiif(description, name if iiif_toc == '' else iiif_toc, w=width)
             if self.metadata.get('dspace.iiif.enabled') is None:
                 self.add_metadata('dspace.iiif.enabled', 'true', 'en')
         else:
-            cf = Bitstream(content_file, path, bundle=bundle)
+            cf = self.Bitstream(content_file, path, bundle=bundle)
 
         if description != '':
             cf.add_description(description)

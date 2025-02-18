@@ -1,6 +1,6 @@
 import unittest
-from dspyce.bitstreams import Bundle
-from dspyce.bitstreams import Bitstream
+from dspyce.bitstreams.models import Bundle
+from dspyce.bitstreams.models import Bitstream
 
 
 class BitstreamsTest(unittest.TestCase):

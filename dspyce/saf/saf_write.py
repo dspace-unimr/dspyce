@@ -10,8 +10,8 @@ import os
 from bs4 import BeautifulSoup
 from bs4.formatter import XMLFormatter
 
-from dspyce.Item import Item
-from dspyce.Relation import Relation
+from dspyce.models import Item
+from dspyce.entities.models import Relation
 from dspyce.metadata import MetaData
 
 

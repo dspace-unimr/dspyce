@@ -7,12 +7,9 @@ import requests
 import requests.adapters
 from requests.exceptions import InvalidJSONError
 
-from dspyce.DSpaceObject import DSpaceObject
-from dspyce.Item import Item
-from dspyce.Community import Community
-from dspyce.Collection import Collection
-from dspyce.Relation import Relation
-from dspyce.bitstreams import Bundle, Bitstream
+from dspyce.models import DSpaceObject, Community, Collection, Item
+from dspyce.entities.models import Relation
+from dspyce.bitstreams.models import Bundle, Bitstream
 from dspyce.metadata import MetaData
 
 

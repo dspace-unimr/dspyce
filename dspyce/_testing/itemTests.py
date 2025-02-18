@@ -1,7 +1,7 @@
 import unittest
 
 import dspyce as ds
-from dspyce.bitstreams import Bundle
+from dspyce.bitstreams.models import Bundle
 
 
 class ItemTest(unittest.TestCase):

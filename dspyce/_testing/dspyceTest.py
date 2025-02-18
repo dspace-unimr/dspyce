@@ -1,10 +1,7 @@
 import unittest
 import dspyce as ds
-from dspyce.DSpaceObject import DSpaceObject
-from dspyce.Item import Item
-from dspyce.Collection import Collection
-from dspyce.Community import Community
-from dspyce.metadata import MetaData
+from dspyce.models import DSpaceObject, Community, Collection, Item
+from dspyce.metadata.models import MetaData
 
 
 class DSpaceObjectTest(unittest.TestCase):

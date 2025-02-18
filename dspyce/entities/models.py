@@ -8,7 +8,6 @@ has an entity modell enabled or not.
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 import networkx as nx
-from dspyce.rest import RestAPI
 
 
 class Relation:
@@ -194,6 +193,7 @@ def from_rest_api(url: str) -> EntityModell:
     :param url: The url of the used RestApi.
     :return: A complete EntityModell object based on the RestAPI provided.
     """
+    from dspyce.rest import RestAPI
     rest = RestAPI(url)
     entity_objects = rest.get_paginated_objects('core/entitytypes', 'entitytypes')
     entity_objects = list(filter(lambda x: x['label'] != 'none', entity_objects))
@@ -220,5 +220,6 @@ def check_entities_rest(url: str) -> bool:
 
     :param url: The url of the rest-API
     """
+    from dspyce.rest import RestAPI
     entity_objects = RestAPI(url).get_paginated_objects('core/entitytypes', 'entitytypes')
     return len(list(filter(lambda x: x['label'] != 'none', entity_objects))) > 0
