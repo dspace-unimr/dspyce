@@ -1,4 +1,4 @@
-from dspyce.rest.RestAPI import RestAPI
+from dspyce.rest.models import RestAPI
 from dspyce.models import DSpaceObject
 
 REPORT_TYPES: tuple = ('TotalVisits', 'TotalVisitsPerMonth', 'TotalDownloads', 'TopCountries', 'TopCities')
