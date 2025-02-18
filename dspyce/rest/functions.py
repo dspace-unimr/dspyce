@@ -1,10 +1,9 @@
 from getpass import getpass
 import logging
 import requests
-from dspyce.rest.models import RestAPI
 
 
-def authenticate_to_rest(rest_api: str, user: str = None, log_level=logging.INFO, log_file: str = None) -> RestAPI:
+def authenticate_to_rest(rest_api: str, user: str = None, log_level=logging.INFO, log_file: str = None):
     """
     Connect to a given REST-API and ask for username and password via commandline.
 
@@ -16,6 +15,7 @@ def authenticate_to_rest(rest_api: str, user: str = None, log_level=logging.INFO
         console.
     :return: An object of the class Rest.
     """
+    from dspyce.rest.models import RestAPI
     print(
         f'Establishing connection to the REST-API "{rest_api}"' + (f' with user "{user}":' if user is not None else ':')
     )
@@ -33,3 +33,51 @@ def authenticate_to_rest(rest_api: str, user: str = None, log_level=logging.INFO
         if not authentication:
             print('Wrong username or password! Please try again.')
     return rest_server
+
+
+def json_to_object(json_content: dict):
+    from dspyce.models import DSpaceObject, Community, Collection, Item
+    from dspyce.bitstreams.models import Bundle, Bitstream
+    """
+    Converts a dict based on REST-format in to a DSpace Object.
+
+    :param json_content: The json content in a dict format.
+    :return: A DSpaceObject object.
+    """
+    uuid = json_content['uuid']
+    name = json_content['name']
+    handle = json_content['handle']
+    metadata = json_content['metadata']
+    doc_type = json_content['type']
+    _links = json_content['_links']
+    if json_content is None:
+        return None
+    match doc_type:
+        case 'community':
+            obj = Community(uuid, handle=handle, name=name)
+        case 'collection':
+            obj = Collection(uuid, handle=handle, name=name)
+        case 'item':
+            obj = Item(uuid, handle=handle, name=name)
+            if 'inArchive' in json_content.keys():
+                obj.inArchive = str(json_content['inArchive']).lower() == 'true'
+            if 'discoverable' in json_content.keys():
+                obj.discoverable = str(json_content['discoverable']).lower() == 'true'
+            if 'withdrawn' in json_content.keys():
+                obj.withdrawn = str(json_content['withdrawn']).lower() == 'true'
+        case 'bitstream':
+            href = _links['content'].get('href') if 'content' in _links else None
+            obj = Bitstream('', href, None, uuid, False, json_content.get('sizeBytes'),
+                            json_content.get('checkSum').get('value'))
+            obj.name = name # Set here to avoid duplicate 'dc.title'
+        case 'bundle':
+            obj = Bundle('', '', uuid)
+            obj.name = name # Set here to avoid duplicate 'dc.title'
+        case _:
+            obj = DSpaceObject(uuid, handle, name)
+    for m in metadata.keys():
+        for v in metadata[m]:
+            value = v['value']
+            lang = v['language'] if 'language' in v.keys() else None
+            obj.add_metadata(tag=m, value=value, language=lang)
+    return obj

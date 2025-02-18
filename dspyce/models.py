@@ -1,11 +1,12 @@
-from dspyce.entities.models import Relation
-from dspyce.metadata.models import MetaData, MetaDataValue
+import logging
 
 
 class DSpaceObject:
     """
     The class DSpaceObject represents an Object in a DSpace repository, such as Items, Collections, Communities.
     """
+    from dspyce.metadata.models import MetaData, MetaDataValue
+    """The MetaData and MetaDataValue classes used."""
 
     uuid: str
     """The uuid of the DSpaceObject"""
@@ -17,6 +18,8 @@ class DSpaceObject:
     """The metadata provided for the object."""
     statistic_reports: dict
     """A dictionary of statistic report objects."""
+    TYPES: tuple[str] = ('item', 'community', 'collection', 'bundle', 'bitstream')
+    """A constant given information of all existing DSpaceObject types."""
 
     def __init__(self, uuid: str = '', handle: str = '', name: str = ''):
         """
@@ -29,8 +32,46 @@ class DSpaceObject:
         self.uuid = uuid
         self.handle = handle
         self.name = name
-        self.metadata = MetaData({})
+        self.metadata = self.MetaData({})
         self.statistic_reports = {}
+
+    @staticmethod
+    def get_from_rest(rest_api, uuid: str, obj_type: str, identifier: str = None):
+        """
+        Retrieves a new DSpaceObject by its uuid from the RestAPI.
+        :param rest_api: The rest API object to use.
+        :param uuid: The uuid of the DSpaceObject to retrieve.
+        :param obj_type: The type of the DSpaceObject to retrieve, must be one of (Item, Community, Collection, Bundle,
+            Bitstream).
+        :param identifier: An optional other identifier to retrieve a DSpace Object. Can be used instead of uuid. Must
+            be a handle or doi.
+        :return: The DSpaceObject retrieved.
+        :raises ValueError: if obj_type is unknown.
+        :raises RestObjectNotFoundError: if the object identified by uuid or identifier was not found.
+        """
+        from dspyce.rest.functions import json_to_object
+        from dspyce.rest.exceptions import RestObjectNotFoundError
+
+        if obj_type not in DSpaceObject.TYPES:
+            raise ValueError(f'DSpaceObject type {obj_type} not supported.')
+        if identifier is None:
+            if uuid == '' or not isinstance(uuid, str):
+                raise ValueError(f'If no other identifier is used, the uuid must be provided. "{uuid}" is not correct.')
+            params = {}
+            url = f'core/{obj_type}/{uuid}'
+        else:
+            url = 'pid/find'
+            params = {'id': identifier}
+        try:
+            obj = json_to_object(rest_api.get_api(url, params))
+            logging.debug(f'Retrieved DSpaceObject: {obj}')
+        except RestObjectNotFoundError as e:
+            if identifier is not None:
+                e.add_note('Using identifier "%s".' % identifier)
+            else:
+                e.add_note('Using uuid "%s".' % uuid)
+            raise e
+        return obj
 
     def add_metadata(self, tag: str, value: str, language: str = None):
         """
@@ -42,7 +83,7 @@ class DSpaceObject:
 
         :raises KeyError: If the metadata tag doesn't use the format <schema>.<element>.<qualifier>.'
         """
-        self.metadata[tag] = MetaDataValue(value, language)
+        self.metadata[tag] = self.MetaDataValue(value, language)
 
     def remove_metadata(self, tag: str, value: str = None):
         """
@@ -88,7 +129,6 @@ class DSpaceObject:
         value = md.pop(from_position)
         md = md[:to_position] + [value] + md[to_position:]
         self.metadata[tag] = md
-
 
     def get_dspace_object_type(self) -> str:
         """
@@ -165,7 +205,6 @@ class DSpaceObject:
         """
         md = self.get_metadata(tag)
         return md[0] if len(md) > 0 else None
-
 
     def get_first_metadata_value(self, tag: str) -> str | None:
         """
@@ -253,11 +292,14 @@ class Collection(DSpaceObject):
 
 
 class Item(DSpaceObject):
-    from dspyce.bitstreams.models import Bitstream, Bundle, IIIFBitstream
     """
     The class Item represents a single DSpace item. It can have a owning collection, several Bitstreams or relations
     to other items, if it's an entity.
     """
+    from dspyce.bitstreams.models import Bitstream, Bundle, IIIFBitstream
+    """Bitstream, Bundle and IIIF for Item objects"""
+    from dspyce.entities.models import Relation
+    """The Relation Class connected to Items"""
     collections: list[Collection]
     """Collections where this item belongs."""
     relations: list[Relation]
@@ -339,7 +381,7 @@ class Item(DSpaceObject):
         """
         if not self.is_entity():
             raise TypeError('Could not add relations to a non entity item for item:\n' + str(self))
-        self.relations.append(Relation(relation_type, (self, Item(uuid=identifier))))
+        self.relations.append(self.Relation(relation_type, (self, Item(uuid=identifier))))
 
     def add_content(self, content_file: str, path: str, description: str = '', bundle: str | Bundle = Bundle(),
                     permissions: list[tuple[str, str]] = None, iiif: bool = False, width: int = 0, iiif_toc: str = ''):

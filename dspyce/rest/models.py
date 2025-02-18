@@ -7,10 +7,7 @@ import requests
 import requests.adapters
 from requests.exceptions import InvalidJSONError
 
-from dspyce.models import DSpaceObject, Community, Collection, Item
-from dspyce.entities.models import Relation
-from dspyce.bitstreams.models import Bundle, Bitstream
-from dspyce.metadata import MetaData
+from dspyce.rest.exceptions import RestObjectNotFoundError
 
 
 def deprecated(message):
@@ -22,54 +19,8 @@ def deprecated(message):
     return decorator
 
 
-def json_to_object(json_content: dict) -> DSpaceObject | Item | Community | Collection | Bitstream | Bundle | None:
-    """
-    Converts a dict based on REST-format in to a DSpace Object.
-
-    :param json_content: The json content in a dict format.
-    :return: A DSpaceObject object.
-    """
-    uuid = json_content['uuid']
-    name = json_content['name']
-    handle = json_content['handle']
-    metadata = json_content['metadata']
-    doc_type = json_content['type']
-    _links = json_content['_links']
-    if json_content is None:
-        return None
-    match doc_type:
-        case 'community':
-            obj = Community(uuid, handle=handle, name=name)
-        case 'collection':
-            obj = Collection(uuid, handle=handle, name=name)
-        case 'item':
-            obj = Item(uuid, handle=handle, name=name)
-            if 'inArchive' in json_content.keys():
-                obj.inArchive = str(json_content['inArchive']).lower() == 'true'
-            if 'discoverable' in json_content.keys():
-                obj.discoverable = str(json_content['discoverable']).lower() == 'true'
-            if 'withdrawn' in json_content.keys():
-                obj.withdrawn = str(json_content['withdrawn']).lower() == 'true'
-        case 'bitstream':
-            href = _links['content'].get('href') if 'content' in _links else None
-            obj = Bitstream('', href, None, uuid, False, json_content.get('sizeBytes'),
-                            json_content.get('checkSum').get('value'))
-            obj.name = name # Set here to avoid duplicate 'dc.title'
-        case 'bundle':
-            obj = Bundle('', '', uuid)
-            obj.name = name # Set here to avoid duplicate 'dc.title'
-        case _:
-            obj = DSpaceObject(uuid, handle, name)
-    for m in metadata.keys():
-        for v in metadata[m]:
-            value = v['value']
-            lang = v['language'] if 'language' in v.keys() else None
-            obj.add_metadata(tag=m, value=value, language=lang)
-    return obj
-
-
 @deprecated('The function "object_to_json is deprecated. Call the obj.to_dict() method of the DSpace Object instead."')
-def object_to_json(obj: DSpaceObject) -> dict:
+def object_to_json(obj: any) -> dict:
     """
     Converts a DSpaceObject class into dict based on a DSpace-Rest format
     :param obj: The object to convert.
@@ -80,9 +31,14 @@ def object_to_json(obj: DSpaceObject) -> dict:
 
 class RestAPI:
     """
-    The class RestAPI represents the REST API of a DSpace 7 backend. It helps to get, push, update or remove Objects,
+    The class RestAPI represents the REST API of a DSpace 7+ backend. It helps to get, push, update or remove Objects,
     Bitstreams, Relations, MetaData and other from a DSpace Instance.
     """
+    from dspyce.models import DSpaceObject, Community, Collection, Item
+    from dspyce.entities.models import Relation
+    from dspyce.bitstreams.models import Bundle, Bitstream
+    from dspyce.metadata import MetaData
+    from dspyce.rest.functions import json_to_object as _json_to_object
     api_endpoint: str
     """The address of the api_endpoint."""
     username: str
@@ -221,6 +177,7 @@ class RestAPI:
         :param endpoint: The endpoint information: aka https://self.api_endpoint/<endpoint>
         :param params: A list of additional parameters to pass to the endpoint.
         :return: The json response as a dict.
+        :raises RestObjectNotFoundError: If the object does not exist in the given endpoint.
         """
         endpoint = endpoint if endpoint[0] != '/' else endpoint[1:]
         url = f'{self.api_endpoint}/{endpoint}'
@@ -230,9 +187,9 @@ class RestAPI:
             logging.debug(f'Successfully performed GET request to endpoint {endpoint}')
             return req.json()
         if req.status_code == 404:
-            logging.warning(f'Object behind "{url}" does not exists.')
-            logging.warning(req.json())
-            return None
+            logging.error(f'Object behind "{url}" does not exists.')
+            logging.error(req.json())
+            raise RestObjectNotFoundError(f'The object with url "" could not be found.')
         logging.error(f'Problem with performing GET request to endpoint {endpoint}.')
         logging.error(req)
 
@@ -380,31 +337,26 @@ class RestAPI:
         params = {}
         match obj.get_dspace_object_type():
             case 'Item':
-                obj: Item
                 add_url = f'{self.api_endpoint}/core/items'
                 params = {'owningCollection': obj.get_owning_collection().uuid}
             case 'Community':
-                obj: Community
                 if obj.parent_community is None:
                     add_url = f'{self.api_endpoint}/core/communities'
                 else:
                     add_url = f'{self.api_endpoint}/core/communities'
                     params = {'parent': obj.parent_community.uuid}
             case 'Collection':
-                obj: Collection
                 add_url = f'{self.api_endpoint}/core/collections'
                 params = {'parent': obj.community.uuid}
             case 'Bundle':
-                obj: Bundle
                 add_url = f'{self.api_endpoint}/core/bundles'
             case 'Bitstream':
-                obj: Bitstream
                 add_url = f'{self.api_endpoint}/core/bitstreams'
             case _:
                 raise ValueError(f'Object type {obj.get_dspace_object_type()} is not allowed as a parameter!')
         obj_json = obj.to_dict()
 
-        return json_to_object(self.post_api(add_url, data=obj_json, params=params))
+        return self._json_to_object(self.post_api(add_url, data=obj_json, params=params))
 
     def add_bundle(self, bundle: Bundle, item_uuid: str, add_bitstreams: bool = True) -> Bundle | None:
         """
@@ -420,8 +372,8 @@ class RestAPI:
         params = {}
         add_url = f'{self.api_endpoint}/core/items/{item_uuid}/bundles'
         obj_json = bundle.to_dict()
-        rest_bundle = json_to_object(self.post_api(add_url, data=obj_json, params=params))
-        if not isinstance(rest_bundle, Bundle):
+        rest_bundle = self._json_to_object(self.post_api(add_url, data=obj_json, params=params))
+        if not isinstance(rest_bundle, self.Bundle):
             return None
         rest_bundle.bitstreams = bundle.bitstreams
         if add_bitstreams:
@@ -546,7 +498,7 @@ class RestAPI:
         collection_list = item.collections
         if create_tree:
             if len(collection_list) > 0 and collection_list[0].uuid == '':
-                col: Collection = self.add_collection(collection_list[0], create_tree)
+                col = self.add_collection(collection_list[0], create_tree)
                 collection_list[0] = col
         elif len(collection_list) == 0:
             raise ValueError('Can not push an Item into the restAPI without information about the owning collections.')
@@ -570,7 +522,7 @@ class RestAPI:
             relation_types = {r.relation_key: r.relation_type for r in self.get_relations_by_type(
                 item.get_entity_type())}
             try:
-                relations = list(map(lambda x: Relation(x.relation_key, x.items, relation_types[x.relation_key]),
+                relations = list(map(lambda x: self.Relation(x.relation_key, x.items, relation_types[x.relation_key]),
                                      relations))
             except KeyError as e:
                 logging.error(f'Could not find relation in the list: {relation_types}')
@@ -608,11 +560,14 @@ class RestAPI:
             containing the uuid of the collection.
         """
         endpoint = f'core/items/{item.uuid}/owningCollection'
-        new_collection = new_collection.uuid if isinstance(new_collection, Collection) else new_collection
+        new_collection = new_collection.uuid if isinstance(new_collection, self.Collection) else new_collection
         logging.info(f'Moving item with uuid {item.uuid} into new owning collection {new_collection}.')
         self.put_api(endpoint, f'{self.api_endpoint}/core/collections/{new_collection}',
                      content_type='text/uri-list')
 
+    @deprecated(
+        'The method "get_dso" is deprecated. Call the DSpaceObject.get_from_rest() method of the DSpace Object instead.'
+    )
     def get_dso(self, uuid: str = '', endpoint: str = '',
                 identifier: str = None) -> DSpaceObject | Item | Collection | Community | Bitstream | Bundle:
         """
@@ -620,29 +575,12 @@ class RestAPI:
 
         :param uuid: The uuid of the object.
         :param endpoint: The endpoint string. Must be one of ('items', 'collections', 'communities', 'bitstreams',
-            'bundles)
+            'bundles')
         :param identifier: An optional other identifier to retrieve a DSpace Object. Can be used instead of uuid. Must
             be a handle or doi.
         :return: Returns a DSpace object
         """
-        if identifier is None:
-            if uuid == '' or not isinstance(uuid, str):
-                raise ValueError(f'If no other identifier is used, the uuid must be provided. "{uuid}" is not correct.')
-            params = {}
-            url = f'core/{endpoint}/{uuid}'
-            if endpoint not in ('items', 'collections', 'communities', 'bitstreams', 'bundles'):
-                raise ValueError(f"The endpoint '{endpoint}' does not exist. endpoint must be one of"
-                                 "('items', 'collections', 'communities', 'bitstreams', 'bundles')")
-        else:
-            url = 'pid/find'
-            params = {'id': identifier}
-        try:
-            obj = json_to_object(self.get_api(url, params))
-            logging.debug(f'Retrieved DSpaceObject: {obj}')
-        except TypeError:
-            obj = None
-            logging.warning('The object could not be found!')
-        return obj
+        return self.DSpaceObject.get_from_rest(self, uuid, endpoint, identifier)
 
     def get_paginated_objects(self, endpoint: str, object_key: str, query_params: dict = None, page: int = -1,
                               size: int = 20) -> list[dict]:
@@ -708,7 +646,7 @@ class RestAPI:
         bitstream_link = f"/core/bundles/{bundle.uuid}/bitstreams"
         logging.debug(f'Retrieving bitstreams for bundle({bundle.name}) with uuid: {bundle.uuid}')
 
-        dspace_objects = [json_to_object(obj)
+        dspace_objects = [self._json_to_object(obj)
                           for obj in self.get_paginated_objects(bitstream_link, 'bitstreams')]
         for o in dspace_objects:
             bundle.add_bitstream(o)
@@ -725,10 +663,10 @@ class RestAPI:
         :param include_bitstreams: Whether bitstreams should be downloaded as well. Default: True
         :return: The list of Bundle objects.
         """
-        dspace_objects = [json_to_object(obj)
+        dspace_objects = [self._json_to_object(obj)
                           for obj in self.get_paginated_objects(f'/core/items/{item_uuid}/bundles', 'bundles')]
         for d in dspace_objects:
-            if not isinstance(d, Bundle):
+            if not isinstance(d, self.Bundle):
                 raise TypeError('Object %s in the bundle list is not of type bundle. Found type "%s".' % (d, type(d)))
         if not include_bitstreams:
             return dspace_objects
@@ -747,8 +685,8 @@ class RestAPI:
         rel_list = []
         relations = self.get_paginated_objects(add_url, 'relationshiptypes', params)
         for r in relations:
-            rel_list.append(Relation(r['leftwardType'], relation_type=r['id']))
-            rel_list.append(Relation(r['rightwardType'], relation_type=r['id']))
+            rel_list.append(self.Relation(r['leftwardType'], relation_type=r['id']))
+            rel_list.append(self.Relation(r['rightwardType'], relation_type=r['id']))
             logging.debug(f'Got relation {r} from RestAPI')
         return rel_list
 
@@ -776,7 +714,7 @@ class RestAPI:
                 left_item = self.get_item(left_item_uuid, False)
                 right_item = self.get_item(right_item_uuid, False)
                 items = (left_item, right_item) if direction == 'rightwardType' else (right_item, left_item)
-                relation = Relation(rel_key, items, rel_type)
+                relation = self.Relation(rel_key, items, rel_type)
                 relations.append(relation)
                 logging.debug(f'Added relation {relation} to Item.')
             except requests.exceptions.RequestException:
@@ -796,11 +734,11 @@ class RestAPI:
         if get_result is None:
             logging.warning(f'Problems with getting owning Collection for item with uuid "{item_uuid}"')
             return []
-        owning_collection = json_to_object(get_result)
+        owning_collection = self._json_to_object(get_result)
         mapped_collections = self.get_paginated_objects(f'core/items/{item_uuid}/mappedCollections',
                                                         'mappedCollections')
         return [owning_collection] + list(filter(lambda x: x is not None,
-                                                 [json_to_object(m) for m in mapped_collections]))
+                                                 [self._json_to_object(m) for m in mapped_collections]))
 
     def get_parent_community(self, dso: Collection | Community) -> Community | None:
         """
@@ -808,7 +746,7 @@ class RestAPI:
 
         :param dso: The object to get the parent community from. Must be either Collection or Community
         """
-        url = f'core/{"collections" if isinstance(dso, Collection) else "communities"}/{dso.uuid}/parentCommunity'
+        url = f'core/{"collections" if isinstance(dso, self.Collection) else "communities"}/{dso.uuid}/parentCommunity'
         try:
             get_result = self.get_api(url)
         except requests.exceptions.RequestException:
@@ -816,7 +754,7 @@ class RestAPI:
         if get_result is None:
             logging.warning(f'Problems with getting parent communities for DSpaceObject {dso}')
             return None
-        owning_community = json_to_object(get_result)
+        owning_community = self._json_to_object(get_result)
         return owning_community
 
     def get_item(self, uuid: str = '', get_related: bool = True, get_bitstreams: bool = True,
@@ -855,7 +793,6 @@ class RestAPI:
         :param uuid: The UUID of the community to get.
         """
         dso = self.get_dso(uuid, 'communities')
-        dso: Community
         dso.parent_community = self.get_parent_community(dso)
         logging.debug(f'Successfully retrieved community {dso} from endpoint.')
         return dso
@@ -867,7 +804,6 @@ class RestAPI:
         :param uuid: The UUID of the community to get.
         """
         dso = self.get_dso(uuid, 'collections')
-        dso: Collection
         dso.community = self.get_parent_community(dso)
         logging.debug(f'Successfully retrieved collection {dso} from endpoint.')
         return dso
@@ -878,7 +814,7 @@ class RestAPI:
         :param uuid: The UUID of the bundle to get.
         :return: The bundle found.
         """
-        bundle: Bundle = self.get_dso(uuid, 'bundles')
+        bundle = self.get_dso(uuid, 'bundles')
         bundle = self.get_bitstreams_in_bundle(bundle)
         logging.debug(f'Successfully retrieved bundle {bundle}\nincluding {len(bundle.bitstreams)} bitstreams from'
                       f'endpoint.')
@@ -891,7 +827,6 @@ class RestAPI:
         :return: The bitstream found.
         """
         dso = self.get_dso(uuid, 'bitstreams')
-        dso: Bitstream
         if dso is None:
             return None
         dso.bundle = self.get_bundle_for_bitstream(dso)
@@ -902,7 +837,7 @@ class RestAPI:
         Retrieves the bundle of a given bitstream.
         :param bitstream: The bitstream to retrieve the bundle for.
         """
-        return json_to_object(self.get_api(f'core/bitstreams/{bitstream.uuid}/bundle'))
+        return self._json_to_object(self.get_api(f'core/bitstreams/{bitstream.uuid}/bundle'))
 
     def get_objects_in_scope(self, scope_uuid: str, query: dict = None, size: int = 20, full_item: bool = False,
                            get_bitstreams: bool = False) -> list[DSpaceObject]:
@@ -939,24 +874,21 @@ class RestAPI:
         """
         object_list = self.get_paginated_objects('/discover/search/objects', 'objects', query_params,
                                                  size=size)
-        dspace_objects = [json_to_object(obj['_embedded']['indexableObject']) for obj in object_list]
+        dspace_objects = [self._json_to_object(obj['_embedded']['indexableObject']) for obj in object_list]
         if not full_item and not get_bitstreams:
             logging.info(f'Found {len(dspace_objects)} DSpace Objects.')
             return dspace_objects
 
         for o in dspace_objects:
             if o.get_dspace_object_type() == 'Item':
-                o: Item
                 if full_item:
                     o.collections = self.get_item_collections(o.uuid)
                     o.relations = self.get_item_relationships(o.uuid)
                 o.bundles = self.get_item_bundles(o.uuid, True)
             if full_item:
                 if o.get_dspace_object_type() == 'Collection':
-                    o: Collection
                     o.community = self.get_parent_community(o)
                 if o.get_dspace_object_type() == 'Community':
-                    o: Community
                     o.parent_community = self.get_parent_community(o)
         logging.info(f'Found {len(dspace_objects)} DSpace Objects.')
         return dspace_objects
@@ -984,7 +916,7 @@ class RestAPI:
         url = f'/core/communities/{community.uuid}/subcommunities'
         objs = self.get_paginated_objects(url, 'subcommunities')
         logging.debug('Retrieved %i subcommunities for community %s.', len(objs), community.uuid)
-        return [json_to_object(o) for o in objs]
+        return [self._json_to_object(o) for o in objs]
 
     def get_subcollections(self, community: Community) -> list[Collection]:
         """
@@ -995,7 +927,7 @@ class RestAPI:
         url = f'/core/communities/{community.uuid}/collections'
         objs = self.get_paginated_objects(url, 'collections')
         logging.debug('Retrieved %i collections for community %s.', len(objs), community.uuid)
-        return [json_to_object(o) for o in objs]
+        return [self._json_to_object(o) for o in objs]
 
 
     def get_metadata_field(self, schema: str = '', element: str = '', qualifier: str = '',
@@ -1106,7 +1038,7 @@ class RestAPI:
 
         url = 'core/' + (f'{obj_type}s' if obj_type in ('item', 'collection') else 'communities')
         json_resp = self.patch_api(f'{url}/{object_uuid}', patch_json)
-        return json_to_object(json_resp)
+        return self._json_to_object(json_resp)
 
     def add_metadata(self, metadata: MetaData | dict[str, list[dict]], object_uuid: str,
                      obj_type: str, position_end: bool = False) -> DSpaceObject:
@@ -1122,7 +1054,7 @@ class RestAPI:
         :raises ValueError: If a not existing objectType is used.
         """
 
-        if isinstance(metadata, MetaData):
+        if isinstance(metadata, self.MetaData):
             metadata = {key: [dict(v) for v in metadata[key]] for key in metadata.keys()}
         else:
             # Checks if there is only one metadata key with only one value.
@@ -1144,8 +1076,7 @@ class RestAPI:
         :return: The updated DSpace object.
         :raises ValueError: If a not existing objectType is used.
         """
-        if isinstance(metadata, MetaData):
-            metadata: MetaData
+        if isinstance(metadata, self.MetaData):
             patch_data = {key: [dict(v) for v in metadata[key]] for key in metadata.keys()}
         else:
             metadata: dict[str, list[dict] | dict]
@@ -1207,7 +1138,7 @@ class RestAPI:
         bundles = bundle_uuid if isinstance(bundle_uuid, list) else [bundle_uuid]
         for b in bundles:
             if not include_bitstreams:
-                bundle = self.get_bitstreams_in_bundle(Bundle(uuid=b))
+                bundle = self.get_bitstreams_in_bundle(self.Bundle(uuid=b))
                 if len(bundle.bitstreams) > 0:
                     logging.error(f'Could not delete bundle with uuid "{b}" because there are still '
                                   f'{len(bundle.bitstreams)} bitstreams.')
@@ -1222,7 +1153,7 @@ class RestAPI:
         :param collection: The mapped collection to remove. Can be either a collection object or the uuid of the
         collection.
         """
-        collection_uuid = collection.uuid if isinstance(collection, Collection) else collection
+        collection_uuid = collection.uuid if isinstance(collection, self.Collection) else collection
         self.delete_api(f'core/items/{item.uuid}/mappedCollections/{collection_uuid}')
 
     def delete_item(self, item: Item, copy_virtual_metadata: bool = False,
@@ -1253,9 +1184,9 @@ class RestAPI:
         :param all_items: Whether to delete all items in the collection as well.
         :raises AttributeError: If collection still includes items and all_items is set to false.
         """
-        def delete_item_owned(it: DSpaceObject, coll: Collection):
+        def delete_item_owned(it, coll):
             """Delete the item, if owned by the given collection."""
-            if not isinstance(it, Item):
+            if not isinstance(it, self.Item):
                 return
             cols = self.get_item_collections(it.uuid)
             if cols[0].uuid == coll.uuid:
