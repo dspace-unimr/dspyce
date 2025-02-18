@@ -1,4 +1,5 @@
 import logging
+import requests
 
 
 class DSpaceObject:
@@ -58,7 +59,7 @@ class DSpaceObject:
             if uuid == '' or not isinstance(uuid, str):
                 raise ValueError(f'If no other identifier is used, the uuid must be provided. "{uuid}" is not correct.')
             params = {}
-            url = f'core/{obj_type}/{uuid}'
+            url = f'core/{obj_type}s/{uuid}'
         else:
             url = 'pid/find'
             params = {'id': identifier}
@@ -255,6 +256,43 @@ class Community(DSpaceObject):
         self.sub_communities = sub_communities if sub_communities is not None else []
         self.parent_community = parent_community
 
+    @staticmethod
+    def get_from_rest(rest_api, uuid: str, obj_type: str='community', identifier: str = None):
+        """
+        Retrieves a new Community by its uuid from the RestAPI.
+        :param rest_api: The rest API object to use.
+        :param uuid: The uuid of the Community to retrieve.
+        :param obj_type: The type of the Community to retrieve, must be 'community'.
+        :param identifier: An optional other identifier to retrieve a DSpace Object. Can be used instead of uuid. Must
+            be a handle.
+        :return: The Community retrieved.
+        :raises ValueError: If the obj_type is not 'community'.
+        :raises RestObjectNotFoundError: if the object identified by uuid or identifier was not found.
+        """
+        if obj_type != 'community':
+            raise ValueError('obj_type parameter must be "community", but got %s.' % obj_type)
+        dso = DSpaceObject.get_from_rest(rest_api, uuid, obj_type, identifier)
+        dso.get_parent_community_from_rest(rest_api)
+        logging.debug(f'Successfully retrieved community {dso} from endpoint.')
+        return dso
+
+    def get_parent_community_from_rest(self, rest_api):
+        """
+        Retrieves the parent community of the community from a given REST API.
+        :param rest_api: The rest API object to use.
+        """
+        from dspyce.rest.exceptions import RestObjectNotFoundError
+        from dspyce.rest.functions import json_to_object
+        url = f'core/communities/{self.uuid}/parentCommunity'
+        try:
+            get_result = rest_api.get_api(url)
+        except RestObjectNotFoundError:
+            return None
+        if get_result is None:
+            logging.warning(f'Did not found a parent community for community {self}.')
+            return None
+        self.parent_community = json_to_object(get_result)
+
     def is_subcommunity_of(self, other) -> bool:
         """
         Checks if the community object is a sub-community of the given community.
@@ -278,6 +316,37 @@ class Collection(DSpaceObject):
     def __init__(self, uuid: str = '', handle: str = '', name: str = '', community: Community = None, ):
         super().__init__(uuid, handle, name)
         self.community = community
+
+    @staticmethod
+    def get_from_rest(rest_api, uuid: str, obj_type: str='collection', identifier: str = None):
+        """
+        Retrieves a new Collection by its uuid from the RestAPI.
+        :param rest_api: The rest API object to use.
+        :param uuid: The uuid of the Collection to retrieve.
+        :param obj_type: The type of the Collection to retrieve, must be 'collection'.
+        :param identifier: An optional other identifier to retrieve a DSpace Object. Can be used instead of uuid. Must
+            be a handle.
+        :return: The Collection retrieved.
+        :raises ValueError: If the obj_type is not 'collection'.
+        :raises RestObjectNotFoundError: if the object identified by uuid or identifier was not found.
+        """
+        if obj_type != 'collection':
+            raise ValueError('obj_type parameter must be "collection", but got %s.' % obj_type)
+        dso = DSpaceObject.get_from_rest(rest_api, uuid, obj_type, identifier)
+        dso.get_parent_community_from_rest(rest_api)
+        logging.debug(f'Successfully retrieved collection {dso} from endpoint.')
+        return dso
+
+    def get_parent_community_from_rest(self, rest_api):
+        """
+        Retrieves the parent community of the collection from a given REST API.
+        :param rest_api: The rest API object to use.
+        :raises RestObjectNotFoundError: If no parent community was found.
+        """
+        from dspyce.rest.functions import json_to_object
+        url = f'core/collections/{self.uuid}/parentCommunity'
+        get_result = rest_api.get_api(url)
+        self.community = json_to_object(get_result)
 
     def get_parent_community(self) -> Community:
         """
@@ -338,6 +407,100 @@ class Item(DSpaceObject):
         self.relations = []
         self.contents = []
         self.bundles = []
+
+    @staticmethod
+    def get_from_rest(rest_api, uuid: str, obj_type: str='item', identifier: str = None):
+        """
+        Retrieves a new Item by its uuid from the RestAPI.
+        :param rest_api: The rest API object to use.
+        :param uuid: The uuid of the Item to retrieve.
+        :param obj_type: The type of the Item to retrieve, must be 'item'.
+        :param identifier: An optional other identifier to retrieve a DSpace Object. Can be used instead of uuid. Must
+            be a handle or a doi.
+        :return: The Item retrieved.
+        :raises ValueError: If the obj_type is not 'item'.
+        :raises RestObjectNotFoundError: if the object identified by uuid or identifier was not found.
+        """
+        if obj_type != 'item':
+            raise ValueError('obj_type parameter must be "item", but got %s.' % obj_type)
+        dso = DSpaceObject.get_from_rest(rest_api, uuid, obj_type, identifier)
+        dso.get_bundles_from_rest(rest_api)
+        dso.get_collections_from_rest(rest_api)
+        logging.debug(f'Successfully retrieved item {dso} from endpoint.')
+        return dso
+
+    def get_bundles_from_rest(self, rest_api, include_bitstreams: bool = True):
+        """
+        Retrieves all bundles for the item from the given REST API.
+        :param rest_api: The rest API object to use.
+        :param include_bitstreams: Whether bitstreams should be downloaded as well. Default: True
+        """
+        from dspyce.rest.functions import json_to_object
+        from dspyce.bitstreams.models import Bundle
+
+        dspace_objects = [json_to_object(obj)
+                          for obj in rest_api.get_paginated_objects(f'/core/items/{self.uuid}/bundles', 'bundles')]
+        for d in dspace_objects:
+            if not isinstance(d, Bundle):
+                raise TypeError('Object %s in the bundle list is not of type bundle. Found type "%s".' % (d, type(d)))
+            if include_bitstreams:
+                d.get_bitstreams_from_rest(rest_api)
+        self.bundles = dspace_objects
+        self.contents = []
+        for b in dspace_objects:
+            self.contents += b.get_bitstreams()
+
+    def get_collections_from_rest(self, rest_api):
+        """
+        Retrieves a list of collections from the REST-API and adds them to the item object. The first will be the owning
+        collection.
+        :param rest_api: The rest API object to use.
+        :raises DSpaceObjectNotFoundError: If no collection could be found.
+        """
+        from dspyce.rest.functions import json_to_object
+        url = f'core/items/{self.uuid}/owningCollection'
+        get_result = rest_api.get_api(url)
+        owning_collection = json_to_object(get_result)
+        mapped_collections = rest_api.get_paginated_objects(f'core/items/{self.uuid}/mappedCollections',
+                                                        'mappedCollections')
+        self.collections = [owning_collection] + list(filter(lambda x: x is not None,
+                                                             [json_to_object(m) for m in mapped_collections]))
+
+    def get_relations_from_rest(self, rest_api):
+        """
+        Retrieves a list of relationships for the current item from the given REST API.
+        :param rest_api: The rest API object to use.
+        :raises TypeError: If the current Item is not an Entity.
+        """
+        from dspyce.entities.models import Relation
+        if not self.is_entity():
+            raise TypeError('The current Item is not an Entity.')
+
+        url = f'/core/items/{self.uuid}/relationships'
+
+        rel_list = rest_api.get_paginated_objects(url, 'relationships')
+        relations = []
+        for r in rel_list:
+            left_item_uuid = r['_links']['leftItem']['href'].split('/')[-1]
+            right_item_uuid = r['_links']['rightItem']['href'].split('/')[-1]
+            direction = 'leftwardType' if self.uuid == right_item_uuid else 'rightwardType'
+            # Retrieve the type information:
+            type_req = rest_api.session.get(r['_links']['relationshipType']['href'])
+            rel_key = type_req.json()[direction]
+            rel_type = type_req.json()['id']
+            # Set the correct item order.
+            try:
+                left_item = Item.get_from_rest(rest_api, left_item_uuid) if left_item_uuid != self.uuid else self
+                right_item = Item.get_from_rest(rest_api, right_item_uuid) if right_item_uuid != self.uuid else self
+                items = (left_item, right_item) if direction == 'rightwardType' else (right_item, left_item)
+                relation = Relation(rel_key, items, rel_type)
+                relations.append(relation)
+                logging.debug(f'Retrieved relation {relation}.')
+            except requests.exceptions.RequestException:
+                logging.warning(f'Could not retrieve relationship({rel_key}) between {left_item_uuid} and'
+                                f' {right_item_uuid}')
+        logging.info('Found %i relationships for the item.' % (len(relations)))
+        self.relations = relations
 
     def is_entity(self) -> bool:
         """

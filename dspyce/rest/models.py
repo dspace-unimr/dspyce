@@ -189,7 +189,7 @@ class RestAPI:
         if req.status_code == 404:
             logging.error(f'Object behind "{url}" does not exists.')
             logging.error(req.json())
-            raise RestObjectNotFoundError(f'The object with url "" could not be found.')
+            raise RestObjectNotFoundError(f'The object with url "{url}" could not be found.')
         logging.error(f'Problem with performing GET request to endpoint {endpoint}.')
         logging.error(req)
 
@@ -636,6 +636,10 @@ class RestAPI:
             bitstreams += b.bitstreams
         return bitstreams
 
+    @deprecated(
+        'The method "get_bitstreams_in_bundle" is deprecated. Call the get_bitstreams_from_rest() method of the'
+        'Bundle Object instead.'
+    )
     def get_bitstreams_in_bundle(self, bundle: Bundle) -> Bundle:
         """
         Retrieves all bitstreams in a given bundle by the bundle uuid.
@@ -643,18 +647,13 @@ class RestAPI:
         :param bundle: The bundle object to retrieve the bitstreams to.
         :return: The updated bundle object containing the bitstreams associated.
         """
-        bitstream_link = f"/core/bundles/{bundle.uuid}/bitstreams"
-        logging.debug(f'Retrieving bitstreams for bundle({bundle.name}) with uuid: {bundle.uuid}')
-
-        dspace_objects = [self._json_to_object(obj)
-                          for obj in self.get_paginated_objects(bitstream_link, 'bitstreams')]
-        for o in dspace_objects:
-            bundle.add_bitstream(o)
-            o.bundle = bundle
-            logging.debug(f'Retrieved bitstream with uuid: {o.uuid}')
-        logging.debug(f'Retrieved {len(bundle.bitstreams)} bitstreams.')
+        bundle.get_bitstreams_from_rest(self)
         return bundle
 
+    @deprecated(
+        'The method "get_item_bundles" is deprecated. Call the get_bundles_from_rest() method of the'
+        'Item Object instead.'
+    )
     def get_item_bundles(self, item_uuid: str, include_bitstreams: bool = True) -> list[Bundle]:
         """
         Retrieves the bundles connected to a DSpaceObject and returns them as list.
@@ -663,16 +662,14 @@ class RestAPI:
         :param include_bitstreams: Whether bitstreams should be downloaded as well. Default: True
         :return: The list of Bundle objects.
         """
-        dspace_objects = [self._json_to_object(obj)
-                          for obj in self.get_paginated_objects(f'/core/items/{item_uuid}/bundles', 'bundles')]
-        for d in dspace_objects:
-            if not isinstance(d, self.Bundle):
-                raise TypeError('Object %s in the bundle list is not of type bundle. Found type "%s".' % (d, type(d)))
-        if not include_bitstreams:
-            return dspace_objects
+        item = self.Item(item_uuid)
+        item.get_bundles_from_rest(self, include_bitstreams)
+        return item.bundles
 
-        return [self.get_bitstreams_in_bundle(b) for b in dspace_objects]
-
+    @deprecated(
+        'The method "get_relations_by_type" is deprecated. Call the get_by_type_from_rest() method of the'
+        'Relation Object instead.'
+    )
     def get_relations_by_type(self, entity_type: str) -> list[Relation]:
         """
         Parses the REST API and returns a list of relationships, which have the given entity on the left or right side.
@@ -680,16 +677,12 @@ class RestAPI:
         :param entity_type: The entity_type to look for.
         :return: Return s a list of relations.
         """
-        add_url = f'/core/relationshiptypes/search/byEntityType'
-        params = {'type': entity_type}
-        rel_list = []
-        relations = self.get_paginated_objects(add_url, 'relationshiptypes', params)
-        for r in relations:
-            rel_list.append(self.Relation(r['leftwardType'], relation_type=r['id']))
-            rel_list.append(self.Relation(r['rightwardType'], relation_type=r['id']))
-            logging.debug(f'Got relation {r} from RestAPI')
-        return rel_list
+        return self.Relation.get_by_type_from_rest(self, entity_type)
 
+    @deprecated(
+        'The method "get_item_relationships" is deprecated. Call the get_relations_from_rest() method of the Item Object'
+        ' instead.'
+    )
     def get_item_relationships(self, item_uuid: str) -> list[Relation]:
         """
         Retrieves a list of relationships of DSpace entity from the api.
@@ -697,31 +690,14 @@ class RestAPI:
         :param item_uuid: The uuid of the item to retrieve the relationships for.
         :return: A list of relation objects.
         """
-        url = f'/core/items/{item_uuid}/relationships'
+        item = self.Item(item_uuid)
+        item.get_relations_from_rest(self)
+        return item.relations
 
-        rel_list = self.get_paginated_objects(url, 'relationships')
-        relations = []
-        for r in rel_list:
-            left_item_uuid = r['_links']['leftItem']['href'].split('/')[-1]
-            right_item_uuid = r['_links']['rightItem']['href'].split('/')[-1]
-            direction = 'leftwardType' if item_uuid == right_item_uuid else 'rightwardType'
-            # Retrieve the type information:
-            type_req = self.session.get(r['_links']['relationshipType']['href'])
-            rel_key = type_req.json()[direction]
-            rel_type = type_req.json()['id']
-            # Set the correct item order.
-            try:
-                left_item = self.get_item(left_item_uuid, False)
-                right_item = self.get_item(right_item_uuid, False)
-                items = (left_item, right_item) if direction == 'rightwardType' else (right_item, left_item)
-                relation = self.Relation(rel_key, items, rel_type)
-                relations.append(relation)
-                logging.debug(f'Added relation {relation} to Item.')
-            except requests.exceptions.RequestException:
-                logging.warning(f'Could not retrieve relationship({rel_key}) between {left_item_uuid} and'
-                                f' {right_item_uuid}')
-        return relations
-
+    @deprecated(
+        'The method "get_item_collections" is deprecated. Call the get_collections_from_rest() method of the Item Object'
+        ' instead.'
+    )
     def get_item_collections(self, item_uuid: str) -> list[Collection]:
         """
         Retrieves a list of collections from the REST-API based on the uuid of an item. The first will be the owning
@@ -729,34 +705,31 @@ class RestAPI:
 
         :param item_uuid: The uuid of the item.
         """
-        url = f'core/items/{item_uuid}/owningCollection'
-        get_result = self.get_api(url)
-        if get_result is None:
-            logging.warning(f'Problems with getting owning Collection for item with uuid "{item_uuid}"')
-            return []
-        owning_collection = self._json_to_object(get_result)
-        mapped_collections = self.get_paginated_objects(f'core/items/{item_uuid}/mappedCollections',
-                                                        'mappedCollections')
-        return [owning_collection] + list(filter(lambda x: x is not None,
-                                                 [self._json_to_object(m) for m in mapped_collections]))
+        item = self.Item(item_uuid)
+        item.get_collections_from_rest(self)
+        return item.collections
 
+    @deprecated(
+        'The method "get_parent_community" is deprecated. Call the get_parent_community_from_rest() method of the '
+        'Community or collection Object instead.'
+    )
     def get_parent_community(self, dso: Collection | Community) -> Community | None:
         """
         Retrieves the parent community of a given collection or Community.
 
         :param dso: The object to get the parent community from. Must be either Collection or Community
         """
-        url = f'core/{"collections" if isinstance(dso, self.Collection) else "communities"}/{dso.uuid}/parentCommunity'
-        try:
-            get_result = self.get_api(url)
-        except requests.exceptions.RequestException:
-            return None
-        if get_result is None:
-            logging.warning(f'Problems with getting parent communities for DSpaceObject {dso}')
-            return None
-        owning_community = self._json_to_object(get_result)
-        return owning_community
+        dso.get_parent_community_from_rest(self)
+        if isinstance(dso, self.Community):
+            return dso.parent_community
+        elif isinstance(dso, self.Collection):
+            return dso.community
 
+        return None
+
+    @deprecated(
+        'The method "get_item" is deprecated. Call the Item.get_from_rest() method of the Item Object  instead.'
+    )
     def get_item(self, uuid: str = '', get_related: bool = True, get_bitstreams: bool = True,
                  pre_downloaded_item: Item = None, identifier: str = None) -> Item | None:
         """
@@ -771,73 +744,66 @@ class RestAPI:
             Must be doi or handle
         :return: An object of the class Item.
         """
-        dso = self.get_dso(uuid, 'items', identifier) if pre_downloaded_item is None else pre_downloaded_item
-        if dso is None:
-            logging.warning(f'The item with uuid "{uuid}" could not be found.')
-            return None
-        if get_related:
-            dso.relations = self.get_item_relationships(dso.uuid)
-        if get_bitstreams:
-            dso.bundles = self.get_item_bundles(dso.uuid, True)
-            for b in dso.bundles:
-                dso.contents += b.bitstreams
+        return self.Item.get_from_rest(self, uuid, 'item', identifier)
 
-        dso.collections = self.get_item_collections(dso.uuid)
-        logging.debug(f'Successfully retrieved item {dso} from endpoint.')
-        return dso
-
+    @deprecated(
+        'The method "get_community" is deprecated. Call the Community.get_from_rest() method of the Community Object '
+        'instead.'
+    )
     def get_community(self, uuid) -> Community | None:
         """
         Retrieves a DSpace-Community object from the API.
 
         :param uuid: The UUID of the community to get.
         """
-        dso = self.get_dso(uuid, 'communities')
-        dso.parent_community = self.get_parent_community(dso)
-        logging.debug(f'Successfully retrieved community {dso} from endpoint.')
-        return dso
+        return self.Community.get_from_rest(self, uuid)
 
+    @deprecated(
+        'The method "get_collection" is deprecated. Call the Collection.get_from_rest() method of the Collection Object'
+        ' instead.'
+    )
     def get_collection(self, uuid) -> Collection | None:
         """
         Retrieves a DSpace-Community object from the API.
 
         :param uuid: The UUID of the community to get.
         """
-        dso = self.get_dso(uuid, 'collections')
-        dso.community = self.get_parent_community(dso)
-        logging.debug(f'Successfully retrieved collection {dso} from endpoint.')
-        return dso
+        return self.Collection.get_from_rest(self, uuid)
 
+    @deprecated(
+        'The method "get_bundle" is deprecated. Call the Bundle.get_from_rest() method of the Bundle Object instead.'
+    )
     def get_bundle(self, uuid: str) -> Bundle | None:
         """
         Retrieves a DSpace-Bundle object from the API.
         :param uuid: The UUID of the bundle to get.
         :return: The bundle found.
         """
-        bundle = self.get_dso(uuid, 'bundles')
-        bundle = self.get_bitstreams_in_bundle(bundle)
-        logging.debug(f'Successfully retrieved bundle {bundle}\nincluding {len(bundle.bitstreams)} bitstreams from'
-                      f'endpoint.')
-        return bundle
+        return self.Bundle.get_from_rest(self, uuid)
 
+    @deprecated(
+        'The method "get_bitstream" is deprecated. Call the Bitstream.get_from_rest() method of the Bitsream Object '
+        'instead.'
+    )
     def get_bitstream(self, uuid: str) -> Bitstream | None:
         """
         Retrieves a DSpace bitstream from the API.
         :param uuid: The UUID of the bitstream to get.
         :return: The bitstream found.
         """
-        dso = self.get_dso(uuid, 'bitstreams')
-        if dso is None:
-            return None
-        dso.bundle = self.get_bundle_for_bitstream(dso)
-        return dso
+        return self.Bitstream.get_from_rest(self, uuid)
 
+    @deprecated(
+        'The method "get_bundle_for_bitstream" is deprecated. Call the get_bundle_from_rest() method of the Bitstream '
+        'Object instead.'
+    )
     def get_bundle_for_bitstream(self, bitstream: Bitstream) -> Bundle:
         """
         Retrieves the bundle of a given bitstream.
         :param bitstream: The bitstream to retrieve the bundle for.
         """
-        return self._json_to_object(self.get_api(f'core/bitstreams/{bitstream.uuid}/bundle'))
+        bitstream.get_bundle_from_rest(self)
+        return bitstream.bundle
 
     def get_objects_in_scope(self, scope_uuid: str, query: dict = None, size: int = 20, full_item: bool = False,
                            get_bitstreams: bool = False) -> list[DSpaceObject]:

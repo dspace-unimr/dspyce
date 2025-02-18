@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import requests
@@ -6,6 +7,7 @@ import warnings
 from io import BytesIO
 from dspyce.models import DSpaceObject
 from PIL import Image
+
 
 class Bitstream(DSpaceObject):
     """
@@ -52,6 +54,26 @@ class Bitstream(DSpaceObject):
         if name != '':
             self.add_metadata('dc.title', name)
 
+    @staticmethod
+    def get_from_rest(rest_api, uuid: str, obj_type: str='bitstream', identifier: str = None):
+        """
+        Retrieves a new Bitstream by its uuid from the RestAPI.
+        :param rest_api: The rest API object to use.
+        :param uuid: The uuid of the Bitstream to retrieve.
+        :param obj_type: The type of the Bitstream to retrieve, must be 'bitstream'.
+        :param identifier: An optional other identifier to retrieve a Bitstream. Can be used instead of uuid. Must
+            be a handle.
+        :return: The Bitstream retrieved.
+        :raises ValueError: If the obj_type is not 'bitstream'.
+        :raises RestObjectNotFoundError: if the object identified by uuid or identifier was not found.
+        """
+        if obj_type != 'bitstream':
+            raise ValueError('obj_type parameter must be "bitstream", but got %s.' % obj_type)
+        bitstream = DSpaceObject.get_from_rest(rest_api, uuid, obj_type, identifier)
+        bitstream.get_bundle_from_rest(rest_api)
+        logging.debug(f'Successfully retrieved bundle {bitstream} from endpoint.')
+        return bitstream
+
     def __str__(self):
         """
         Provides all information about the DSpace-Content file.
@@ -69,6 +91,14 @@ class Bitstream(DSpaceObject):
         if self.primary:
             export_name += '\tprimary:true'
         return export_name
+
+    def get_bundle_from_rest(self, rest_api):
+        """
+        Retrieves the bundle of the bitstream from the given RestAPI.
+        :param rest_api: The rest API object to use.
+        """
+        from dspyce.rest.functions import json_to_object
+        self.bundle = json_to_object(rest_api.get_api(f'core/bitstreams/{self.uuid}/bundle'))
 
     def add_metadata(self, tag: str, value: str, language: str = None):
         """
@@ -307,6 +337,27 @@ class Bundle(DSpaceObject):
         if bitstreams is not None:
             [self.add_bitstream(b) for b in bitstreams]
 
+    @staticmethod
+    def get_from_rest(rest_api, uuid: str, obj_type: str='bundle', identifier: str = None):
+        """
+        Retrieves a new Bundle by its uuid from the RestAPI.
+        :param rest_api: The rest API object to use.
+        :param uuid: The uuid of the Bundle to retrieve.
+        :param obj_type: The type of the Bundle to retrieve, must be 'bundle'.
+        :param identifier: An optional other identifier to retrieve a DSpace Object. Can be used instead of uuid. Must
+            be a handle.
+        :return: The Bundle retrieved.
+        :raises ValueError: If the obj_type is not 'bundle'.
+        :raises RestObjectNotFoundError: if the object identified by uuid or identifier was not found.
+        """
+        if obj_type != 'bundle':
+            raise ValueError('obj_type parameter must be "bundle", but got %s.' % obj_type)
+        bundle = DSpaceObject.get_from_rest(rest_api, uuid, obj_type, identifier)
+        bundle.get_bitstreams_from_rest(rest_api)
+        logging.debug(f'Successfully retrieved bundle {bundle}\nincluding {len(bundle.bitstreams)} bitstreams from'
+                      f'endpoint.')
+        return bundle
+
     def __str__(self):
         return ('Bundle - {}{}:\n{}'.format(self.name,
                                             f'({self.uuid})' if self.uuid is not None else '',
@@ -334,6 +385,25 @@ class Bundle(DSpaceObject):
         :return: A list of Bitstream objects.
         """
         return list(filter(filter_condition, self.bitstreams))
+
+    def get_bitstreams_from_rest(self, rest_api):
+        """
+        Retrieves all bitstreams in a given bundle by the bundle uuid.
+        :param rest_api: The rest API object to use.
+        """
+        from dspyce.rest.functions import json_to_object
+        bitstream_link = f"/core/bundles/{self.uuid}/bitstreams"
+        logging.debug(f'Retrieving bitstreams for bundle({self.name}) with uuid: {self.uuid}')
+
+        dspace_objects = [
+            json_to_object(obj) for obj in rest_api.get_paginated_objects(bitstream_link, 'bitstreams')
+        ]
+        for o in dspace_objects:
+            self.add_bitstream(o)
+            o.bundle = self
+            logging.debug(f'Retrieved bitstream with uuid: {o.uuid}')
+        logging.debug(f'Retrieved {len(self.bitstreams)} bitstreams.')
+
 
     def add_bitstream(self, bitstream: Bitstream):
         """

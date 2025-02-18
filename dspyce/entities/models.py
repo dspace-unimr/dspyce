@@ -6,6 +6,7 @@ object based on the relationship-types.xml file or a given REST-endpoint and you
 has an entity modell enabled or not.
 """
 from bs4 import BeautifulSoup
+import logging
 import matplotlib.pyplot as plt
 import networkx as nx
 
@@ -22,6 +23,10 @@ class Relation:
 
         > relation.any_relation 123456789/12\nrelation.different_relation 123456789/13\n
     """
+    left_type: str
+    """The left entity type of a relationship."""
+    right_type: str
+    """The right entity type of a relationship."""
     relation_key: str
     relation_type: int
     items: tuple
@@ -46,6 +51,22 @@ class Relation:
 
     def __eq__(self, other):
         return self.relation_key == other.relation_key and self.relation_type == other.relation_type
+
+    @staticmethod
+    def get_by_type_from_rest(rest_api, entity_type: str):
+        """
+        Parses the given REST API and returns a list of relationships, which have the given entity on the left or right
+        side.
+        """
+        add_url = f'/core/relationshiptypes/search/byEntityType'
+        params = {'type': entity_type}
+        rel_list = []
+        relations = rest_api.get_paginated_objects(add_url, 'relationshiptypes', params)
+        for r in relations:
+            rel_list.append(Relation(r['leftwardType'], relation_type=r['id']))
+            rel_list.append(Relation(r['rightwardType'], relation_type=r['id']))
+            logging.debug(f'Got relation {r} from RestAPI')
+        return rel_list
 
     def set_relation_type(self, relation_type: int):
         """
