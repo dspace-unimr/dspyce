@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -99,6 +100,38 @@ class Bitstream(DSpaceObject):
         """
         from dspyce.rest.functions import json_to_object
         self.bundle = json_to_object(rest_api.get_api(f'core/bitstreams/{self.uuid}/bundle'))
+
+    def to_rest(self, rest_api):
+        """
+        Adds a new Bitstream Object to the Rest API, connected to the Bundle by its uuid.
+        :param rest_api: The rest API object to use.
+        """
+        from dspyce.rest.functions import json_to_object
+        if self.bundle.uuid is None or self.bundle.uuid == '':
+            raise ValueError('You have to provide an item uuid for addding a Bundle to the Rest API.')
+        if not rest_api.authenticated:
+            logging.critical('Could not add object, authentication required!')
+            raise ConnectionRefusedError('Authentication needed.')
+        add_url = f'{rest_api.api_endpoint}/core/bundles/{self.bundle.uuid}/bitstreams'
+        obj_json = self.to_dict()
+        logging.debug(f'Adding bitstream: {obj_json}')
+        bitstream_file = self.get_bitstream_file()
+        data_file = {'file': (self.file_name, bitstream_file)} if bitstream_file is not None else None
+        req = rest_api.session.post(add_url)
+        rest_api.update_csrf_token(req)
+        headers = rest_api.session.headers
+        headers.update({'Content-Encoding': 'gzip', 'User-Agent': rest_api.req_headers['User-Agent']})
+        req = requests.Request('POST', add_url,
+                               data={'properties': json.dumps(obj_json) + ';type=application/json'}, headers=headers,
+                               files=data_file)
+        resp = rest_api.session.send(rest_api.session.prepare_request(req))
+        try:
+            uuid = resp.json()['uuid']
+            logging.info(f'Successfully added bitstream with uuid "{uuid}"')
+            self.uuid = uuid
+        except KeyError as e:
+            logging.error(f'Problem with adding bitstream:\n{resp}\n\t{resp.headers}')
+            raise e
 
     def add_metadata(self, tag: str, value: str, language: str = None):
         """
@@ -404,6 +437,28 @@ class Bundle(DSpaceObject):
             logging.debug(f'Retrieved bitstream with uuid: {o.uuid}')
         logging.debug(f'Retrieved {len(self.bitstreams)} bitstreams.')
 
+    def to_rest(self, rest_api, item_uuid: str = None, add_bitstreams: bool = True):
+        """
+        Adds a new Bundle Object to the Rest API, connected to the Item with the given item_uuid.
+        :param rest_api: The rest API object to use.
+        :param item_uuid: The uuid of the item connected to this Bundle.
+        :param add_bitstreams: Whether to add all bitstreams connected with this bundle as well.
+        """
+        from dspyce.rest.functions import json_to_object
+        if item_uuid is None:
+            raise ValueError('You have to provide an item uuid for addding a Bundle to the Rest API.')
+        if not rest_api.authenticated:
+            logging.critical('Could not add object, authentication required!')
+            raise ConnectionRefusedError('Authentication needed.')
+        params = {}
+        add_url = f'{rest_api.api_endpoint}/core/items/{item_uuid}/bundles'
+        obj_json = self.to_dict()
+        rest_bundle = json_to_object(rest_api.post_api(add_url, data=obj_json, params=params))
+        self.uuid = rest_bundle.uuid
+        if add_bitstreams:
+            for b in self.bitstreams:
+                b.bundle = self
+                b.to_rest(rest_api)
 
     def add_bitstream(self, bitstream: Bitstream):
         """

@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 import logging
 import matplotlib.pyplot as plt
 import networkx as nx
+import requests
 
 
 class Relation:
@@ -67,6 +68,51 @@ class Relation:
             rel_list.append(Relation(r['rightwardType'], relation_type=r['id']))
             logging.debug(f'Got relation {r} from RestAPI')
         return rel_list
+
+    def to_rest(self, rest_api):
+        """
+        Adds the current relationship to the given DSpace repository.
+        """
+
+        if not rest_api.authenticated:
+            logging.critical('Could not add object, authentication required!')
+            raise ConnectionRefusedError('Authentication needed.')
+        if self.relation_type is None:
+            logging.info('No relation type specified, trying to find relation-type via the rest endpoint.')
+            left_item_type = self.items[0].get_entity_type()
+            rels = Relation.get_by_type_from_rest(rest_api, left_item_type)
+            rels = list(filter(lambda x: x.relation_key == self.relation_key, rels))
+            if len(rels) != 1:
+                if len(rels) > 1:
+                    logging.critical('Something went wrong with on the rest-endpoint: found more than one relation with'
+                                     f' the name {self.relation_key}')
+                else:
+                    logging.error(f'Didn\'t find relation with name {self.relation_key}')
+            else:
+                self.relation_type = rels[0].relation_type
+                logging.debug(f'Found relationtype "{self.relation_type}" for the name "{self.relation_key}"')
+        add_url = f'{rest_api.api_endpoint}/core/relationships?relationshipType={self.relation_type}'
+        if self.items[0] is None or self.items[1] is None:
+            logging.error(f'Could not create Relation because of missing item information in relation: {self}')
+            raise ValueError(f'Could not create Relation because of missing item information in relation: {self}')
+        uuid_1 = self.items[0].uuid
+        uuid_2 = self.items[1].uuid
+        if uuid_1 == '' or uuid_2 == '':
+            logging.error(f'Relation via RestAPI can only be created by using item-uuids, but found: {self}')
+            raise ValueError(f'Relation via RestAPI can only be created by using item-uuids, but found: {self}')
+        req = rest_api.session.post(add_url)
+        rest_api.update_csrf_token(req)
+        item_url = f'{rest_api.api_endpoint}/core/items'
+        headers = rest_api.session.headers
+        headers.update({'Content-Type': 'text/uri-list', 'User-Agent': rest_api.req_headers['User-Agent']})
+        resp = rest_api.session.post(add_url, f'{item_url}/{uuid_1} \n {item_url}/{uuid_2}', headers=headers)
+
+        if resp.status_code in (201, 200):
+            # Success post request
+            logging.info(f'Created relationship: {self}')
+
+        raise requests.exceptions.RequestException(f'{resp.status_code}: Could not post relation: \n{self}\n'
+                                                   f'Got headers: {resp.headers}')
 
     def set_relation_type(self, relation_type: int):
         """

@@ -74,6 +74,47 @@ class DSpaceObject:
             raise e
         return obj
 
+    def to_rest(self, rest_api):
+        """
+        Creates a new object in the given DSpace repository and updates this object based on the returned metadata.
+        :param rest_api: The rest API object to use.
+        :raises ConnectionRefusedError: If the rest API object did not provide authentication information.
+        :raises TypeError: If the current DSpaceObject type does not exist.
+        :raises ValueError: If the curren DSpaceObject already has a uuid.
+        """
+        from dspyce.rest.functions import json_to_object
+        if not rest_api.authenticated:
+            logging.critical('Could not add object, authentication required!')
+            raise ConnectionRefusedError('Authentication needed.')
+        if self.uuid is not None and self.uuid != '':
+            raise ValueError(f'The current {self.get_dspace_object_type()} already has an uuid. It might exist already '
+                             'in the DSpace repository')
+        params = {}
+        match self.get_dspace_object_type():
+            case 'Item':
+                self: Item
+                add_url = f'{rest_api.api_endpoint}/core/items'
+                params = {'owningCollection': self.get_owning_collection().uuid}
+            case 'Community':
+                self: Community
+                if self.parent_community is None:
+                    add_url = f'{rest_api.api_endpoint}/core/communities'
+                else:
+                    add_url = f'{rest_api.api_endpoint}/core/communities'
+                    params = {'parent': self.parent_community.uuid}
+            case 'Collection':
+                self: Collection
+                add_url = f'{rest_api.api_endpoint}/core/collections'
+                params = {'parent': self.community.uuid}
+            case _:
+                raise TypeError(f'Object type {self.get_dspace_object_type()} is not allowed as a parameter!')
+        obj_json = rest_api.post_api(add_url, data=self.to_dict(), params=params)
+        obj = json_to_object(obj_json)
+        self.uuid = obj.uuid
+        self.handle = obj.handle
+        self.metadata = obj.metadata
+        self.name = obj.name
+
     def add_metadata(self, tag: str, value: str, language: str = None):
         """
         Creates a new metadata field with the given value.
@@ -326,6 +367,26 @@ class Community(DSpaceObject):
             return objs
         self.sub_collections = objs
 
+    def to_rest(self, rest_api):
+        """
+        Creates a new Community object in the given DSpace repository.
+        :param rest_api: The rest API object to use.
+        """
+        if self.parent_community is not None and self.parent_community.uuid == '':
+            raise ValueError('The parent community must already exist in DSpace. Consider calling '
+                             'add_parrent_communities() first.')
+        super().to_rest(rest_api)
+        logging.debug('Successfully created new Community object with uuid "%s".' % self.uuid)
+
+    def add_parent_communities_to_rest(self, rest_api):
+        """
+        Adds all parent communities of the given community to the given DSpace repository.
+        :param rest_api: The rest API object to use.
+        """
+        if self.parent_community is not None and self.parent_community.uuid == '':
+            self.parent_community.add_parent_communities_to_rest(rest_api)
+            self.parent_community.to_rest(rest_api)
+
     def is_subcommunity_of(self, other) -> bool:
         """
         Checks if the community object is a sub-community of the given community.
@@ -380,6 +441,26 @@ class Collection(DSpaceObject):
         url = f'core/collections/{self.uuid}/parentCommunity'
         get_result = rest_api.get_api(url)
         self.community = json_to_object(get_result)
+
+    def to_rest(self, rest_api):
+        """
+        Creates a new Collection object in the given DSpace repository.
+        :param rest_api: The rest API object to use.
+        """
+        if self.community is not None and self.community.uuid == '':
+            raise ValueError('The parent community must already exist in DSpace. Consider calling '
+                             'add_parent_communities() first.')
+        super().to_rest(rest_api)
+        logging.debug('Successfully created new Collection object with uuid "%s".' % self.uuid)
+
+    def add_parent_communities_to_rest(self, rest_api):
+        """
+        Adds all parent communities of the given community to the given DSpace repository.
+        :param rest_api: The rest API object to use.
+        """
+        if self.community is not None and self.community.uuid == '':
+            self.community.add_parent_communities_to_rest(rest_api)
+            self.community.to_rest(rest_api)
 
     def get_parent_community(self) -> Community:
         """
@@ -534,6 +615,79 @@ class Item(DSpaceObject):
                                 f' {right_item_uuid}')
         logging.info('Found %i relationships for the item.' % (len(relations)))
         self.relations = relations
+
+    def to_rest(self, rest_api):
+        """
+        Creates a new Collection object in the given DSpace repository.
+        :param rest_api: The rest API object to use.
+        :raises ValueError: If the collections of this item don't have an uuid yet or no Collection exists.
+        """
+        from dspyce.entities.models import Relation
+        if len(self.collections) == 0:
+            raise ValueError('Can not push an Item into the restAPI without information about the owning collections.')
+        for c in self.collections:
+            if c.uuid is None or c.uuid == '':
+                raise ValueError('All collection must already exist in DSpace. Consider calling '
+                                 'add_parent_collections() first.')
+        super().to_rest(rest_api)
+        if len(self.collections) > 1:
+            self.add_to_mapped_collections(rest_api)
+        self.add_bundles_to_rest(rest_api, True)
+        if self.is_entity():
+            relation_types = {
+                r.relation_key: r.relation_type for r in Relation.get_by_type_from_rest(rest_api,
+                                                                                        self.get_entity_type())
+            }
+            for r in self.relations:
+                try:
+                    r.relation_type = relation_types[r.relation_key]
+                except KeyError as e:
+                    e.add_note(f'Relationship with name "{r.relation_key}" does no exist in the given restAPI!')
+                    raise e
+                r.to_rest(rest_api)
+        logging.debug('Successfully created new Item object with uuid "%s".' % self.uuid)
+
+    def add_parent_collections_to_rest(self, rest_api):
+        """
+        Adds all parent collections and communities of the current item to the given DSpace repository.
+        :param rest_api: The rest API object to use.
+        """
+        for c in self.collections:
+            if c.uuid is None or c.uuid == '':
+                c.add_parent_communities_to_rest(rest_api)
+                c.to_rest(rest_api)
+
+    def add_bundles_to_rest(self, rest_api, include_bitstreams: bool = True):
+        """
+        Adds all bundles of the current item to the given RestAPI.
+        :param rest_api: The rest API object to use.
+        :param include_bitstreams: If True, add all bitstreams in the bundle toe rest api as well.
+        """
+        for b in self.bundles:
+            b.to_rest(rest_api, self.uuid, include_bitstreams)
+
+    def add_to_mapped_collections(self, rest_api):
+        """
+        Add the current item to its mapped collections in the given Rest API.
+        :param rest_api: The rest API object to use.
+        """
+        if len(self.collections) <= 1:
+            logging.warning('No mapped collections found. Do nothing.')
+            return
+        for c in self.collections[1:]:
+            if c.uuid is None or c.uuid == '':
+                raise ValueError(f'Mapped collection for item "{self.uuid}" has no uuid!')
+        api_endpoint = f'{rest_api.api_endpoint}/core/items/{self.uuid}/mappedCollections'
+        content_type = 'text/uri-list'
+        collection_uris = []
+        item_collections = [c.uuid for c in self.collections]
+        for c in self.collections:
+            if c.uuid in item_collections:
+                logging.warning('The collection with the uuid "%s" is already a mapped collection.' % c.uuid)
+            else:
+                collection_uris.append(f'{rest_api.api_endpoint}/core/collections/{c.uuid}')
+        if len(collection_uris) > 0:
+            rest_api.post_api(api_endpoint, '\n'.join(collection_uris), {}, content_type=content_type)
 
     def is_entity(self) -> bool:
         """

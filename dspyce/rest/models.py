@@ -324,6 +324,10 @@ class RestAPI:
                                                          f'\nWith params: {params}\nOn endpoint:\n\t{url}')
         raise exception
 
+    @deprecated(
+        'The method "add_object" is deprecated. Call the to_rest() method of the DSpaceObject class '
+        'instead.'
+    )
     def add_object(self, obj: DSpaceObject) -> DSpaceObject | Collection | Item | Community:
         """
         Creates a new object in the DSpace Instance.
@@ -331,33 +335,12 @@ class RestAPI:
         :param obj: The object to create.
         :return: The newly created object.
         """
-        if not self.authenticated:
-            logging.critical('Could not add object, authentication required!')
-            raise ConnectionRefusedError('Authentication needed.')
-        params = {}
-        match obj.get_dspace_object_type():
-            case 'Item':
-                add_url = f'{self.api_endpoint}/core/items'
-                params = {'owningCollection': obj.get_owning_collection().uuid}
-            case 'Community':
-                if obj.parent_community is None:
-                    add_url = f'{self.api_endpoint}/core/communities'
-                else:
-                    add_url = f'{self.api_endpoint}/core/communities'
-                    params = {'parent': obj.parent_community.uuid}
-            case 'Collection':
-                add_url = f'{self.api_endpoint}/core/collections'
-                params = {'parent': obj.community.uuid}
-            case 'Bundle':
-                add_url = f'{self.api_endpoint}/core/bundles'
-            case 'Bitstream':
-                add_url = f'{self.api_endpoint}/core/bitstreams'
-            case _:
-                raise ValueError(f'Object type {obj.get_dspace_object_type()} is not allowed as a parameter!')
-        obj_json = obj.to_dict()
+        obj.to_rest(self)
+        return obj
 
-        return self._json_to_object(self.post_api(add_url, data=obj_json, params=params))
-
+    @deprecated(
+        'The method "add_bundle" is deprecated. Call the to_rest() method of the Bundle class instead.'
+    )
     def add_bundle(self, bundle: Bundle, item_uuid: str, add_bitstreams: bool = True) -> Bundle | None:
         """
         Creates a new bundle based on a given bundle Object in DSpace and returns the created object.
@@ -366,21 +349,12 @@ class RestAPI:
         :param add_bitstreams: Whether all bitstreams appended to this bundle should be added.
         :return: The newly created object returned from DSpace.
         """
-        if not self.authenticated:
-            logging.critical('Could not add object, authentication required!')
-            raise ConnectionRefusedError('Authentication needed.')
-        params = {}
-        add_url = f'{self.api_endpoint}/core/items/{item_uuid}/bundles'
-        obj_json = bundle.to_dict()
-        rest_bundle = self._json_to_object(self.post_api(add_url, data=obj_json, params=params))
-        if not isinstance(rest_bundle, self.Bundle):
-            return None
-        rest_bundle.bitstreams = bundle.bitstreams
-        if add_bitstreams:
-            for b in rest_bundle.bitstreams:
-                self.add_bitstream(b, rest_bundle)
+        bundle.to_rest(self, item_uuid, add_bitstreams)
         return bundle
 
+    @deprecated(
+        'The method "add_bitstream" is deprecated. Call the to_rest() method of the Bitstream class instead.'
+    )
     def add_bitstream(self, bitstream: Bitstream, bundle: Bundle) -> str:
         """
         Creates a new bitstream in a given dspace bundle.
@@ -388,77 +362,26 @@ class RestAPI:
         :param bundle: The bundle to upload the item in.
         :return: The uuid of the newly created bitstream.
         """
-        if not self.authenticated:
-            logging.critical('Could not add object, authentication required!')
-            raise ConnectionRefusedError('Authentication needed.')
-        add_url = f'{self.api_endpoint}/core/bundles/{bundle.uuid}/bitstreams'
-        obj_json = bitstream.to_dict()
-        logging.debug(f'Adding bitstream: {obj_json}')
-        bitstream_file = bitstream.get_bitstream_file()
-        data_file = {'file': (bitstream.file_name, bitstream_file)} if bitstream_file is not None else None
-        req = self.session.post(add_url)
-        self.update_csrf_token(req)
-        headers = self.session.headers
-        headers.update({'Content-Encoding': 'gzip', 'User-Agent': self.req_headers['User-Agent']})
-        req = requests.Request('POST', add_url,
-                               data={'properties': json.dumps(obj_json) + ';type=application/json'}, headers=headers,
-                               files=data_file)
-        resp = self.session.send(self.session.prepare_request(req))
-        try:
-            uuid = resp.json()['uuid']
-            logging.info(f'Successfully added bitstream with uuid "{uuid}"')
-            return uuid
-        except KeyError as e:
-            logging.error(f'Problem with adding bitstream:\n{resp}\n\t{resp.headers}')
-            raise e
+        bitstream.bundle = bundle
+        bitstream.to_rest(self)
+        return bitstream.uuid
 
+    @deprecated(
+        'The method "add_relationship" is deprecated. Call the to_rest() method of the Relation class instead.'
+    )
     def add_relationship(self, relation: Relation) -> dict:
         """
         Creates a new relationship between to items based on the information in the Relation object.
 
         :param relation: The relation to create.
         """
-        if not self.authenticated:
-            logging.critical('Could not add object, authentication required!')
-            raise ConnectionRefusedError('Authentication needed.')
-        if relation.relation_type is None:
-            logging.info('No relation type specified, trying to find relation-type via the rest endpoint.')
-            left_item_type = relation.items[0].get_entity_type()
-            rels = self.get_relations_by_type(left_item_type)
-            rels = list(filter(lambda x: x.relation_key == relation.relation_key, rels))
-            if len(rels) != 1:
-                if len(rels) > 1:
-                    logging.critical('Something went wrong with on the rest-endpoint: found more than one relation with'
-                                     f' the name {relation.relation_key}')
-                else:
-                    logging.error(f'Didn\'t find relation with name {relation.relation_key}')
-            else:
-                relation.relation_type = rels[0].relation_type
-                logging.debug(f'Found relationtype "{relation.relation_type}" for the name "{relation.relation_key}"')
-        add_url = f'{self.api_endpoint}/core/relationships?relationshipType={relation.relation_type}'
-        if relation.items[0] is None or relation.items[1] is None:
-            logging.error(f'Could not create Relation because of missing item information in relation: {relation}')
-            raise ValueError(f'Could not create Relation because of missing item information in relation: {relation}')
-        uuid_1 = relation.items[0].uuid
-        uuid_2 = relation.items[1].uuid
-        if uuid_1 == '' or uuid_2 == '':
-            logging.error(f'Relation via RestAPI can only be created by using item-uuids, but found: {relation}')
-            raise ValueError(f'Relation via RestAPI can only be created by using item-uuids, but found: {relation}')
-        req = self.session.post(add_url)
-        self.update_csrf_token(req)
-        item_url = f'{self.api_endpoint}/core/items'
-        headers = self.session.headers
-        headers.update({'Content-Type': 'text/uri-list', 'User-Agent': self.req_headers['User-Agent']})
-        resp = self.session.post(add_url, f'{item_url}/{uuid_1} \n {item_url}/{uuid_2}', headers=headers)
+        relation.to_rest(self)
+        return {}
 
-        if resp.status_code in (201, 200):
-            # Success post request
-            logging.info(f'Created relationship: {relation}')
-            return resp.json()
-
-        raise requests.exceptions.RequestException(f'{resp.status_code}: Could not post relation: \n{relation}\n'
-                                                   f'Got headers: {resp.headers}')
-
+    @deprecated(
+        'The method "add_community" is deprecated. Call the to_rest() method of the Community class instead. If you '
+        'want to create all parent objects as well, run add_parent_communities_to_rest first.'
+    )
     def add_community(self, community: Community | DSpaceObject, create_tree: bool = False) -> Community:
         """
         Creates a new community in the DSpace instance and its owning community if create_tree is True.
@@ -467,12 +390,15 @@ class RestAPI:
         :param create_tree: If the owning communities shall be created as well.
         :return: Returns the newly created Community.
         """
-        parent_community = community.parent_community
-        if parent_community is not None and parent_community.uuid == '' and create_tree:
-            community.parent_community = self.add_community(parent_community, create_tree)
-        logging.debug(f'Adding community: {community}')
-        return self.add_object(community)
+        if create_tree:
+            community.add_parent_communities_to_rest(self)
+        community.to_rest(self)
+        return community
 
+    @deprecated(
+        'The method "add_collection" is deprecated. Call the to_rest() method of the Collection class instead. If you '
+        'want to create all parent objects as well, run add_parent_communities_to_rest first.'
+    )
     def add_collection(self, collection: Collection, create_tree: bool = False) -> Collection:
         """
         Creates a new collection in the DSpace instance and its owning communities if create_tree is True.
@@ -481,12 +407,15 @@ class RestAPI:
         :param create_tree: If the owning communities shall be created as well.
         :return: Returns the newly created Collection.
         """
-        community = collection.community
-        if community.uuid == '' and create_tree:
-            collection.community = self.add_community(community, create_tree)
-        logging.debug(f'Adding collection: {collection}')
-        return self.add_object(collection)
+        if create_tree:
+            collection.add_parent_communities_to_rest(self)
+        collection.to_rest(self)
+        return collection
 
+    @deprecated(
+        'The method "add_item" is deprecated. Call the to_rest() method of the Item class instead. If you '
+        'want to create all parent objects as well, run add_parent_collections_to_rest first.'
+    )
     def add_item(self, item: Item, create_tree: bool = False) -> Item:
         """
         Adds an item object to DSpace including files and relations. Based on the add_object method.
@@ -495,61 +424,23 @@ class RestAPI:
         :param create_tree: Creates the owning collections and communities above this item if not yet existing.
         :return: An item object including the new uuid.
         """
-        collection_list = item.collections
         if create_tree:
-            if len(collection_list) > 0 and collection_list[0].uuid == '':
-                col = self.add_collection(collection_list[0], create_tree)
-                collection_list[0] = col
-        elif len(collection_list) == 0:
-            raise ValueError('Can not push an Item into the restAPI without information about the owning collections.')
-        elif len(collection_list) > 0 and collection_list[0].get_identifier() is None:
-            raise ValueError('Can not push an Item into the restAPI without a owning collections. Set create_tree to'
-                             'True or provide an identifier of the owning collection.')
-        else:
-            for c in collection_list:
-                if c.uuid == '' and c.handle != '':
-                    logging.debug(f'Could not find uuid for collection with handle "{c.handle}".'
-                                  'Retrieving uuid from api.')
-                    c.uuid = self.get_dso(identifier=c.handle).uuid
-        dso = self.add_object(item)
-        if len(collection_list) > 1:
-            self.add_mapped_collections(dso, collection_list[1:])
-        item.bundles = [self.add_bundle(b, dso.uuid) for b in item.get_bundles()]
-        item.uuid = dso.uuid
-        item.handle = dso.handle
-        relations = item.relations if item.is_entity() else []
-        if len(relations) > 0:
-            relation_types = {r.relation_key: r.relation_type for r in self.get_relations_by_type(
-                item.get_entity_type())}
-            try:
-                relations = list(map(lambda x: self.Relation(x.relation_key, x.items, relation_types[x.relation_key]),
-                                     relations))
-            except KeyError as e:
-                logging.error(f'Could not find relation in the list: {relation_types}')
-                raise e
-        for r in relations:
-            self.add_relationship(r)
-        logging.debug(f'Created item {item}')
+            item.add_parent_collections_to_rest(self)
+        item.to_rest(self)
         return item
 
+    @deprecated(
+        'The method "add_mapped_collections" is deprecated. Call the add_to_mapped_collections() method of the Item '
+        'Object instead.'
+    )
     def add_mapped_collections(self, item: Item, collections: list[Collection]):
         """
         Add new mapped collections between item and collections. Changes the collection list of the given item in-place.
         :param item: The item to add mapped collection to.
         :param collections: The collections to map the item to.
         """
-
-        api_endpoint = f'{self.api_endpoint}/core/items/{item.uuid}/mappedCollections'
-        content_type = 'text/uri-list'
-        collection_uris = []
-        item_collections = [c.uuid for c in item.collections]
-        for c in collections:
-            if c.uuid in item_collections:
-                logging.warning('The collection with the uuid "%s" is already a mapped collection.' % c.uuid)
-            else:
-                collection_uris.append(f'{self.api_endpoint}/core/collections/{c.uuid}')
-        if len(collection_uris) > 0:
-            self.post_api(api_endpoint, '\n'.join(collection_uris), {}, content_type=content_type)
+        item.collections = [item.collections[0]] + collections
+        item.add_to_mapped_collections(self)
 
     def move_item(self, item: Item, new_collection: Collection | str):
         """
