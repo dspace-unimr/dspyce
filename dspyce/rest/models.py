@@ -622,6 +622,10 @@ class RestAPI:
                     object_list += p.result()
         return object_list
 
+    @deprecated(
+        'The method "get_item_bitstreams" is deprecated. Call the get_bundles_from_rest() method of the Item class '
+        'instead and set include_bitstreams to True, then use the get_bitsreams() method of the item.'
+    )
     def get_item_bitstreams(self, item_uuid: str) -> list[Bitstream]:
         """
         Retrieves the bitstreams connected to a DSpace Object. And returns them as a list.
@@ -629,12 +633,9 @@ class RestAPI:
         :param item_uuid: The uuid of the item to retrieve the bitstreams from.
         :return: A list of Bitstream objects.
         """
-        bitstreams = []
-        bundles = self.get_item_bundles(item_uuid, True)
-
-        for b in bundles:
-            bitstreams += b.bitstreams
-        return bitstreams
+        item = self.Item(item_uuid)
+        item.get_bundles_from_rest(self)
+        return item.get_bitstreams()
 
     @deprecated(
         'The method "get_bitstreams_in_bundle" is deprecated. Call the get_bitstreams_from_rest() method of the'
@@ -873,28 +874,29 @@ class RestAPI:
         """
         return self.search_items(None, page_size, full_item, get_bitstreams)
 
+    @deprecated(
+        'The method "get_subcommunities" is deprecated. Call the get_subcommunities_from_rest() method of the Community '
+        'Object instead.'
+    )
     def get_subcommunities(self, community: Community) -> list[Community]:
         """
         Returns all sub communities from a given community.
         :param community: The community to retrieve sub communities from.
         :return: A list of sub communities
         """
-        url = f'/core/communities/{community.uuid}/subcommunities'
-        objs = self.get_paginated_objects(url, 'subcommunities')
-        logging.debug('Retrieved %i subcommunities for community %s.', len(objs), community.uuid)
-        return [self._json_to_object(o) for o in objs]
+        return community.get_subcommunities_from_rest(self, False)
 
+    @deprecated(
+        'The method "get_subcollections" is deprecated. Call the get_subcollections_from_rest() method of the Community '
+        'Object instead.'
+    )
     def get_subcollections(self, community: Community) -> list[Collection]:
         """
         Returns all sub collections from a given community.
         :param community: The community to retrieve sub collections from.
         :return: A list of sub collections
         """
-        url = f'/core/communities/{community.uuid}/collections'
-        objs = self.get_paginated_objects(url, 'collections')
-        logging.debug('Retrieved %i collections for community %s.', len(objs), community.uuid)
-        return [self._json_to_object(o) for o in objs]
-
+        return community.get_subcollections_from_rest(self, False)
 
     def get_metadata_field(self, schema: str = '', element: str = '', qualifier: str = '',
                            field_id: int = -1) -> list[dict]:

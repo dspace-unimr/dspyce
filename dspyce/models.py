@@ -68,9 +68,9 @@ class DSpaceObject:
             logging.debug(f'Retrieved DSpaceObject: {obj}')
         except RestObjectNotFoundError as e:
             if identifier is not None:
-                e.add_note('Using identifier "%s".' % identifier)
+                e.add_note('Could get DSpaceObject by using identifier "%s".' % identifier)
             else:
-                e.add_note('Using uuid "%s".' % uuid)
+                e.add_note('Could get DSpaceObject by using uuid "%s".' % uuid)
             raise e
         return obj
 
@@ -249,6 +249,7 @@ class Community(DSpaceObject):
     """
     parent_community: DSpaceObject | None
     sub_communities: list[DSpaceObject]
+    sub_collections: list[DSpaceObject]
 
     def __init__(self, uuid: str = '', handle: str = '', name: str = '', parent_community: DSpaceObject = None,
                  sub_communities: list[DSpaceObject] = None):
@@ -292,6 +293,38 @@ class Community(DSpaceObject):
             logging.warning(f'Did not found a parent community for community {self}.')
             return None
         self.parent_community = json_to_object(get_result)
+
+    def get_subcommunities_from_rest(self, rest_api, in_place: bool = True):
+        """
+        Retrieves all sub communities from the current community.
+        :param rest_api: The rest API object to use.
+        :param in_place: If True, the returned object will be placed into the current community.
+        :return: A list of sub communities if in_place i False, None otherwise.
+        """
+        from dspyce.rest.functions import json_to_object
+        url = f'/core/communities/{self.uuid}/subcommunities'
+        objs = rest_api.get_paginated_objects(url, 'subcommunities')
+        logging.debug('Retrieved %i subcommunities for community %s.', len(objs), self.uuid)
+        objs = [json_to_object(o) for o in objs]
+        if not in_place:
+            return objs
+        self.sub_communities = objs
+
+    def get_subcollections_from_rest(self, rest_api, in_place: bool = True):
+        """
+        Retrieves all sub collections from the current community.
+        :param rest_api: The rest API object to use.
+        :param in_place: If True, the returned object will be placed into the current community.
+        :return: A list of sub collection if in_place i False, None otherwise.
+        """
+        from dspyce.rest.functions import json_to_object
+        url = f'/core/communities/{self.uuid}/collections'
+        objs = rest_api.get_paginated_objects(url, 'collections')
+        logging.debug('Retrieved %i collections for community %s.', len(objs), self.uuid)
+        objs = [json_to_object(o) for o in objs]
+        if not in_place:
+            return objs
+        self.sub_collections = objs
 
     def is_subcommunity_of(self, other) -> bool:
         """
@@ -621,6 +654,15 @@ class Item(DSpaceObject):
             if b.name == bundle_name:
                 return b
         return None
+
+    def get_bitstreams(self) -> list[Bitstream]:
+        """
+        Returns all bitstreams associated with the item.
+        """
+        bitstreams = []
+        for b in self.get_bundles():
+            bitstreams += b.get_bitstreams()
+        return bitstreams
 
     def get_dspace_object_type(self) -> str:
         return 'Item'
