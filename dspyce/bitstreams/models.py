@@ -70,6 +70,18 @@ class Bitstream(DSpaceObject):
             export_name += '\tprimary:true'
         return export_name
 
+    def add_metadata(self, tag: str, value: str, language: str = None):
+        """
+        Adds a new metadata value to the bitstream. If the tag is 'dc.title', the value will also overwrite the existing
+        name attribute.
+        :param tag: The tag of the metadata value.
+        :param value: The new metadata value.
+        :param language: The language of the metadata value.
+        """
+        if tag == 'dc.title':
+            self.file_name = value
+        super().add_metadata(tag, value, language)
+
     def get_description(self):
         """
         Returns the current description of the current bitstream.
