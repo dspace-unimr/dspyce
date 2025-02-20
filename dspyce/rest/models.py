@@ -38,7 +38,6 @@ class RestAPI:
     from dspyce.entities.models import Relation
     from dspyce.bitstreams.models import Bundle, Bitstream
     from dspyce.metadata import MetaData
-    from dspyce.rest.functions import json_to_object as _json_to_object
     api_endpoint: str
     """The address of the api_endpoint."""
     username: str
@@ -730,9 +729,10 @@ class RestAPI:
             True. Default: False.
         :return: The list of found DSpace objects.
         """
+        from dspyce.rest.functions import json_to_object
         object_list = self.get_paginated_objects('/discover/search/objects', 'objects', query_params,
                                                  size=size)
-        dspace_objects = [self._json_to_object(obj['_embedded']['indexableObject']) for obj in object_list]
+        dspace_objects = [json_to_object(obj['_embedded']['indexableObject']) for obj in object_list]
         if not full_item and not get_bitstreams:
             logging.info(f'Found {len(dspace_objects)} DSpace Objects.')
             return dspace_objects
@@ -862,6 +862,7 @@ class RestAPI:
         :return: The updated DSpace object.
         :raises ValueError: If a not existing objectType is used or wrong operation type.
         """
+        from dspyce.rest.functions import json_to_object
         if obj_type not in ('item', 'collection', 'community'):
             logging.error(f'Wrong object type information "{obj_type}" must be one of item, collection or community')
             raise ValueError(f'Wrong object type information "{obj_type}" must be one of item, collection or community')
@@ -897,7 +898,7 @@ class RestAPI:
 
         url = 'core/' + (f'{obj_type}s' if obj_type in ('item', 'collection') else 'communities')
         json_resp = self.patch_api(f'{url}/{object_uuid}', patch_json)
-        return self._json_to_object(json_resp)
+        return json_to_object(json_resp)
 
     def add_metadata(self, metadata: MetaData | dict[str, list[dict]], object_uuid: str,
                      obj_type: str, position_end: bool = False) -> DSpaceObject:
@@ -954,7 +955,6 @@ class RestAPI:
         return self.update_metadata(patch_data, object_uuid, obj_type, 'replace', position=position)
 
     # Delete section. Be carefully, when using it!
-
     def delete_metadata(self, tag: str | list[str], object_uuid: str,
                         obj_type: str, position: int | str = -1) -> DSpaceObject:
         """
@@ -972,6 +972,9 @@ class RestAPI:
         tag = [tag] if not isinstance(tag, list) else tag
         return self.update_metadata({t: [] for t in tag}, object_uuid, obj_type, operation='remove', position=position)
 
+    @deprecated(
+        'The method "delete_bitstream" is deprecated. Call the delete() method of the Bitstream Object instead.'
+    )
     def delete_bitstream(self, bitstream_uuid: str | list[str]):
         """
         Permanently removes a bitstream of a list of bitstreams from the repository. Handle be carefully when using the
@@ -980,10 +983,12 @@ class RestAPI:
         :param bitstream_uuid: The uuid of the bitstream to delete
         """
         bitstream_uuid = [bitstream_uuid] if isinstance(bitstream_uuid, str) else bitstream_uuid
-        patch_call = [{'op': 'remove', 'path': f'/bitstreams/{uuid}'} for uuid in bitstream_uuid]
-        self.patch_api('core/bitstreams', patch_call)
-        logging.info(f'Successfully deleted bitstream with uuid "{bitstream_uuid}".')
+        for b in bitstream_uuid:
+            self.Bitstream.get_from_rest(self, b).delete(self)
 
+    @deprecated(
+        'The method "delete_bundles" is deprecated. Call the delete() method of the Bundle Object instead.'
+    )
     def delete_bundles(self, bundle_uuid: str | list[str], include_bitstreams: bool = False):
         """
         Permanently removes a bundle or a list of bundles from the repository. Handle carefully when using the method,
@@ -994,16 +999,9 @@ class RestAPI:
         :param include_bitstreams: Default: False. WARNING! If this is set to true all bitsreams in the bundle will be
             deleted as well.
         """
-        bundles = bundle_uuid if isinstance(bundle_uuid, list) else [bundle_uuid]
-        for b in bundles:
-            if not include_bitstreams:
-                bundle = self.get_bitstreams_in_bundle(self.Bundle(uuid=b))
-                if len(bundle.bitstreams) > 0:
-                    logging.error(f'Could not delete bundle with uuid "{b}" because there are still '
-                                  f'{len(bundle.bitstreams)} bitstreams.')
-                    continue
-            self.delete_api(f'core/bundles/{b}')
-            logging.info(f'Successfully deleted bundle with uuid "{b}"')
+        bundle_uuid = [bundle_uuid] if isinstance(bundle_uuid, str) else bundle_uuid
+        for b in bundle_uuid:
+            self.Bundle.get_from_rest(self, b).delete(self)
 
     def remove_mapped_collection(self, item: Item, collection: Collection | str):
         """
@@ -1015,6 +1013,9 @@ class RestAPI:
         collection_uuid = collection.uuid if isinstance(collection, self.Collection) else collection
         self.delete_api(f'core/items/{item.uuid}/mappedCollections/{collection_uuid}')
 
+    @deprecated(
+        'The method "delete_item" is deprecated. Call the delete() method of the Item Object instead.'
+    )
     def delete_item(self, item: Item, copy_virtual_metadata: bool = False,
                     by_relationships: Relation | list[Relation] = None):
         """
@@ -1026,14 +1027,7 @@ class RestAPI:
         :param by_relationships: Relationships to copy the metadata for. If none provided and `copy_virtual_metadata` is
             True, all metadata will be copied.
         """
-        params = {}
-        if copy_virtual_metadata:
-            if by_relationships is None:
-                params['copyVirtualMetadata'] = 'all'
-            else:
-                params = '&'.join([f'copyVirtualMetadata={r.relation_type}' for r in by_relationships])
-        self.delete_api(f'core/items/{item.uuid}',  params)
-        logging.info('Successfully deleted item with uuid "%s".' % item.uuid)
+        item.delete(self, copy_virtual_metadata, by_relationships)
 
     def delete_collection(self, collection: Collection, all_items: bool = False):
         """

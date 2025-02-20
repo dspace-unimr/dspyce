@@ -45,7 +45,8 @@ class Bitstream(DSpaceObject):
         """
         self.file_name = name
         self.path = path
-        self.path += '/' if len(self.path) > 0 and self.path[-1] != '/' else ''
+        if not self.is_remote_resource():
+            self.path += '/' if len(self.path) > 0 and self.path[-1] != '/' else ''
         self.permissions = []
         self.bundle = bundle
         self.primary = primary
@@ -256,6 +257,16 @@ class Bitstream(DSpaceObject):
         :return: True if the path starts with http(s)?://
         """
         return re.search(r'^http(s)?://', self.path) is not None
+
+    def delete(self, rest_api):
+        """
+        Permanently removes a bitstream from the repository. Handle be carefully when using the method, there won't be a
+        confirmation step.
+        :param rest_api: The REST API to use.
+        """
+        patch_call = [{'op': 'remove', 'path': f'/bitstreams/{self.uuid}'}]
+        rest_api.patch_api('core/bitstreams', patch_call)
+        logging.info(f'Successfully deleted bitstream with uuid "{self.uuid}".')
 
 
 class IIIFBitstream(Bitstream):
@@ -499,3 +510,24 @@ class Bundle(DSpaceObject):
         Returns the DSpaceObject type, aka. "Bundle".
         """
         return 'Bundle'
+
+    def delete(self, rest_api, include_bitstreams: bool = False):
+        """
+        Permanently removes a bundle from the given repository. Handle carefully when using the method,
+        there won't be a confirmation step. Can not delete a bundle with bitstreams still included, unless
+        include_bitstreams is set to true.
+
+        :param rest_api: The rest API to use.
+        :param include_bitstreams: Default: False. WARNING! If this is set to true all bitstreams in the bundle will be
+            deleted as well.
+        :raises AttributeError: If the bundle has Bitstreams and include_bitstreams is False.
+        """
+        if not include_bitstreams:
+            self.get_bitstreams_from_rest(rest_api)
+            if len(self.bitstreams) > 0:
+                logging.error(f'Could not delete bundle with uuid "{self.uuid}" because there are still '
+                              f'{len(self.bitstreams)} bitstreams.')
+                raise AttributeError(f'Could not delete bundle with uuid "{self.uuid}" because there are still '
+                              f'{len(self.bitstreams)} bitstreams.')
+        rest_api.delete_api(f'core/bundles/{self.uuid}')
+        logging.info(f'Successfully deleted bundle with uuid "{self.uuid}"')

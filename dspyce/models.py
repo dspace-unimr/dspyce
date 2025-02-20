@@ -1,4 +1,6 @@
 import logging
+from json import JSONDecodeError
+
 import requests
 
 
@@ -55,6 +57,8 @@ class DSpaceObject:
 
         if obj_type not in DSpaceObject.TYPES:
             raise ValueError(f'DSpaceObject type {obj_type} not supported.')
+        if obj_type[-1] == 'y':
+            obj_type = obj_type[:-1] + 'ie'
         if identifier is None:
             if uuid == '' or not isinstance(uuid, str):
                 raise ValueError(f'If no other identifier is used, the uuid must be provided. "{uuid}" is not correct.')
@@ -329,7 +333,9 @@ class Community(DSpaceObject):
         try:
             get_result = rest_api.get_api(url)
         except RestObjectNotFoundError:
-            return None
+            return
+        except JSONDecodeError:
+            return
         if get_result is None:
             logging.warning(f'Did not found a parent community for community {self}.')
             return None
@@ -399,6 +405,16 @@ class Community(DSpaceObject):
 
     def get_dspace_object_type(self) -> str:
         return 'Community'
+
+    def delete(self, rest_api, all_objects: bool = False):
+        """
+        Deletes the current community from the given rest_api. Raises an error, if the community still includes items or
+        collections and all_objects is set to false.
+        :param rest_api: The rest api object to use.
+        :param all_objects: Whether to delete all items and collections in the community as well.
+        :raises AttributeError: If community still includes items or collections and all_objects is set to false.
+        """
+        rest_api.delete_community(self, all_objects)
 
 
 class Collection(DSpaceObject):
@@ -472,6 +488,17 @@ class Collection(DSpaceObject):
 
     def get_dspace_object_type(self) -> str:
         return 'Collection'
+
+    def delete(self, rest_api, all_items: bool = False):
+        """
+        Deletes the current collection from the given rest_api. Raises an error, if the collection still includes items
+        and all_items is set to false.
+        :param rest_api: The rest api object to use.
+        :param all_items: Whether to delete all items in the collection as well.
+        :raises AttributeError: If collection still includes items and all_items is set to false.
+        """
+        rest_api.delete_collection(self, all_items)
+        del self
 
 
 class Item(DSpaceObject):
@@ -861,3 +888,23 @@ class Item(DSpaceObject):
         if self.is_entity():
             obj_dict['entityType'] = self.get_entity_type()
         return obj_dict
+
+    def delete(self, rest_api, copy_virtual_metadata: bool = False, by_relationships: Relation | list[Relation] = None):
+        """
+        Deletes an item from the rest API by using its uuid. If you delete an item, you can request to transform
+        possible virtual metadata fields for related items to real metadata fields. If you want to only transform
+        virtual metadata fields of specific relations, you can add those relations.
+        :param rest_api: The rest_api object to use.
+        :param copy_virtual_metadata: Whether to copy virtual metadata of related items. Default: False.
+        :param by_relationships: Relationships to copy the metadata for. If none provided and `copy_virtual_metadata` is
+            True, all metadata will be copied.
+        """
+        params = {}
+        if copy_virtual_metadata:
+            if by_relationships is None:
+                params['copyVirtualMetadata'] = 'all'
+            else:
+                params = '&'.join([f'copyVirtualMetadata={r.relation_type}' for r in by_relationships])
+        rest_api.delete_api(f'core/items/{self.uuid}',  params)
+        logging.info('Successfully deleted item with uuid "%s".' % self.uuid)
+
