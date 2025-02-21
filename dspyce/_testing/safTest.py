@@ -4,7 +4,7 @@ import unittest
 
 from dspyce import saf
 from dspyce.models import Item, Collection
-from dspyce.metadata import MetaDataValue
+from dspyce.metadata.models import MetaDataValue
 
 
 class SAFTest(unittest.TestCase):
