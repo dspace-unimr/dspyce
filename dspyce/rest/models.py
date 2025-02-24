@@ -611,11 +611,11 @@ class RestAPI:
 
         return self.update_metadata(patch_data, object_uuid, obj_type, 'replace', position=position)
 
-    def move_metadata(self, metadata_tag: str, current_position: int, target_position: int, object_uuid: str,
+    def move_metadata(self, tag: str, current_position: int, target_position: int, object_uuid: str,
                        obj_type: str):
         """
         Reorders metadata fields of the given metadata tag.
-        :param metadata_tag: The tag of the field, which should be reordered.
+        :param tag: The tag of the field, which should be reordered.
         :param current_position: The current position of the metadata field.
         :param target_position: The target position of the metadata field.
         :param object_uuid: The uuid of the DSpace Object to work with.
@@ -623,7 +623,7 @@ class RestAPI:
         :return: The updated DSpace object.
         :raises ValueError: If a not existing objectType is used.
         """
-        update_dict = { metadata_tag: {
+        update_dict = { tag: {
             'from': current_position,
             'path': target_position,
         }}

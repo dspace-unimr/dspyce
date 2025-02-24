@@ -23,6 +23,10 @@ class DSpaceObject:
     """A dictionary of statistic report objects."""
     TYPES: tuple[str] = ('item', 'community', 'collection', 'bundle', 'bitstream')
     """A constant given information of all existing DSpaceObject types."""
+    _metadata_updates: list[dict] = []
+    """A private variable storing metadata update operations"""
+    _track_updates: bool = False
+    """A boolean value giving information about whether to track updates, to the current DSpace Object."""
 
     def __init__(self, uuid: str = '', handle: str = '', name: str = ''):
         """
@@ -37,6 +41,31 @@ class DSpaceObject:
         self.name = name
         self.metadata = MetaData({})
         self.statistic_reports = {}
+
+    def _store_metadata_update(self, operation: str, data: any, position = None):
+        """
+        Stores a metadata update operation into the _metadata_updates variable.
+        :param operation: The update operation performed (add, remove, replace, move)
+        """
+        obj_type = self.get_dspace_object_type()
+        self._metadata_updates.append({
+            'operation': operation,
+            'object_uuid': self.uuid,
+            'obj_type': obj_type.lower() if isinstance(obj_type, str) else obj_type
+        })
+        if operation in ('delete', 'move'):
+            self._metadata_updates[-1]['tag'] = data
+        else:
+            self._metadata_updates[-1]['metadata'] = data
+        if position:
+            if operation == 'add':
+                self._metadata_updates[-1]['position_end'] = position
+            elif operation == 'move':
+                self._metadata_updates[-1]['current_position'] = position[0]
+                self._metadata_updates[-1]['target_position'] = position[1]
+            else:
+                self._metadata_updates[-1]['position'] = position
+        return
 
     @staticmethod
     def get_from_rest(rest_api, uuid: str, obj_type: str, identifier: str = None):
@@ -118,6 +147,7 @@ class DSpaceObject:
         self.handle = obj.handle
         self.metadata = obj.metadata
         self.name = obj.name
+        self.reset_metadata_update()
 
     def add_metadata(self, tag: str, value: str | MetaDataValue, language: str = None, authority: str = None,
                      confidence: int = -1):
@@ -131,10 +161,10 @@ class DSpaceObject:
         :param confidence: The confidence of the metadata field.
         :raises KeyError: If the metadata tag doesn't use the format '<schema>.<element>.<qualifier>.'
         """
-        self.metadata[tag] = value if isinstance(value, MetaDataValue) else MetaDataValue(value,
-                                                                                          language,
-                                                                                          authority,
-                                                                                          confidence)
+        value = value if isinstance(value, MetaDataValue) else MetaDataValue(value, language, authority, confidence)
+        self.metadata[tag] = value
+        if self._track_updates:
+            self._store_metadata_update('add', {tag: [dict(value)]}, True)
 
     def remove_metadata(self, tag: str, value: str = None):
         """
@@ -147,8 +177,22 @@ class DSpaceObject:
         """
         if value is None:
             self.metadata.pop(tag)
+            if self._track_updates:
+                self._store_metadata_update('delete', tag, -1)
         else:
-            self.metadata[tag] = list(filter(lambda x: x.value != value, self.metadata[tag]))
+            values = self.metadata[tag]
+            try:
+                position = [i.value for i in values].index(value)
+            except ValueError:
+                return
+            while position is not None:
+                self.metadata[tag].pop(position)
+                if self._track_updates:
+                    self._store_metadata_update('delete', tag, position)
+                try:
+                    position = [i.value for i in values].index(value)
+                except ValueError:
+                    return
 
     def replace_metadata(self, tag: str, value: str, language: str = None):
         """
@@ -180,6 +224,49 @@ class DSpaceObject:
         value = md.pop(from_position)
         md = md[:to_position] + [value] + md[to_position:]
         self.metadata[tag] = md
+        if self._track_updates:
+            self._store_metadata_update('move', tag, (from_position, to_position))
+
+    def track_updates(self):
+        """
+        Start tracking all metadata updates in order to reproduce them at a later call of the update_metadata_rest()
+        method.
+        :raises AttributeError: If uuid is not set.
+        """
+        if self.uuid is None or self.uuid == '':
+            raise AttributeError('The UUID must be set for tracking updates.')
+        self._track_updates = True
+        self.reset_metadata_update()
+
+    def stop_tracking_updates(self):
+        """
+        Stop tracking metadata updates.
+        """
+        self._track_updates = False
+        self.reset_metadata_update()
+
+    def reset_metadata_update(self):
+        """
+        Resets the current metadata update tracker and removes all values from _metadata_udpates.
+        """
+        self._metadata_updates = []
+
+    def update_metadata_rest(self, rest):
+        """
+        Updates the metadata fields of the current object in the given restAPI based on the actions traced in the
+        _metadata_updates list.
+        :param rest: The rest api to use.
+        :raises AttributeError: If an unknown operation is called.
+        """
+        for i in self._metadata_updates:
+            operation = i.get('operation')
+            i.pop('operation')
+            match operation:
+                case 'add': rest.add_metadata(**i)
+                case 'delete': rest.delete_metadata(**i)
+                case 'move': rest.move_metadata(**i)
+                case _: raise AttributeError('Could not perform operation "%s", unknown.' % operation)
+        self.reset_metadata_update()
 
     def get_dspace_object_type(self) -> str:
         """
