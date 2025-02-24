@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dspyce"
-version = "dspyce-v0.1-apha-1"
+version = "0.1rc1"
 authors = [
     {name="Löhden, Eike Martin"}
 ]
