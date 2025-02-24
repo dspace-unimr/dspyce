@@ -132,17 +132,20 @@ class Bitstream(DSpaceObject):
             logging.error(f'Problem with adding bitstream:\n{resp}\n\t{resp.headers}')
             raise e
 
-    def add_metadata(self, tag: str, value: str, language: str = None):
+    def add_metadata(self, tag: str, value: str, language: str = None, authority: str = None, confidence: int = -1):
         """
         Adds a new metadata value to the bitstream. If the tag is 'dc.title', the value will also overwrite the existing
         name attribute.
         :param tag: The tag of the metadata value.
         :param value: The new metadata value.
         :param language: The language of the metadata value.
+        :param authority: The authority of the metadata field.
+        :param confidence: The confidence of the metadata field.
+        :raises KeyError: If the metadata tag doesn't use the format '<schema>.<element>.<qualifier>.'
         """
         if tag == 'dc.title':
             self.file_name = value
-        super().add_metadata(tag, value, language)
+        super().add_metadata(tag, value, language, authority, confidence)
 
     def get_description(self):
         """

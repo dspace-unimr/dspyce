@@ -119,17 +119,22 @@ class DSpaceObject:
         self.metadata = obj.metadata
         self.name = obj.name
 
-    def add_metadata(self, tag: str, value: str, language: str = None):
+    def add_metadata(self, tag: str, value: str | MetaDataValue, language: str = None, authority: str = None,
+                     confidence: int = -1):
         """
         Creates a new metadata field with the given value.
 
         :param tag: The correct metadata tag. The string must use the format <schema>.<element>.<qualifier>.
-        :param value: The value of the metadata-field.
+        :param value: The value of the metadata-field. Can be either a string or a MetaDataValue object.
         :param language: The language of the metadata field.
-
-        :raises KeyError: If the metadata tag doesn't use the format <schema>.<element>.<qualifier>.'
+        :param authority: The authority of the metadata field.
+        :param confidence: The confidence of the metadata field.
+        :raises KeyError: If the metadata tag doesn't use the format '<schema>.<element>.<qualifier>.'
         """
-        self.metadata[tag] = MetaDataValue(value, language)
+        self.metadata[tag] = value if isinstance(value, MetaDataValue) else MetaDataValue(value,
+                                                                                          language,
+                                                                                          authority,
+                                                                                          confidence)
 
     def remove_metadata(self, tag: str, value: str = None):
         """

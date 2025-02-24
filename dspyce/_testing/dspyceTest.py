@@ -1,5 +1,6 @@
 import unittest
 import dspyce as ds
+from dspyce.metadata import MetaDataValue
 from dspyce.models import DSpaceObject, Community, Collection, Item
 from dspyce.metadata.models import MetaData
 
@@ -40,6 +41,13 @@ class DSpaceObjectTest(unittest.TestCase):
                          'kidll88-uuid999-duwkke1222')
         self.assertEqual(self.obj.get_first_metadata_value('dc.title'), 'hello')
         self.assertIsNone(self.obj.get_first_metadata('dc.title.alternative'))
+        self.obj.add_metadata('dc.creator', MetaDataValue('Smith, Adam', 'en',
+                                                          'orcid:123456', 2))
+        self.assertEqual(self.obj.get_first_metadata_value('dc.creator'), 'Smith, Adam')
+        self.assertDictEqual(
+            {'value': 'Smith, Adam', 'language': 'en', 'authority': 'orcid:123456', 'confidence': 2},
+            dict(self.obj.get_first_metadata('dc.creator'))
+        )
         self.obj.metadata = MetaData({})
 
     def test_remove_metadata(self):

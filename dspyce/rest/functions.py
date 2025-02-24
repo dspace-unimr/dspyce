@@ -77,7 +77,8 @@ def json_to_object(json_content: dict):
             obj = DSpaceObject(uuid, handle, name)
     for m in metadata.keys():
         for v in metadata[m]:
-            value = v['value']
-            lang = v['language'] if 'language' in v.keys() else None
-            obj.add_metadata(tag=m, value=value, language=lang)
+            obj.add_metadata(
+                tag=m, value=v['value'], language=v.get('language'), authority=v.get('authority'),
+                confidence=v.get('confidence')
+            )
     return obj
