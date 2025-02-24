@@ -95,6 +95,51 @@ class RestTest(unittest.TestCase):
         self.assertEqual(item, mapped_collection.get_items(rest)[0])
         community.delete(rest, True)
 
+    def test_metadata(self):
+        """
+        Test metadata operations with the restAPI.
+        """
+        rest = self.get_rest()
+        community = Community()
+        community.add_metadata('dc.title', 'Test-Community', 'en')
+        community.add_metadata('dc.description', 'Test description for this community', 'en')
+        community.add_metadata('dc.description', 'Test description pour ce section.', 'fr')
+        community.to_rest(rest)
+        self.assertListEqual(
+            ['Test description for this community', 'Test description pour ce section.'],
+            community.get_metadata_values('dc.description')
+        )
+        metadata = {'dc.description': [{'value': 'Testbeschreibung fuer diesen Bereich', 'language': 'de'}]}
+        rest.add_metadata(metadata, community.uuid, 'community', True)
+        community = Community.get_from_rest(rest, community.uuid)
+        self.assertListEqual(
+            ['Test description for this community', 'Test description pour ce section.',
+             'Testbeschreibung fuer diesen Bereich'],
+            community.get_metadata_values('dc.description')
+        )
+        rest.move_metadata('dc.description', 2, 1, community.uuid,
+                           'community')
+        community = Community.get_from_rest(rest, community.uuid)
+        self.assertListEqual(
+            ['Test description for this community', 'Testbeschreibung fuer diesen Bereich',
+             'Test description pour ce section.'],
+            community.get_metadata_values('dc.description')
+        )
+        rest.delete_metadata('dc.description', community.uuid, 'community', 1)
+        community = Community.get_from_rest(rest, community.uuid)
+        self.assertListEqual(
+            ['Test description for this community', 'Test description pour ce section.'],
+            community.get_metadata_values('dc.description')
+        )
+        rest.replace_metadata({'dc.description': {'value': 'Aucune description!', 'language': 'fr'}},
+                              community.uuid, 'community', 1)
+        community = Community.get_from_rest(rest, community.uuid)
+        self.assertListEqual(
+            ['Test description for this community', 'Aucune description!'],
+            community.get_metadata_values('dc.description')
+        )
+        community.delete(rest, True)
+
 
 if __name__ == '__main__':
     unittest.main()

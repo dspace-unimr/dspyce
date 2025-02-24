@@ -491,17 +491,18 @@ class RestAPI:
         logging.info(f'Found {len(field_objects)} metadata fields.')
         return field_objects
 
-    def update_metadata(self, metadata: dict[str, (list[dict] | dict[str, dict])], object_uuid: str, obj_type: str,
-                        operation: str, position: int = -1) -> DSpaceObject:
+    def update_metadata(self, metadata: dict[str, (list[dict] | dict[str, dict])], object_uuid: str,
+                        obj_type: str, operation: str, position: int = -1) -> DSpaceObject:
         """
         Update a new metadata value information to a DSpace object, identified by its uuid.
 
         :param metadata: A list of metadata to update as a MetaData object or dict object in the REST form, aka
             {<tag> : [{"value": <value>, "language": <language>...}]}. May also contain position information. For
-            "remove"- operation the form must be {<tag>: [{postion: <position>}] | []}
+            "remove"- operation the form must be {<tag>: [{postion: <position>}] | []}. For move this is a dict
+            containing the metadata tag and a dict with the 'from' and 'path' values.
         :param object_uuid: The uuid of the object to add the metadata to.
         :param obj_type: The type of DSpace object. Must be one of item, collection or community
-        :param operation: The selected update operation. Must be one off (add, replace, remove).
+        :param operation: The selected update operation. Must be one off (add, replace, remove, move).
         :param position: The position of the metadata value to add. Only possible if metadata is of type dict[dict[]]
         :return: The updated DSpace object.
         :raises ValueError: If a not existing objectType is used or wrong operation type.
@@ -510,7 +511,7 @@ class RestAPI:
         if obj_type not in ('item', 'collection', 'community'):
             logging.error(f'Wrong object type information "{obj_type}" must be one of item, collection or community')
             raise ValueError(f'Wrong object type information "{obj_type}" must be one of item, collection or community')
-        if operation not in ('add', 'replace', 'remove'):
+        if operation not in ('add', 'replace', 'remove', 'move'):
             logging.error(f'Wrong update operation "{operation}" must be one off (add, replace, remove).')
             raise ValueError(f'Wrong update operation "{operation}" must be one off (add, replace, remove).')
 
@@ -531,6 +532,18 @@ class RestAPI:
                     if 'language' in metadata[k].keys():
                         values.update({'language': metadata[k]['language']})
                 patch_json.append({'op': operation, 'path': f'/metadata/{k}' + rank, 'value': values})
+        elif operation == 'move':
+            for m in metadata.keys():
+                from_pos = metadata[m].get('from')
+                path_pos = metadata[m].get('path')
+                if from_pos is None or path_pos is None:
+                    raise AttributeError('Can not use move operation without dictionary containing from and path values'
+                                         ', bot got %s' % str(metadata[m]))
+                patch_json.append({
+                    'op': 'move',
+                    'from': f'/metadata/{m}/{from_pos}',
+                    'path': f'/metadata/{m}/{path_pos}',
+                })
         else:
             for k in metadata.keys():
                 rank = [i['position'] for i in metadata[k]]
@@ -540,7 +553,7 @@ class RestAPI:
                     patch_json.append({'op': operation, 'path': f'/metadata/{k}' +
                                                                 (f'/{position}' if str(position) != '-1' else '')})
 
-        url = 'core/' + (f'{obj_type}s' if obj_type in ('item', 'collection') else 'communities')
+        url = 'core/' + (f'{obj_type}s' if obj_type != 'community' else 'communities')
         json_resp = self.patch_api(f'{url}/{object_uuid}', patch_json)
         return json_to_object(json_resp)
 
@@ -597,6 +610,25 @@ class RestAPI:
                                                  and len(metadata[k]) == 1) else metadata[k])for k in metadata.keys()}
 
         return self.update_metadata(patch_data, object_uuid, obj_type, 'replace', position=position)
+
+    def move_metadata(self, metadata_tag: str, current_position: int, target_position: int, object_uuid: str,
+                       obj_type: str):
+        """
+        Reorders metadata fields of the given metadata tag.
+        :param metadata_tag: The tag of the field, which should be reordered.
+        :param current_position: The current position of the metadata field.
+        :param target_position: The target position of the metadata field.
+        :param object_uuid: The uuid of the DSpace Object to work with.
+        :param obj_type: The DSpace obj type.
+        :return: The updated DSpace object.
+        :raises ValueError: If a not existing objectType is used.
+        """
+        update_dict = { metadata_tag: {
+            'from': current_position,
+            'path': target_position,
+        }}
+        return self.update_metadata(update_dict, object_uuid, obj_type, 'move')
+
 
     def delete_metadata(self, tag: str | list[str], object_uuid: str,
                         obj_type: str, position: int | str = -1) -> DSpaceObject:
