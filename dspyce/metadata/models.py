@@ -15,15 +15,19 @@ class MetaDataValue:
     confidence: int = -1
     """The confidence level of the metadata value."""
 
-    def __init__(self, value: str | int | float | bool, language: str = None):
+    def __init__(self, value: str | int | float | bool, language: str = None, authority: str = None, confidence : int = -1):
         """
         Creates a new MetaDataValue object.
 
         :param value: The value stored in the metadata field.
         :param language: Optional language parameter for a metadata field.
+        :param authority: Optional authority parameter for a metadata field.
+        :param confidence: Optional confidence level for a metadata field.
         """
         self.value = value
         self.language = language if language != '' else None
+        self.authority = authority
+        self.confidence = confidence
 
     def __eq__(self, other):
         """
@@ -61,6 +65,7 @@ class MetaDataValue:
             yield 'language', self.language
         if self.authority is not None:
             yield 'authority', self.authority
+        yield 'confidence', self.confidence
 
 
 class MetaData(dict):
@@ -103,7 +108,7 @@ class MetaData(dict):
             if key not in self.keys():
                 super().__setitem__(key, [value])
             else:
-                super().__getitem__(key).append(value)
+                self.__getitem__(key).append(value)
 
     def get_schemas(self) -> set[str]:
         """

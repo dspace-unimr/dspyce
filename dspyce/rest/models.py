@@ -1041,9 +1041,10 @@ class RestAPI:
             """Delete the item, if owned by the given collection."""
             if not isinstance(it, self.Item):
                 return
-            cols = self.get_item_collections(it.uuid)
+            it.get_collections_from_rest(self)
+            cols = it.collections
             if cols[0].uuid == coll.uuid:
-                self.delete_item(it)
+                it.delete(self)
 
         items = self.get_objects_in_scope(collection.uuid)
         if not all_items and len(items) > 0:
@@ -1069,8 +1070,8 @@ class RestAPI:
         :param all_objects: Whether to delete all items and collections in the community as well.
         :raises AttributeError: If community still includes items or collections and all_objects is set to false.
         """
-        sub_communities = self.get_subcommunities(community)
-        sub_collections = self.get_subcollections(community)
+        sub_communities = community.get_subcommunities_from_rest(self, False)
+        sub_collections = community.get_subcollections_from_rest(self, False)
         sub_objs = len(sub_communities) + len(sub_collections)
         if not all_objects and sub_objs > 0:
             raise AttributeError(f'Community {community.uuid} has {sub_objs} objects and all_objects is set to False.')

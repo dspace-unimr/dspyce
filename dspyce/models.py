@@ -2,13 +2,13 @@ import logging
 from json import JSONDecodeError
 
 import requests
+from dspyce.metadata.models import MetaData, MetaDataValue
 
 
 class DSpaceObject:
     """
     The class DSpaceObject represents an Object in a DSpace repository, such as Items, Collections, Communities.
     """
-    from dspyce.metadata.models import MetaData, MetaDataValue
     """The MetaData and MetaDataValue classes used."""
 
     uuid: str
@@ -35,7 +35,7 @@ class DSpaceObject:
         self.uuid = uuid
         self.handle = handle
         self.name = name
-        self.metadata = self.MetaData({})
+        self.metadata = MetaData({})
         self.statistic_reports = {}
 
     @staticmethod
@@ -129,7 +129,7 @@ class DSpaceObject:
 
         :raises KeyError: If the metadata tag doesn't use the format <schema>.<element>.<qualifier>.'
         """
-        self.metadata[tag] = self.MetaDataValue(value, language)
+        self.metadata[tag] = MetaDataValue(value, language)
 
     def remove_metadata(self, tag: str, value: str = None):
         """
@@ -415,6 +415,7 @@ class Community(DSpaceObject):
         :raises AttributeError: If community still includes items or collections and all_objects is set to false.
         """
         rest_api.delete_community(self, all_objects)
+        self.uuid = ''
 
 
 class Collection(DSpaceObject):
@@ -478,6 +479,14 @@ class Collection(DSpaceObject):
             self.community.add_parent_communities_to_rest(rest_api)
             self.community.to_rest(rest_api)
 
+    def get_items(self, rest_api) -> list:
+        """
+        Retrieves all items stored in this collection from the given rest API.
+        :param rest_api: The rest api to use.
+        :return: A list of Items.
+        """
+        return rest_api.get_objects_in_scope(self.uuid)
+
     def get_parent_community(self) -> Community:
         """
         Returns the parent community of the Collection, if existing.
@@ -498,7 +507,7 @@ class Collection(DSpaceObject):
         :raises AttributeError: If collection still includes items and all_items is set to false.
         """
         rest_api.delete_collection(self, all_items)
-        del self
+        self.uuid = ''
 
 
 class Item(DSpaceObject):
@@ -577,12 +586,11 @@ class Item(DSpaceObject):
         :param include_bitstreams: Whether bitstreams should be downloaded as well. Default: True
         """
         from dspyce.rest.functions import json_to_object
-        from dspyce.bitstreams.models import Bundle
 
         dspace_objects = [json_to_object(obj)
                           for obj in rest_api.get_paginated_objects(f'/core/items/{self.uuid}/bundles', 'bundles')]
         for d in dspace_objects:
-            if not isinstance(d, Bundle):
+            if not isinstance(d, self.Bundle):
                 raise TypeError('Object %s in the bundle list is not of type bundle. Found type "%s".' % (d, type(d)))
             if include_bitstreams:
                 d.get_bitstreams_from_rest(rest_api)
@@ -691,13 +699,20 @@ class Item(DSpaceObject):
         :param include_bitstreams: If True, add all bitstreams in the bundle toe rest api as well.
         """
         for b in self.bundles:
-            b.to_rest(rest_api, self.uuid, include_bitstreams)
+            if b.uuid is None or b.uuid == '':
+                b.to_rest(rest_api, self.uuid, include_bitstreams)
+            else:
+                logging.warning('The bundle %s can not be added to the rest API because it already has a uuid (%s).' \
+                                % (b.name, b.uuid))
 
-    def add_to_mapped_collections(self, rest_api):
+    def add_to_mapped_collections(self, rest_api, mapped_collections: list[Collection] = None):
         """
         Add the current item to its mapped collections in the given Rest API.
         :param rest_api: The rest API object to use.
+        :param mapped_collections: A list of collections which should be added as mapped collections to the item first.
         """
+        if mapped_collections is not None:
+            self.add_mapped_collections(mapped_collections)
         if len(self.collections) <= 1:
             logging.warning('No mapped collections found. Do nothing.')
             return
@@ -707,12 +722,8 @@ class Item(DSpaceObject):
         api_endpoint = f'{rest_api.api_endpoint}/core/items/{self.uuid}/mappedCollections'
         content_type = 'text/uri-list'
         collection_uris = []
-        item_collections = [c.uuid for c in self.collections]
-        for c in self.collections:
-            if c.uuid in item_collections:
-                logging.warning('The collection with the uuid "%s" is already a mapped collection.' % c.uuid)
-            else:
-                collection_uris.append(f'{rest_api.api_endpoint}/core/collections/{c.uuid}')
+        for c in self.get_mapped_collections():
+            collection_uris.append(f'{rest_api.api_endpoint}/core/collections/{c.uuid}')
         if len(collection_uris) > 0:
             rest_api.post_api(api_endpoint, '\n'.join(collection_uris), {}, content_type=content_type)
 
@@ -760,7 +771,7 @@ class Item(DSpaceObject):
             raise TypeError('Could not add relations to a non entity item for item:\n' + str(self))
         self.relations.append(self.Relation(relation_type, (self, Item(uuid=identifier))))
 
-    def add_content(self, content_file: str, path: str, description: str = '', bundle: str | Bundle = Bundle(),
+    def add_content(self, content_file: str, path: str, description: str = '', bundle = None,
                     permissions: list[tuple[str, str]] = None, iiif: bool = False, width: int = 0, iiif_toc: str = ''):
         """
         Adds additional content-files to the item.
@@ -776,7 +787,11 @@ class Item(DSpaceObject):
         :param width: The width of an image. Only needed, if the file is a jpg, wich should be reduced and iiif is True.
         :param iiif_toc: A toc information for an iiif-specific bitstream.
         """
-        active_bundle = self.get_bundle(bundle.name if isinstance(bundle, self.Bundle) else bundle)
+        if bundle is None:
+            bundle = self.Bundle(self.Bundle.DEFAULT_BUNDLE, '', '', [])
+        active_bundle = self.get_bundle(
+            bundle.name if isinstance(bundle, self.Bundle) else bundle
+        )
         if active_bundle is None:
             active_bundle = bundle if isinstance(bundle, self.Bundle) else self.Bundle(bundle)
             self.bundles.append(active_bundle)
@@ -806,6 +821,23 @@ class Item(DSpaceObject):
         """
         self.add_metadata('dspace.entity.type', entity_type)
 
+    def add_mapped_collections(self, collections: list[Collection]):
+        """
+        Add the given collections to the collection list of an item. The mapped collections do not get replaced but
+        the new ones are appended to the existing ones. Only usable if the item has already an owning collection.
+        :param collections: The mapped collections to append.
+        :raises ValueError: If no owning collection exist.
+        """
+        if self.get_owning_collection() is None:
+            raise ValueError('Could not add mapped collections if no owning collection exist!')
+        self.collections += collections
+
+    def remove_mapped_collections(self):
+        """
+        Removes all mapped collections of the current item.
+        """
+        self.collections = [self.get_owning_collection()]
+
     def get_owning_collection(self) -> Collection | None:
         """
         Provides the owning collection of the item, if existing.
@@ -813,6 +845,14 @@ class Item(DSpaceObject):
         :return: The collection object of the owning collection or None.
         """
         return None if self.collections is None else self.collections[0]
+
+    def get_mapped_collections(self) -> list[Collection]:
+        """
+        Provides the mapped collections of the item, if existing.
+
+        :return: The collection objects.
+        """
+        return self.collections[1:] if len(self.collections) > 1 else []
 
     def get_bundles(self) -> list[Bundle]:
         """
@@ -835,6 +875,15 @@ class Item(DSpaceObject):
             if b.name == bundle_name:
                 return b
         return None
+
+    def add_bundle(self, bundle: Bundle):
+        """
+        Adds the given Bundle to the current Item.
+        :raises KeyError: If the bundle already exists.
+        """
+        if bundle in self.bundles:
+            raise KeyError('Could not add bundle %s to the item bundle, because it already exists.' % str(bundle))
+        self.bundles.append(bundle)
 
     def get_bitstreams(self) -> list[Bitstream]:
         """
@@ -907,4 +956,9 @@ class Item(DSpaceObject):
                 params = '&'.join([f'copyVirtualMetadata={r.relation_type}' for r in by_relationships])
         rest_api.delete_api(f'core/items/{self.uuid}',  params)
         logging.info('Successfully deleted item with uuid "%s".' % self.uuid)
+        self.uuid = ''
+        for b in self.bundles:
+            b.uuid = ''
+            for bitstream in b.get_bitstreams():
+                bitstream.uuid = ''
 

@@ -4,7 +4,6 @@ import os
 import re
 import requests
 
-import warnings
 from io import BytesIO
 from dspyce.models import DSpaceObject
 from PIL import Image
@@ -31,7 +30,7 @@ class Bitstream(DSpaceObject):
     check_sum: str
     """The checksum of the Bitstream."""
 
-    def __init__(self, name: str, path: str, bundle: any = None, uuid: str = None, primary: bool = False,
+    def __init__(self, name: str, path: str, bundle: any = None, uuid: str = '', primary: bool = False,
                  size_bytes: int = None, check_sum: str = None):
         """
         Creates a new Bitstream object.
@@ -107,7 +106,6 @@ class Bitstream(DSpaceObject):
         Adds a new Bitstream Object to the Rest API, connected to the Bundle by its uuid.
         :param rest_api: The rest API object to use.
         """
-        from dspyce.rest.functions import json_to_object
         if self.bundle.uuid is None or self.bundle.uuid == '':
             raise ValueError('You have to provide an item uuid for addding a Bundle to the Rest API.')
         if not rest_api.authenticated:
@@ -267,6 +265,7 @@ class Bitstream(DSpaceObject):
         patch_call = [{'op': 'remove', 'path': f'/bitstreams/{self.uuid}'}]
         rest_api.patch_api('core/bitstreams', patch_call)
         logging.info(f'Successfully deleted bitstream with uuid "{self.uuid}".')
+        self.uuid = ''
 
 
 class IIIFBitstream(Bitstream):
@@ -296,14 +295,14 @@ class IIIFBitstream(Bitstream):
         :return: A SAF-ready information string which can be used for the content-file.
         """
         export_name = super().__str__()
-        if len(self.iiif.keys()) > 0:
-            export_name += (f'\tiiif-label:{self.get_iiif_label()}'
-                            f'\tiiif-toc:{self.get_iiif_toc()}'
-                            f'\tiiif-width:{self.get_first_metadata_value('iiif.image.width')}'
-                            f'\tiiif-height:{self.get_first_metadata_value('iiif.image.height')}')
-        else:
-            warnings.warn('You are about to generate information of IIIF-specific DSpace bitstream, without providing'
-                          'IIIF-specific information. Are you sure, you want to do this?')
+        if self.get_iiif_label() is not None:
+            export_name += f'\tiiif-label:{self.get_iiif_label()}'
+        if self.get_iiif_toc() is not None:
+            export_name += f'\tiiif-toc:{self.get_iiif_toc()}'
+        if self.get_first_metadata_value('iiif.image.width') is not None:
+            f'\tiiif-width:{self.get_first_metadata_value('iiif.image.width')}'
+        if self.get_first_metadata_value('iiif.image.height') is not None:
+            f'\tiiif-height:{self.get_first_metadata_value('iiif.image.height')}'
         return export_name
 
     def add_iiif(self, label: str, toc: str, w: int = 0):
@@ -358,7 +357,7 @@ class Bundle(DSpaceObject):
     bitstreams: list[Bitstream]
     """A list of bitstream associated with the bundle"""
 
-    def __init__(self, name: str = DEFAULT_BUNDLE, description: str = '', uuid: str = None,
+    def __init__(self, name: str = DEFAULT_BUNDLE, description: str = '', uuid: str = '',
                  bitstreams: list[Bitstream] = None):
         """
         Creates a new bundle object.
@@ -531,3 +530,4 @@ class Bundle(DSpaceObject):
                               f'{len(self.bitstreams)} bitstreams.')
         rest_api.delete_api(f'core/bundles/{self.uuid}')
         logging.info(f'Successfully deleted bundle with uuid "{self.uuid}"')
+        self.uuid = ''
