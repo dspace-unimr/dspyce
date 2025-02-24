@@ -1,2 +1,2 @@
-./rest/build-dspace-backend.sh
-./rest/docker-compose.yml
+/rest/build-dspace-backend.sh
+/rest/docker-compose.yml
