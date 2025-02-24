@@ -294,7 +294,6 @@ class IIIFBitstream(Bitstream):
     def __str__(self):
         """
         Provides all information about the DSpace IIIF-Content file.
-
         :return: A SAF-ready information string which can be used for the content-file.
         """
         export_name = super().__str__()
@@ -302,10 +301,10 @@ class IIIFBitstream(Bitstream):
             export_name += f'\tiiif-label:{self.get_iiif_label()}'
         if self.get_iiif_toc() is not None:
             export_name += f'\tiiif-toc:{self.get_iiif_toc()}'
-        if self.get_first_metadata_value('iiif.image.width') is not None:
-            f'\tiiif-width:{self.get_first_metadata_value('iiif.image.width')}'
-        if self.get_first_metadata_value('iiif.image.height') is not None:
-            f'\tiiif-height:{self.get_first_metadata_value('iiif.image.height')}'
+        if self.get_width() is not None:
+            f'\tiiif-width:{self.get_width()}'
+        if self.get_height() is not None:
+            f'\tiiif-height:{self.get_height()}'
         return export_name
 
     def add_iiif(self, label: str, toc: str, w: int = 0):
@@ -348,6 +347,14 @@ class IIIFBitstream(Bitstream):
             return (float(self.get_first_metadata_value('iiif.image.width')),
                     float(self.get_first_metadata_value('iiif.image.height')))
         return None
+
+    def get_width(self):
+        """Returns the width of a given IIIF bitstream."""
+        self.get_first_metadata_value('iiif.image.width')
+
+    def get_height(self):
+        """Returns the height of a given IIIF bitstream."""
+        self.get_first_metadata_value('iiif.image.height')
 
 
 class Bundle(DSpaceObject):
