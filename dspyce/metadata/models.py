@@ -65,7 +65,8 @@ class MetaDataValue:
             yield 'language', self.language
         if self.authority is not None:
             yield 'authority', self.authority
-        yield 'confidence', self.confidence
+        if self.confidence != -1:
+            yield 'confidence', self.confidence
 
 
 class MetaData(dict):
