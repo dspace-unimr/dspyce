@@ -323,6 +323,353 @@ class RestAPI:
                                                          f'\nWith params: {params}\nOn endpoint:\n\t{url}')
         raise exception
 
+    def get_paginated_objects(self, endpoint: str, object_key: str, query_params: dict = None, page: int = -1,
+                              size: int = 20) -> list[dict]:
+        """
+        Retrieves a paginated list of objects from the remote dspace endpoint and returns them as a list.
+
+        :param endpoint: The endpoint to retrieve the objects from.
+        :param object_key: The dict key to get the object list from the json-response. For example "bundles" or
+            "bitstreams"
+        :param query_params: Additional query parameters to add to the request.
+        :param page: The page number to retrieve. Must be set to -1 to retrieve all pages. Default -1.
+        :param size: The page size, aka the number of objects per page.
+        :return: The list of retrieved objects.
+        """
+        query = {} if query_params is None else dict(query_params)
+        if size > -1:
+            query.update({'size': size})
+        if page > -1:
+            query.update({'page': page})
+        endpoint_json = self.get_api(endpoint, params=query)
+        if 'discover/search/objects' in endpoint:
+            endpoint_json = endpoint_json['_embedded']['searchResult']
+        try:
+            object_list = endpoint_json["_embedded"][object_key]
+        except KeyError as e:
+            logging.error(f'Problems with parsing paginated object list. A Key-Error occurred.\n{endpoint_json}')
+            raise e
+        if page == -1:
+            page_info = endpoint_json['page']
+            if self.workers == 0:
+                for p in range(1, page_info['totalPages']):
+                    object_list += self.get_paginated_objects(endpoint, object_key, query, p, size)
+            else:
+                pool = ThreadPoolExecutor(max_workers=self.workers if self.workers > 0 else None)
+                pool_threads = [pool.submit(self.get_paginated_objects, endpoint, object_key, query, p, size) for
+                                p in range(1, page_info['totalPages'])]
+                pool.shutdown(wait=True)
+                for p in pool_threads:
+                    object_list += p.result()
+        return object_list
+
+    def search_items(self, query_params: dict = None, size: int = 20, full_item: bool = False,
+                     get_bitstreams: bool = False) -> list[DSpaceObject]:
+        """
+        Search items via rest-API using solr-base query parameters. Uses the endpoint /discover/search/objects. If no
+        query_params are provided, the whole repository will be retrieved.
+
+        :param query_params: A dictionary with query parameters to filter the search results.
+        :param size: The number of objects to retrieve per page.
+        :param full_item: If the full items (including relations and bitstreams) shall be downloaded or not.
+            Default false.
+        :param get_bitstreams: If true, also the bitstreams of the item will be connected. Not needed if full_item is
+            True. Default: False.
+        :return: The list of found DSpace objects.
+        """
+        from dspyce.rest.functions import json_to_object
+        object_list = self.get_paginated_objects('/discover/search/objects', 'objects', query_params,
+                                                 size=size)
+        dspace_objects = [json_to_object(obj['_embedded']['indexableObject']) for obj in object_list]
+        if not full_item and not get_bitstreams:
+            logging.info(f'Found {len(dspace_objects)} DSpace Objects.')
+            return dspace_objects
+
+        for o in dspace_objects:
+            if o.get_dspace_object_type() == 'Item':
+                if full_item:
+                    o.collections = self.get_item_collections(o.uuid)
+                    o.relations = self.get_item_relationships(o.uuid)
+                o.bundles = self.get_item_bundles(o.uuid, True)
+            if full_item:
+                if o.get_dspace_object_type() == 'Collection':
+                    o.community = self.get_parent_community(o)
+                if o.get_dspace_object_type() == 'Community':
+                    o.parent_community = self.get_parent_community(o)
+        logging.info(f'Found {len(dspace_objects)} DSpace Objects.')
+        return dspace_objects
+
+    def get_objects_in_scope(self, scope_uuid: str, query: dict = None, size: int = 20, full_item: bool = False,
+                           get_bitstreams: bool = False) -> list[DSpaceObject]:
+        """
+        Returns a list of DSpace Objects in a given collection or community. Can be further reduced by query parameter.
+
+        :param scope_uuid: The uuid of the collection to retrieve the items from.
+        :param query: Additional query parameters for the request.
+        :param size: The number of objects per page. Use -1 to select the default.
+        :param full_item: If the full item information should be downloaded (Including relationships, bundles and
+            bitstreams. This can be slower due to additional api calls).
+        :param get_bitstreams: If true, also the bitstreams of the item will be connected. Not needed if full_item is
+            True. Default: False.
+        :return: A list of Item objects.
+        """
+        query_params = {'scope': scope_uuid}
+        if query is not None:
+            query_params.update(query)
+        return self.search_items(query_params, size, full_item, get_bitstreams)
+
+    def get_all_items(self, page_size: int = 20, full_item: bool = False,
+                      get_bitstreams: bool = False) -> list[DSpaceObject]:
+        """
+        Retrieves all Items from the REST-API. This method simply refers to the `search_items()` method without using
+        query_params, thus getting all items.
+
+        :param page_size: The number of objects to retrieve per page.
+        :param full_item: Whether the full_item including related items and bitstreams shall be downloaded.
+        :param get_bitstreams: If true, also the bitstreams of the item will be connected. Not needed if full_item is
+            True. Default: False.
+        :return: A list of all found DSpaceObjects
+        """
+        return self.search_items(None, page_size, full_item, get_bitstreams)
+
+
+    def get_metadata_field(self, schema: str = '', element: str = '', qualifier: str = '',
+                           field_id: int = -1) -> list[dict]:
+        """
+        Checks if given metadata field exists in the DSpace instance. Returns one or more found metadata fields in a
+        list of dict.
+
+        :param schema: The schema of the field, if empty this field won't be taken in account for the search request.
+        :param element: The element of the field, if empty this field won't be taken in account for the search request.
+        :param qualifier: The qualifier of the field, if empty this field won't be taken in account for the search
+            request.
+        :param field_id: The exact metadata field id to look for. If the correct fields is already known.
+        :return: A list of dictionaries in the following form: {id: <id>, element: <element>, qualifier: <qualifier>,
+            scopeNote: <scopeNote>, schema: {id: <schema-id>, prefix: <prefix>, namespace: <namespace>}
+        """
+
+        def parse_json_resp(json_resp: dict) -> dict:
+            """
+            Parses the answer of the REST-API response and returns it into the wanted format.
+            """
+            schema_resp = json_resp['_embedded']['schema']
+            return {'id': json_resp['id'],
+                    'element': json_resp['element'],
+                    'qualifier': json_resp['qualifier'],
+                    'scopeNote': json_resp['scopeNote'],
+                    'schema': {'id': schema_resp['id'], 'prefix': schema_resp['prefix'],
+                               'namespace': schema_resp['namespace']}
+                    }
+
+        url = 'core/metadatafields/'
+        if field_id > -1:
+            url += f'/{field_id}'
+            json_get = self.get_api(url)
+            return [] if json_get is None else [parse_json_resp(json_get)]
+
+        url += 'search/byFieldName'
+        params = {}
+        if schema != '':
+            params.update({'schema': schema})
+        if element != '':
+            params.update({'element': element})
+        if qualifier != '':
+            params.update({'qualifier': qualifier})
+        json_get = self.get_api(url, params)
+        if json_get is None:
+            return []
+        pages = json_get['page']['totalPages']
+        current_page = json_get['page']['number'] + 1
+        results = [json_get]
+        for p in range(current_page, pages):
+            params['page'] = p
+            results.append(self.get_api(url, params))
+        field_objects = []
+        for r in results:
+            field_objects += [parse_json_resp(i) for i in r['_embedded']['metadatafields']]
+            logging.debug(f'Found metadata field {field_objects[-1]}')
+        logging.info(f'Found {len(field_objects)} metadata fields.')
+        return field_objects
+
+    def update_metadata(self, metadata: dict[str, (list[dict] | dict[str, dict])], object_uuid: str, obj_type: str,
+                        operation: str, position: int = -1) -> DSpaceObject:
+        """
+        Update a new metadata value information to a DSpace object, identified by its uuid.
+
+        :param metadata: A list of metadata to update as a MetaData object or dict object in the REST form, aka
+            {<tag> : [{"value": <value>, "language": <language>...}]}. May also contain position information. For
+            "remove"- operation the form must be {<tag>: [{postion: <position>}] | []}
+        :param object_uuid: The uuid of the object to add the metadata to.
+        :param obj_type: The type of DSpace object. Must be one of item, collection or community
+        :param operation: The selected update operation. Must be one off (add, replace, remove).
+        :param position: The position of the metadata value to add. Only possible if metadata is of type dict[dict[]]
+        :return: The updated DSpace object.
+        :raises ValueError: If a not existing objectType is used or wrong operation type.
+        """
+        from dspyce.rest.functions import json_to_object
+        if obj_type not in ('item', 'collection', 'community'):
+            logging.error(f'Wrong object type information "{obj_type}" must be one of item, collection or community')
+            raise ValueError(f'Wrong object type information "{obj_type}" must be one of item, collection or community')
+        if operation not in ('add', 'replace', 'remove'):
+            logging.error(f'Wrong update operation "{operation}" must be one off (add, replace, remove).')
+            raise ValueError(f'Wrong update operation "{operation}" must be one off (add, replace, remove).')
+
+        patch_json = []
+        # Form: [{"op": "<operation>",
+        #            "path": "/metadata/<tag>",
+        #            "value": [{"value": <value>, "language": <language>}]}]
+
+        if operation in ('add', 'replace'):
+            for k in metadata.keys():
+                values = metadata[k]
+                rank = ''
+                if isinstance(metadata[k], dict):
+                    metadata[k]: dict
+                    rank = f'/{metadata[k]["position"]}' if 'position' in metadata[k].keys() else ''
+                    rank = f'/{position}' if rank == '' and str(position) != '-1' else rank
+                    values = {'value': metadata[k]['value']}
+                    if 'language' in metadata[k].keys():
+                        values.update({'language': metadata[k]['language']})
+                patch_json.append({'op': operation, 'path': f'/metadata/{k}' + rank, 'value': values})
+        else:
+            for k in metadata.keys():
+                rank = [i['position'] for i in metadata[k]]
+                if len(rank) > 0:
+                    patch_json += [{'op': operation, 'path': f'/metadata/{k}/{r}'} for r in rank]
+                else:
+                    patch_json.append({'op': operation, 'path': f'/metadata/{k}' +
+                                                                (f'/{position}' if str(position) != '-1' else '')})
+
+        url = 'core/' + (f'{obj_type}s' if obj_type in ('item', 'collection') else 'communities')
+        json_resp = self.patch_api(f'{url}/{object_uuid}', patch_json)
+        return json_to_object(json_resp)
+
+    def add_metadata(self, metadata: MetaData | dict[str, list[dict]], object_uuid: str,
+                     obj_type: str, position_end: bool = False) -> DSpaceObject:
+        """
+        Add a new metadata value information to a DSpace object, identified by its uuid.
+
+        :param metadata: A list of metadata to update as a MetaData object or dict object in the REST form, aka
+            {<tag> : [{"value": <value>, "language": <language>...}]}
+        :param object_uuid: The uuid of the object to add the metadata to.
+        :param obj_type: The type of DSpace object. Must be one of item, collection or community.
+        :param position_end: Whether the new metadata field should be placed at the end of the existing metadata.
+        :return: The updated DSpace object.
+        :raises ValueError: If a not existing objectType is used.
+        """
+
+        if isinstance(metadata, self.MetaData):
+            metadata = {key: [dict(v) for v in metadata[key]] for key in metadata.keys()}
+        else:
+            # Checks if there is only one metadata key with only one value.
+            if len(metadata.keys()) == 1 and position_end and len(metadata[list(metadata.keys())[0]]) == 1:
+                metadata = {list(metadata.keys())[0]: metadata[list(metadata.keys())[0]][0]}
+        return self.update_metadata(metadata, object_uuid, obj_type, 'add',
+                                    position='-' if position_end else -1)
+
+    def replace_metadata(self, metadata: MetaData | dict[str, list[dict] | dict], object_uuid: str,
+                         obj_type: str, position: int = -1) -> DSpaceObject:
+        """
+        Add a new metadata value information to a DSpace object, identified by its uuid.
+
+        :param metadata: A list of metadata to update as a MetaData object or dict object in the REST form, aka
+            {<tag> : [{"value": <value>, "language": <language>...}]}
+        :param object_uuid: The uuid of the object to add the metadata to.
+        :param obj_type: The type of DSpace object. Must be one of item, collection or community.
+        :param position: The position of the metadata value to replace.
+        :return: The updated DSpace object.
+        :raises ValueError: If a not existing objectType is used.
+        """
+        if isinstance(metadata, self.MetaData):
+            patch_data = {key: [dict(v) for v in metadata[key]] for key in metadata.keys()}
+        else:
+            metadata: dict[str, list[dict] | dict]
+            # Check if position argument is not used correctly
+            if len(metadata.keys()) > 1 and str(position) != '-1':
+                logging.warning('Could not set same position metadata for more than one metadata tag.')
+                raise Warning('Could not set same position metadata for more than one metadata tag.')
+            if (len(metadata.keys()) == 1 and isinstance(metadata[list(metadata.keys())[0]], list)
+                    and str(position) != '-1'):
+                logging.warning('Could not use one position argument for more than one metadata-value.')
+                raise Warning('Could not use one position argument for more than one metadata-value.')
+
+            patch_data = {k: (metadata[k][0] if (isinstance(metadata[k], list)
+                                                 and len(metadata[k]) == 1) else metadata[k])for k in metadata.keys()}
+
+        return self.update_metadata(patch_data, object_uuid, obj_type, 'replace', position=position)
+
+    def delete_metadata(self, tag: str | list[str], object_uuid: str,
+                        obj_type: str, position: int | str = -1) -> DSpaceObject:
+        """
+        Deletes a specific metadata-field or value of a DSpace Item. Can delete a list of fields as well as only one.
+
+        :param tag: A tag or list of tags wich shall be deleted.
+        :param object_uuid: The uuid of the DSpace Item to delete the metadata from.
+        :param position: The position of the metadata value to delete. Can only be used, if only one tag is provided.
+        :param obj_type: The type of DSpace object. Must be one of item, collection or community.
+        :return: The updated DSpace object.
+        :raises ValueError: If a not existing objectType is used. Or a position is given, when tag is a list.
+        """
+        if str(position) != '-1' and isinstance(tag, list):
+            raise ValueError('Can not use position parameter if more than one tag is provided.')
+        tag = [tag] if not isinstance(tag, list) else tag
+        return self.update_metadata({t: [] for t in tag}, object_uuid, obj_type, operation='remove', position=position)
+
+    def delete_collection(self, collection: Collection, all_items: bool = False):
+        """
+        Deletes the given collection from the rest_api. Raises an error, if the collection still includes items and
+        all_items is set to false.
+        :param collection: The collection to delete.
+        :param all_items: Whether to delete all items in the collection as well.
+        :raises AttributeError: If collection still includes items and all_items is set to false.
+        """
+        def delete_item_owned(it, coll):
+            """Delete the item, if owned by the given collection."""
+            if not isinstance(it, self.Item):
+                return
+            it.get_collections_from_rest(self)
+            cols = it.collections
+            if cols[0].uuid == coll.uuid:
+                it.delete(self)
+
+        items = self.get_objects_in_scope(collection.uuid)
+        if not all_items and len(items) > 0:
+            raise AttributeError(f'Collection {collection.uuid} has {len(items)} items and all_items is set to False.')
+        elif len(items) > 0:
+            if self.workers > 1:
+                with ThreadPoolExecutor(max_workers=self.workers) as pool:
+                    pool_threads = [pool.submit(delete_item_owned, i, collection) for i in items]
+                for p in pool_threads:
+                    p.result()
+            else:
+                for i in items:
+                    delete_item_owned(i, collection)
+            logging.info('Successfully deleted %i items from the collection.' % len(items))
+        self.delete_api(f'core/collections/{collection.uuid}')
+        logging.info('Successfully deleted collection with uuid "%s".' % collection.uuid)
+
+    def delete_community(self, community: Community, all_objects: bool = False):
+        """
+        Deletes the given community from the rest_api. Raises an error, if the community still includes items or
+        collections and all_objects is set to false.
+        :param community: The community to delete.
+        :param all_objects: Whether to delete all items and collections in the community as well.
+        :raises AttributeError: If community still includes items or collections and all_objects is set to false.
+        """
+        sub_communities = community.get_subcommunities_from_rest(self, False)
+        sub_collections = community.get_subcollections_from_rest(self, False)
+        sub_objs = len(sub_communities) + len(sub_collections)
+        if not all_objects and sub_objs > 0:
+            raise AttributeError(f'Community {community.uuid} has {sub_objs} objects and all_objects is set to False.')
+        else:
+            for c in sub_collections:
+                self.delete_collection(c, all_objects)
+            for c in sub_communities:
+                self.delete_community(c, all_objects)
+            logging.info('Successfully deleted %i objects from the community.' % sub_objs)
+        self.delete_api(f'core/communities/{community.uuid}')
+        logging.info('Successfully deleted community with uuid "%s".' % community.uuid)
+
     @deprecated(
         'The method "add_object" is deprecated. Call the to_rest() method of the DSpaceObject class '
         'instead.'
@@ -471,46 +818,6 @@ class RestAPI:
         :return: Returns a DSpace object
         """
         return self.DSpaceObject.get_from_rest(self, uuid, endpoint, identifier)
-
-    def get_paginated_objects(self, endpoint: str, object_key: str, query_params: dict = None, page: int = -1,
-                              size: int = 20) -> list[dict]:
-        """
-        Retrieves a paginated list of objects from the remote dspace endpoint and returns them as a list.
-
-        :param endpoint: The endpoint to retrieve the objects from.
-        :param object_key: The dict key to get the object list from the json-response. For example "bundles" or
-            "bitstreams"
-        :param query_params: Additional query parameters to add to the request.
-        :param page: The page number to retrieve. Must be set to -1 to retrieve all pages. Default -1.
-        :param size: The page size, aka the number of objects per page.
-        :return: The list of retrieved objects.
-        """
-        query = {} if query_params is None else dict(query_params)
-        if size > -1:
-            query.update({'size': size})
-        if page > -1:
-            query.update({'page': page})
-        endpoint_json = self.get_api(endpoint, params=query)
-        if 'discover/search/objects' in endpoint:
-            endpoint_json = endpoint_json['_embedded']['searchResult']
-        try:
-            object_list = endpoint_json["_embedded"][object_key]
-        except KeyError as e:
-            logging.error(f'Problems with parsing paginated object list. A Key-Error occurred.\n{endpoint_json}')
-            raise e
-        if page == -1:
-            page_info = endpoint_json['page']
-            if self.workers == 0:
-                for p in range(1, page_info['totalPages']):
-                    object_list += self.get_paginated_objects(endpoint, object_key, query, p, size)
-            else:
-                pool = ThreadPoolExecutor(max_workers=self.workers if self.workers > 0 else None)
-                pool_threads = [pool.submit(self.get_paginated_objects, endpoint, object_key, query, p, size) for
-                                p in range(1, page_info['totalPages'])]
-                pool.shutdown(wait=True)
-                for p in pool_threads:
-                    object_list += p.result()
-        return object_list
 
     @deprecated(
         'The method "get_item_bitstreams" is deprecated. Call the get_bundles_from_rest() method of the Item class '
@@ -696,75 +1003,6 @@ class RestAPI:
         bitstream.get_bundle_from_rest(self)
         return bitstream.bundle
 
-    def get_objects_in_scope(self, scope_uuid: str, query: dict = None, size: int = 20, full_item: bool = False,
-                           get_bitstreams: bool = False) -> list[DSpaceObject]:
-        """
-        Returns a list of DSpace Objects in a given collection or community. Can be further reduced by query parameter.
-
-        :param scope_uuid: The uuid of the collection to retrieve the items from.
-        :param query: Additional query parameters for the request.
-        :param size: The number of objects per page. Use -1 to select the default.
-        :param full_item: If the full item information should be downloaded (Including relationships, bundles and
-            bitstreams. This can be slower due to additional api calls).
-        :param get_bitstreams: If true, also the bitstreams of the item will be connected. Not needed if full_item is
-            True. Default: False.
-        :return: A list of Item objects.
-        """
-        query_params = {'scope': scope_uuid}
-        if query is not None:
-            query_params.update(query)
-        return self.search_items(query_params, size, full_item, get_bitstreams)
-
-    def search_items(self, query_params: dict = None, size: int = 20, full_item: bool = False,
-                     get_bitstreams: bool = False) -> list[DSpaceObject]:
-        """
-        Search items via rest-API using solr-base query parameters. Uses the endpoint /discover/search/objects. If no
-        query_params are provided, the whole repository will be retrieved.
-
-        :param query_params: A dictionary with query parameters to filter the search results.
-        :param size: The number of objects to retrieve per page.
-        :param full_item: If the full items (including relations and bitstreams) shall be downloaded or not.
-            Default false.
-        :param get_bitstreams: If true, also the bitstreams of the item will be connected. Not needed if full_item is
-            True. Default: False.
-        :return: The list of found DSpace objects.
-        """
-        from dspyce.rest.functions import json_to_object
-        object_list = self.get_paginated_objects('/discover/search/objects', 'objects', query_params,
-                                                 size=size)
-        dspace_objects = [json_to_object(obj['_embedded']['indexableObject']) for obj in object_list]
-        if not full_item and not get_bitstreams:
-            logging.info(f'Found {len(dspace_objects)} DSpace Objects.')
-            return dspace_objects
-
-        for o in dspace_objects:
-            if o.get_dspace_object_type() == 'Item':
-                if full_item:
-                    o.collections = self.get_item_collections(o.uuid)
-                    o.relations = self.get_item_relationships(o.uuid)
-                o.bundles = self.get_item_bundles(o.uuid, True)
-            if full_item:
-                if o.get_dspace_object_type() == 'Collection':
-                    o.community = self.get_parent_community(o)
-                if o.get_dspace_object_type() == 'Community':
-                    o.parent_community = self.get_parent_community(o)
-        logging.info(f'Found {len(dspace_objects)} DSpace Objects.')
-        return dspace_objects
-
-    def get_all_items(self, page_size: int = 20, full_item: bool = False,
-                      get_bitstreams: bool = False) -> list[DSpaceObject]:
-        """
-        Retrieves all Items from the REST-API. This method simply refers to the `search_items()` method without using
-        query_params, thus getting all items.
-
-        :param page_size: The number of objects to retrieve per page.
-        :param full_item: Whether the full_item including related items and bitstreams shall be downloaded.
-        :param get_bitstreams: If true, also the bitstreams of the item will be connected. Not needed if full_item is
-            True. Default: False.
-        :return: A list of all found DSpaceObjects
-        """
-        return self.search_items(None, page_size, full_item, get_bitstreams)
-
     @deprecated(
         'The method "get_subcommunities" is deprecated. Call the get_subcommunities_from_rest() method of the Community '
         'Object instead.'
@@ -788,189 +1026,6 @@ class RestAPI:
         :return: A list of sub collections
         """
         return community.get_subcollections_from_rest(self, False)
-
-    def get_metadata_field(self, schema: str = '', element: str = '', qualifier: str = '',
-                           field_id: int = -1) -> list[dict]:
-        """
-        Checks if given metadata field exists in the DSpace instance. Returns one or more found metadata fields in a
-        list of dict.
-
-        :param schema: The schema of the field, if empty this field won't be taken in account for the search request.
-        :param element: The element of the field, if empty this field won't be taken in account for the search request.
-        :param qualifier: The qualifier of the field, if empty this field won't be taken in account for the search
-            request.
-        :param field_id: The exact metadata field id to look for. If the correct fields is already known.
-        :return: A list of dictionaries in the following form: {id: <id>, element: <element>, qualifier: <qualifier>,
-            scopeNote: <scopeNote>, schema: {id: <schema-id>, prefix: <prefix>, namespace: <namespace>}
-        """
-
-        def parse_json_resp(json_resp: dict) -> dict:
-            """
-            Parses the answer of the REST-API response and returns it into the wanted format.
-            """
-            schema_resp = json_resp['_embedded']['schema']
-            return {'id': json_resp['id'],
-                    'element': json_resp['element'],
-                    'qualifier': json_resp['qualifier'],
-                    'scopeNote': json_resp['scopeNote'],
-                    'schema': {'id': schema_resp['id'], 'prefix': schema_resp['prefix'],
-                               'namespace': schema_resp['namespace']}
-                    }
-
-        url = 'core/metadatafields/'
-        if field_id > -1:
-            url += f'/{field_id}'
-            json_get = self.get_api(url)
-            return [] if json_get is None else [parse_json_resp(json_get)]
-
-        url += 'search/byFieldName'
-        params = {}
-        if schema != '':
-            params.update({'schema': schema})
-        if element != '':
-            params.update({'element': element})
-        if qualifier != '':
-            params.update({'qualifier': qualifier})
-        json_get = self.get_api(url, params)
-        if json_get is None:
-            return []
-        pages = json_get['page']['totalPages']
-        current_page = json_get['page']['number'] + 1
-        results = [json_get]
-        for p in range(current_page, pages):
-            params['page'] = p
-            results.append(self.get_api(url, params))
-        field_objects = []
-        for r in results:
-            field_objects += [parse_json_resp(i) for i in r['_embedded']['metadatafields']]
-            logging.debug(f'Found metadata field {field_objects[-1]}')
-        logging.info(f'Found {len(field_objects)} metadata fields.')
-        return field_objects
-
-    def update_metadata(self, metadata: dict[str, (list[dict] | dict[str, dict])], object_uuid: str, obj_type: str,
-                        operation: str, position: int = -1) -> DSpaceObject:
-        """
-        Update a new metadata value information to a DSpace object, identified by its uuid.
-
-        :param metadata: A list of metadata to update as a MetaData object or dict object in the REST form, aka
-            {<tag> : [{"value": <value>, "language": <language>...}]}. May also contain position information. For
-            "remove"- operation the form must be {<tag>: [{postion: <position>}] | []}
-        :param object_uuid: The uuid of the object to add the metadata to.
-        :param obj_type: The type of DSpace object. Must be one of item, collection or community
-        :param operation: The selected update operation. Must be one off (add, replace, remove).
-        :param position: The position of the metadata value to add. Only possible if metadata is of type dict[dict[]]
-        :return: The updated DSpace object.
-        :raises ValueError: If a not existing objectType is used or wrong operation type.
-        """
-        from dspyce.rest.functions import json_to_object
-        if obj_type not in ('item', 'collection', 'community'):
-            logging.error(f'Wrong object type information "{obj_type}" must be one of item, collection or community')
-            raise ValueError(f'Wrong object type information "{obj_type}" must be one of item, collection or community')
-        if operation not in ('add', 'replace', 'remove'):
-            logging.error(f'Wrong update operation "{operation}" must be one off (add, replace, remove).')
-            raise ValueError(f'Wrong update operation "{operation}" must be one off (add, replace, remove).')
-
-        patch_json = []
-        # Form: [{"op": "<operation>",
-        #            "path": "/metadata/<tag>",
-        #            "value": [{"value": <value>, "language": <language>}]}]
-
-        if operation in ('add', 'replace'):
-            for k in metadata.keys():
-                values = metadata[k]
-                rank = ''
-                if isinstance(metadata[k], dict):
-                    metadata[k]: dict
-                    rank = f'/{metadata[k]["position"]}' if 'position' in metadata[k].keys() else ''
-                    rank = f'/{position}' if rank == '' and str(position) != '-1' else rank
-                    values = {'value': metadata[k]['value']}
-                    if 'language' in metadata[k].keys():
-                        values.update({'language': metadata[k]['language']})
-                patch_json.append({'op': operation, 'path': f'/metadata/{k}' + rank, 'value': values})
-        else:
-            for k in metadata.keys():
-                rank = [i['position'] for i in metadata[k]]
-                if len(rank) > 0:
-                    patch_json += [{'op': operation, 'path': f'/metadata/{k}/{r}'} for r in rank]
-                else:
-                    patch_json.append({'op': operation, 'path': f'/metadata/{k}' +
-                                                                (f'/{position}' if str(position) != '-1' else '')})
-
-        url = 'core/' + (f'{obj_type}s' if obj_type in ('item', 'collection') else 'communities')
-        json_resp = self.patch_api(f'{url}/{object_uuid}', patch_json)
-        return json_to_object(json_resp)
-
-    def add_metadata(self, metadata: MetaData | dict[str, list[dict]], object_uuid: str,
-                     obj_type: str, position_end: bool = False) -> DSpaceObject:
-        """
-        Add a new metadata value information to a DSpace object, identified by its uuid.
-
-        :param metadata: A list of metadata to update as a MetaData object or dict object in the REST form, aka
-            {<tag> : [{"value": <value>, "language": <language>...}]}
-        :param object_uuid: The uuid of the object to add the metadata to.
-        :param obj_type: The type of DSpace object. Must be one of item, collection or community.
-        :param position_end: Whether the new metadata field should be placed at the end of the existing metadata.
-        :return: The updated DSpace object.
-        :raises ValueError: If a not existing objectType is used.
-        """
-
-        if isinstance(metadata, self.MetaData):
-            metadata = {key: [dict(v) for v in metadata[key]] for key in metadata.keys()}
-        else:
-            # Checks if there is only one metadata key with only one value.
-            if len(metadata.keys()) == 1 and position_end and len(metadata[list(metadata.keys())[0]]) == 1:
-                metadata = {list(metadata.keys())[0]: metadata[list(metadata.keys())[0]][0]}
-        return self.update_metadata(metadata, object_uuid, obj_type, 'add',
-                                    position='-' if position_end else -1)
-
-    def replace_metadata(self, metadata: MetaData | dict[str, list[dict] | dict], object_uuid: str,
-                         obj_type: str, position: int = -1) -> DSpaceObject:
-        """
-        Add a new metadata value information to a DSpace object, identified by its uuid.
-
-        :param metadata: A list of metadata to update as a MetaData object or dict object in the REST form, aka
-            {<tag> : [{"value": <value>, "language": <language>...}]}
-        :param object_uuid: The uuid of the object to add the metadata to.
-        :param obj_type: The type of DSpace object. Must be one of item, collection or community.
-        :param position: The position of the metadata value to replace.
-        :return: The updated DSpace object.
-        :raises ValueError: If a not existing objectType is used.
-        """
-        if isinstance(metadata, self.MetaData):
-            patch_data = {key: [dict(v) for v in metadata[key]] for key in metadata.keys()}
-        else:
-            metadata: dict[str, list[dict] | dict]
-            # Check if position argument is not used correctly
-            if len(metadata.keys()) > 1 and str(position) != '-1':
-                logging.warning('Could not set same position metadata for more than one metadata tag.')
-                raise Warning('Could not set same position metadata for more than one metadata tag.')
-            if (len(metadata.keys()) == 1 and isinstance(metadata[list(metadata.keys())[0]], list)
-                    and str(position) != '-1'):
-                logging.warning('Could not use one position argument for more than one metadata-value.')
-                raise Warning('Could not use one position argument for more than one metadata-value.')
-
-            patch_data = {k: (metadata[k][0] if (isinstance(metadata[k], list)
-                                                 and len(metadata[k]) == 1) else metadata[k])for k in metadata.keys()}
-
-        return self.update_metadata(patch_data, object_uuid, obj_type, 'replace', position=position)
-
-    # Delete section. Be carefully, when using it!
-    def delete_metadata(self, tag: str | list[str], object_uuid: str,
-                        obj_type: str, position: int | str = -1) -> DSpaceObject:
-        """
-        Deletes a specific metadata-field or value of a DSpace Item. Can delete a list of fields as well as only one.
-
-        :param tag: A tag or list of tags wich shall be deleted.
-        :param object_uuid: The uuid of the DSpace Item to delete the metadata from.
-        :param position: The position of the metadata value to delete. Can only be used, if only one tag is provided.
-        :param obj_type: The type of DSpace object. Must be one of item, collection or community.
-        :return: The updated DSpace object.
-        :raises ValueError: If a not existing objectType is used. Or a position is given, when tag is a list.
-        """
-        if str(position) != '-1' and isinstance(tag, list):
-            raise ValueError('Can not use position parameter if more than one tag is provided.')
-        tag = [tag] if not isinstance(tag, list) else tag
-        return self.update_metadata({t: [] for t in tag}, object_uuid, obj_type, operation='remove', position=position)
 
     @deprecated(
         'The method "delete_bitstream" is deprecated. Call the delete() method of the Bitstream Object instead.'
@@ -1032,58 +1087,3 @@ class RestAPI:
             True, all metadata will be copied.
         """
         item.delete(self, copy_virtual_metadata, by_relationships)
-
-    def delete_collection(self, collection: Collection, all_items: bool = False):
-        """
-        Deletes the given collection from the rest_api. Raises an error, if the collection still includes items and
-        all_items is set to false.
-        :param collection: The collection to delete.
-        :param all_items: Whether to delete all items in the collection as well.
-        :raises AttributeError: If collection still includes items and all_items is set to false.
-        """
-        def delete_item_owned(it, coll):
-            """Delete the item, if owned by the given collection."""
-            if not isinstance(it, self.Item):
-                return
-            it.get_collections_from_rest(self)
-            cols = it.collections
-            if cols[0].uuid == coll.uuid:
-                it.delete(self)
-
-        items = self.get_objects_in_scope(collection.uuid)
-        if not all_items and len(items) > 0:
-            raise AttributeError(f'Collection {collection.uuid} has {len(items)} items and all_items is set to False.')
-        elif len(items) > 0:
-            if self.workers > 1:
-                with ThreadPoolExecutor(max_workers=self.workers) as pool:
-                    pool_threads = [pool.submit(delete_item_owned, i, collection) for i in items]
-                for p in pool_threads:
-                    p.result()
-            else:
-                for i in items:
-                    delete_item_owned(i, collection)
-            logging.info('Successfully deleted %i items from the collection.' % len(items))
-        self.delete_api(f'core/collections/{collection.uuid}')
-        logging.info('Successfully deleted collection with uuid "%s".' % collection.uuid)
-
-    def delete_community(self, community: Community, all_objects: bool = False):
-        """
-        Deletes the given community from the rest_api. Raises an error, if the community still includes items or
-        collections and all_objects is set to false.
-        :param community: The community to delete.
-        :param all_objects: Whether to delete all items and collections in the community as well.
-        :raises AttributeError: If community still includes items or collections and all_objects is set to false.
-        """
-        sub_communities = community.get_subcommunities_from_rest(self, False)
-        sub_collections = community.get_subcollections_from_rest(self, False)
-        sub_objs = len(sub_communities) + len(sub_collections)
-        if not all_objects and sub_objs > 0:
-            raise AttributeError(f'Community {community.uuid} has {sub_objs} objects and all_objects is set to False.')
-        else:
-            for c in sub_collections:
-                self.delete_collection(c, all_objects)
-            for c in sub_communities:
-                self.delete_community(c, all_objects)
-            logging.info('Successfully deleted %i objects from the community.' % sub_objs)
-        self.delete_api(f'core/communities/{community.uuid}')
-        logging.info('Successfully deleted community with uuid "%s".' % community.uuid)
