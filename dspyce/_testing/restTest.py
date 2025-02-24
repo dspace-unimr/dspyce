@@ -88,6 +88,11 @@ class RestTest(unittest.TestCase):
         item.add_bundle(bundle)
         item.add_bundles_to_rest(rest)
         self.assertNotEqual('', item.get_bundle('TEXT').uuid)
+        item.remove_collection_mapping(rest, None)
+        self.assertEqual(0, len(mapped_collection.get_items(rest)))
+        item.move_item(rest, mapped_collection)
+        self.assertEqual(mapped_collection, item.get_owning_collection())
+        self.assertEqual(item, mapped_collection.get_items(rest)[0])
         community.delete(rest, True)
 
 

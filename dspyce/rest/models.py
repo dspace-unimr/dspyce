@@ -441,6 +441,9 @@ class RestAPI:
         item.collections = [item.collections[0]] + collections
         item.add_to_mapped_collections(self)
 
+    @deprecated(
+        'The method "move_item" is deprecated. Call the Item.move_item() method of the Item class instead.'
+    )
     def move_item(self, item: Item, new_collection: Collection | str):
         """
         Moves an item to a new collection (completely replacing the old one).
@@ -449,11 +452,8 @@ class RestAPI:
         :param new_collection: The new collection to put the item. This can eather be a Collection object or a string
             containing the uuid of the collection.
         """
-        endpoint = f'core/items/{item.uuid}/owningCollection'
-        new_collection = new_collection.uuid if isinstance(new_collection, self.Collection) else new_collection
-        logging.info(f'Moving item with uuid {item.uuid} into new owning collection {new_collection}.')
-        self.put_api(endpoint, f'{self.api_endpoint}/core/collections/{new_collection}',
-                     content_type='text/uri-list')
+        new_collection = self.Collection(new_collection) if isinstance(new_collection, str) else new_collection
+        item.move_item(self, new_collection)
 
     @deprecated(
         'The method "get_dso" is deprecated. Call the DSpaceObject.get_from_rest() method of the DSpace Object instead.'
@@ -1001,8 +1001,12 @@ class RestAPI:
         """
         bundle_uuid = [bundle_uuid] if isinstance(bundle_uuid, str) else bundle_uuid
         for b in bundle_uuid:
-            self.Bundle.get_from_rest(self, b).delete(self)
+            self.Bundle.get_from_rest(self, b).delete(self, include_bitstreams)
 
+    @deprecated(
+        'The method "remove_mapped_collection" is deprecated. Call the remove_collection_mapping() method of the Item '
+        'Object instead.'
+    )
     def remove_mapped_collection(self, item: Item, collection: Collection | str):
         """
         Removes the mapped collection of a given Item.
@@ -1010,8 +1014,8 @@ class RestAPI:
         :param collection: The mapped collection to remove. Can be either a collection object or the uuid of the
         collection.
         """
-        collection_uuid = collection.uuid if isinstance(collection, self.Collection) else collection
-        self.delete_api(f'core/items/{item.uuid}/mappedCollections/{collection_uuid}')
+        collection = self.Collection(collection) if isinstance(collection, str) else collection
+        item.remove_collection_mapping(self, collection)
 
     @deprecated(
         'The method "delete_item" is deprecated. Call the delete() method of the Item Object instead.'

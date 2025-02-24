@@ -813,6 +813,39 @@ class Item(DSpaceObject):
         self.contents.append(cf)
         active_bundle.add_bitstream(cf)
 
+    def move_item(self, rest, new_collection: Collection = None):
+        """
+        Moves an item to a new collection (completely replacing the old one). If a collection is given as new
+        collection, the item will be placed there, if None provided, the item will be moved into the current owning
+        collection of the item.
+
+        :param rest: The rest api object to use
+        :param new_collection: The new collection to put the item. If None, uses the current owning collection as the
+            new collection.
+        """
+        endpoint = f'core/items/{self.uuid}/owningCollection'
+        collection_uuid = new_collection.uuid if new_collection is not None else self.get_owning_collection().uuid
+        logging.info(f'Moving item with uuid {self.uuid} into new owning collection with uuid {collection_uuid}.')
+        rest.put_api(endpoint, f'{rest.api_endpoint}/core/collections/{collection_uuid}', content_type='text/uri-list')
+        if new_collection is not None:
+            self.collections[0] = new_collection
+
+    def remove_collection_mapping(self, rest, collection: Collection = None):
+        """
+        Remove the given collection as a mapped collection in the given rest api. If no collection is provided: removes
+        all mapped collections of the current item in the given rest API.
+        """
+        if collection is not None:
+            collection_uuid = collection.uuid
+            logging.debug('Remove mapped collection (%s) from item (%s).' % (collection_uuid, self.uuid))
+            rest.delete_api(f'core/items/{self.uuid}/mappedCollections/{collection_uuid}')
+            self.collections = list(filter(lambda x: x != collection, self.collections))
+        else:
+            for c in self.get_mapped_collections():
+                logging.debug('Remove mapped collection (%s) from item (%s).' % (c.uuid, self.uuid))
+                rest.delete_api(f'core/items/{self.uuid}/mappedCollections/{c.uuid}')
+            self.remove_mapped_collections()
+
     def enable_entity(self, entity_type: str):
         """
         Enables an item to be a dspace-entity by providing an entity-type.
