@@ -145,17 +145,17 @@ class RestTest(unittest.TestCase):
         community.add_metadata('dc.rights.uri', 'https://creativecommons.org/licenses/by-nd/4.0/')
         community.add_metadata('dc.rights.uri', 'https://creativecommons.org/licenses/by-nc-sa/4.0/')
         community.replace_metadata('dc.title', 'Great Test Community', 'en')
-        community.remove_metadata('dc.rights.uri', 'https://creativecommons.org/licenses/by-nd/4.0/')
+        community.remove_metadata('dc.rights.uri', 'https://creativecommons.org/licenses/by-sa/4.0/')
         community.move_metadata('dc.rights.uri', 2, 0)
-        community.update_metadata_rest(rest)
+        community.update_metadata_rest(rest, False)
         community.replace_metadata('dc.title', 'Großartiger Testbereich', 'de')
         community.update_metadata_rest(rest)
         community = Community.get_from_rest(rest, community.uuid)
         self.assertListEqual(
             [
                 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
-                'https://creativecommons.org/licenses/by-sa/4.0/',
-                'https://creativecommons.org/licenses/by/4.0/'
+                'https://creativecommons.org/licenses/by/4.0/',
+                'https://creativecommons.org/licenses/by-nd/4.0/'
             ],
             community.get_metadata_values('dc.rights.uri')
 
