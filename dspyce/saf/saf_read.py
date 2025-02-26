@@ -12,9 +12,8 @@ import re
 import uuid
 from bs4 import BeautifulSoup
 
-from dspyce.Item import Item
-from dspyce.Collection import Collection
-from dspyce.bitstreams import Bundle
+from dspyce.models import Collection, Item
+from dspyce.bitstreams.models import Bundle
 
 
 def read_saf_package(path: str) -> Item:

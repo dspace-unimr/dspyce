@@ -1,1 +1,1 @@
-from .retrieve import download_statistics_to_object, download_statistics, all_statistics, all_statistics_to_object
+from dspyce.statistics.retrieve import download_statistics_to_object, download_statistics, all_statistics, all_statistics_to_object

@@ -1,7 +1,7 @@
 import unittest
 
 import dspyce as ds
-from dspyce.bitstreams import Bundle
+from dspyce.bitstreams.models import Bundle
 
 
 class ItemTest(unittest.TestCase):
@@ -45,6 +45,16 @@ class ItemTest(unittest.TestCase):
         self.assertEqual(ds.Collection('abc'), self.item.get_owning_collection())
         self.item.add_collection(ds.Collection('dfg'))
         self.assertEqual(ds.Collection('dfg'), self.item.collections[-1])
+
+    def test_to_dict(self):
+        """
+        Test the to_dict method.
+        """
+        self.assertEqual(
+            {'uuid': 'xyz', 'handle': '123456789/1', 'name': 'test', 'type': 'item',
+             'inArchive': True, 'discoverable': True, 'withdrawn': False, 'entityType': self.item.get_entity_type(),
+             'metadata': self.item.metadata.to_dict()},
+            self.item.to_dict())
 
 
 if __name__ == '__main__':

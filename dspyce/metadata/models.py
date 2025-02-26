@@ -10,16 +10,24 @@ class MetaDataValue:
     """The language of the metadata value. For example 'en' for English."""
     value: str | int | float | bool
     """The actual metadata value."""
+    authority: str | None = None
+    """A possible authority value of the metadata value."""
+    confidence: int = -1
+    """The confidence level of the metadata value."""
 
-    def __init__(self, value: str | int | float | bool, language: str = None):
+    def __init__(self, value: str | int | float | bool, language: str = None, authority: str = None, confidence : int = -1):
         """
         Creates a new MetaDataValue object.
 
         :param value: The value stored in the metadata field.
         :param language: Optional language parameter for a metadata field.
+        :param authority: Optional authority parameter for a metadata field.
+        :param confidence: Optional confidence level for a metadata field.
         """
         self.value = value
         self.language = language if language != '' else None
+        self.authority = authority
+        self.confidence = confidence
 
     def __eq__(self, other):
         """
@@ -55,6 +63,10 @@ class MetaDataValue:
         yield 'value', self.value
         if self.language is not None:
             yield 'language', self.language
+        if self.authority is not None:
+            yield 'authority', self.authority
+        if self.confidence != -1:
+            yield 'confidence', self.confidence
 
 
 class MetaData(dict):
@@ -97,7 +109,7 @@ class MetaData(dict):
             if key not in self.keys():
                 super().__setitem__(key, [value])
             else:
-                super().__getitem__(key).append(value)
+                self.__getitem__(key).append(value)
 
     def get_schemas(self) -> set[str]:
         """
@@ -130,3 +142,9 @@ class MetaData(dict):
         if schema not in self.get_schemas():
             raise KeyError(f'The schema "{schema}" is not used.')
         return MetaData({k: self.__getitem__(k) for k in filter(lambda x: x.split('.')[0] == schema, self.keys())})
+
+    def to_dict(self):
+        """
+        Returns the metadata including all values as a rest-compatible dictionary.
+        """
+        return {k: list(map(lambda x: dict(x), self.get(k))) for k in self.keys()}

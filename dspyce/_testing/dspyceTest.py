@@ -1,10 +1,8 @@
 import unittest
 import dspyce as ds
-from dspyce.DSpaceObject import DSpaceObject
-from dspyce.Item import Item
-from dspyce.Collection import Collection
-from dspyce.Community import Community
-from dspyce.metadata import MetaData
+from dspyce.metadata import MetaDataValue
+from dspyce.models import DSpaceObject, Community, Collection, Item
+from dspyce.metadata.models import MetaData
 
 
 class DSpaceObjectTest(unittest.TestCase):
@@ -32,10 +30,24 @@ class DSpaceObjectTest(unittest.TestCase):
         self.assertEqual(self.obj.metadata['dc.title'][0].value,
                          'hello')
         self.assertEqual(self.obj.metadata['dc.title'][0].language, 'en')
+        self.assertEqual(self.obj.get_first_metadata('dc.title').language, 'en')
+        self.assertEqual(self.obj.get_first_metadata('dc.title').confidence, -1)
+        self.assertTrue(self.obj.has_metadata('dc.title'))
+        self.assertFalse(self.obj.has_metadata('dc.title.alternative'))
+        self.assertIsNone(self.obj.get_first_metadata('dc.title').authority)
         self.obj.add_metadata('relation.isAuthorOfPublication.latestForDiscovery',
                               'kidll88-uuid999-duwkke1222', 'en')
         self.assertEqual(self.obj.get_metadata_values('relation.isAuthorOfPublication.latestForDiscovery')[0],
                          'kidll88-uuid999-duwkke1222')
+        self.assertEqual(self.obj.get_first_metadata_value('dc.title'), 'hello')
+        self.assertIsNone(self.obj.get_first_metadata('dc.title.alternative'))
+        self.obj.add_metadata('dc.creator', MetaDataValue('Smith, Adam', 'en',
+                                                          'orcid:123456', 2))
+        self.assertEqual(self.obj.get_first_metadata_value('dc.creator'), 'Smith, Adam')
+        self.assertDictEqual(
+            {'value': 'Smith, Adam', 'language': 'en', 'authority': 'orcid:123456', 'confidence': 2},
+            dict(self.obj.get_first_metadata('dc.creator'))
+        )
         self.obj.metadata = MetaData({})
 
     def test_remove_metadata(self):
@@ -55,6 +67,23 @@ class DSpaceObjectTest(unittest.TestCase):
         self.assertEqual(['hello'], self.obj.get_metadata_values('dc.title'))
         self.obj.replace_metadata('dc.title', 'salut')
         self.assertEqual(['salut'], self.obj.get_metadata_values('dc.title'))
+        self.obj.remove_metadata('dc.title')
+
+    def test_move_metadata(self):
+        self.obj.add_metadata('dc.title', 'hello', 'en')
+        self.obj.add_metadata('dc.title', 'salut', 'fr')
+        self.obj.add_metadata('dc.title', 'Hallo', 'de')
+        self.assertListEqual(['hello', 'salut', 'Hallo'], self.obj.get_metadata_values('dc.title'))
+        self.assertEqual('hello', self.obj.get_first_metadata_value('dc.title'))
+        self.obj.move_metadata('dc.title', 2, 0)
+        self.assertEqual('Hallo', self.obj.get_first_metadata_value('dc.title'))
+        self.obj.move_metadata('dc.title', 0, 1)
+        self.assertEqual('hello', self.obj.get_first_metadata_value('dc.title'))
+        self.obj.move_metadata('dc.title', 2, 0)
+        self.assertEqual('salut', self.obj.get_first_metadata_value('dc.title'))
+        self.assertRaises(KeyError, self.obj.move_metadata, 'dc.title.alternative', 2, 0)
+        self.assertRaises(KeyError, self.obj.move_metadata, 'dc.title', 4, 0)
+        self.assertRaises(IndexError, self.obj.move_metadata, 'dc.title', 0, 4)
         self.obj.remove_metadata('dc.title')
 
     def test_object_type(self):
@@ -87,6 +116,12 @@ class DSpaceObjectTest(unittest.TestCase):
         """
         self.assertEqual({'uuid': '123445-123jljl1-234kjj', 'handle': 'doc/12345', 'name': 'test-name',
                           'metadata': {}}, self.obj.to_dict())
+        obj = Community('123445-123jljl1-234kjj', '123456789/1', 'community')
+        obj.add_metadata('dc.title', 'hello', 'en')
+        self.assertEqual({'uuid': '123445-123jljl1-234kjj', 'handle': '123456789/1', 'name': 'community',
+                          'metadata': {'dc.title': [{'value': 'hello', 'language': 'en'}]},
+                          'type': 'community'}, obj.to_dict())
+
 
     def test_from_dict(self):
         """
@@ -117,6 +152,10 @@ class DSpaceObjectTest(unittest.TestCase):
         self.assertTrue(isinstance(self.obj.statistic_reports['TotalDownloads'], list))
         self.assertTrue(self.obj.has_statistics())
 
+    def test_rest(self):
+        self.assertWarns(DeprecationWarning, ds.rest.object_to_json, self.obj)
+        self.assertDictEqual(ds.rest.object_to_json(self.obj), {'handle': 'doc/12345', 'name': 'test-name',
+                                                                'uuid': '123445-123jljl1-234kjj', 'metadata': {}})
 
 if __name__ == '__main__':
     unittest.main()

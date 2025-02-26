@@ -1,15 +1,11 @@
 import re
-import logging
 
 import dspyce.entities
 import dspyce.saf
 import dspyce.rest
 import dspyce.statistics
-from dspyce.DSpaceObject import DSpaceObject
-from dspyce.Item import Item
-from dspyce.Collection import Collection
-from dspyce.Community import Community
-from dspyce.Relation import Relation
+from dspyce.models import DSpaceObject, Community, Collection, Item
+from dspyce.entities.models import Relation
 
 
 def from_dict(obj_dict: dict, obj_type: str = None) -> DSpaceObject | Item | Community | Collection:
