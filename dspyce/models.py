@@ -57,7 +57,7 @@ class DSpaceObject:
             self._metadata_updates[-1]['tag'] = data
         else:
             self._metadata_updates[-1]['metadata'] = data
-        if position:
+        if position is not None:
             if operation == 'add':
                 self._metadata_updates[-1]['position_end'] = position
             elif operation == 'move':
@@ -180,9 +180,8 @@ class DSpaceObject:
             if self._track_updates:
                 self._store_metadata_update('delete', tag, -1)
         else:
-            values = self.metadata[tag]
             try:
-                position = [i.value for i in values].index(value)
+                position = [i.value for i in self.metadata[tag]].index(value)
             except ValueError:
                 return
             while position is not None:
@@ -190,7 +189,7 @@ class DSpaceObject:
                 if self._track_updates:
                     self._store_metadata_update('delete', tag, position)
                 try:
-                    position = [i.value for i in values].index(value)
+                    position = [i.value for i in self.metadata[tag]].index(value)
                 except ValueError:
                     return
 
@@ -251,22 +250,26 @@ class DSpaceObject:
         """
         self._metadata_updates = []
 
-    def update_metadata_rest(self, rest):
+    def update_metadata_rest(self, rest, stop_tracking: bool = True):
         """
         Updates the metadata fields of the current object in the given restAPI based on the actions traced in the
         _metadata_updates list.
         :param rest: The rest api to use.
+        :param stop_tracking: Whether to stop tracking metadata updates.
         :raises AttributeError: If an unknown operation is called.
         """
         for i in self._metadata_updates:
             operation = i.get('operation')
             i.pop('operation')
+            logging.debug('Performing %s operation with values: %s' % (operation, str(i)))
             match operation:
                 case 'add': rest.add_metadata(**i)
                 case 'delete': rest.delete_metadata(**i)
                 case 'move': rest.move_metadata(**i)
                 case _: raise AttributeError('Could not perform operation "%s", unknown.' % operation)
         self.reset_metadata_update()
+        if stop_tracking:
+            self.stop_tracking_updates()
 
     def get_dspace_object_type(self) -> str:
         """
