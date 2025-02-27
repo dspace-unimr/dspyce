@@ -508,9 +508,9 @@ class RestAPI:
         :raises ValueError: If a not existing objectType is used or wrong operation type.
         """
         from dspyce.rest.functions import json_to_object
-        if obj_type not in ('item', 'collection', 'community'):
-            logging.error(f'Wrong object type information "{obj_type}" must be one of item, collection or community')
-            raise ValueError(f'Wrong object type information "{obj_type}" must be one of item, collection or community')
+        if obj_type not in self.DSpaceObject.TYPES:
+            logging.error(f'Wrong object type information "{obj_type}" must be one of {self.DSpaceObject.TYPES}')
+            raise ValueError(f'Wrong object type information "{obj_type}" must be one of {self.DSpaceObject.TYPES}')
         if operation not in ('add', 'replace', 'remove', 'move'):
             logging.error(f'Wrong update operation "{operation}" must be one off (add, replace, remove).')
             raise ValueError(f'Wrong update operation "{operation}" must be one off (add, replace, remove).')
