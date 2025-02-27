@@ -110,6 +110,7 @@ class Relation:
         if resp.status_code in (201, 200):
             # Success post request
             logging.info(f'Created relationship: {self}')
+            return
 
         raise requests.exceptions.RequestException(f'{resp.status_code}: Could not post relation: \n{self}\n'
                                                    f'Got headers: {resp.headers}')
