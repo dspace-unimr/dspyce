@@ -166,20 +166,24 @@ class DSpaceObject:
         if self._track_updates:
             self._store_metadata_update('add', {tag: [dict(value)]}, True)
 
-    def remove_metadata(self, tag: str, value: str = None):
+    def remove_metadata(self, tag: str, value: str = None, index: int = None):
         """
         Remove a specific metadata field from the DSpaceObject. Can either be all values for a field or ony a specific
-        value based on the *value* parameter.
+        value based on the *value* parameter, or the specific value identified by its position (index).
 
         :param tag: The correct metadata tag. The string must use the format <schema>.<element>.<qualifier>.
         :param value: The value of the metadata field to delete. Can be used, if only one value in a list of values
             should be deleted. If None, all values from the given tag will be deleted.
+        :param index: The index of the metadata value to delete. Either value or index must be None.
+        :raises AttributeError: If index and value parameter are provided. Only one of those can be used.
         """
-        if value is None:
+        if value is not None and index is not None:
+            raise AttributeError('You can not use both parameters value and index for removing metadata.')
+        elif value is None and index is None:
             self.metadata.pop(tag)
             if self._track_updates:
                 self._store_metadata_update('delete', tag, -1)
-        else:
+        elif index is None:
             try:
                 position = [i.value for i in self.metadata[tag]].index(value)
             except ValueError:
@@ -192,6 +196,12 @@ class DSpaceObject:
                     position = [i.value for i in self.metadata[tag]].index(value)
                 except ValueError:
                     return
+        elif index is not None:
+            if index > len(self.get_metadata(tag)):
+                return
+            self.metadata[tag].pop(index)
+            if self._track_updates:
+                self._store_metadata_update('delete', tag, index)
 
     def replace_metadata(self, tag: str, value: str, language: str = None):
         """
