@@ -1,6 +1,6 @@
 import unittest
-from dspyce.bitstreams import Bundle
-from dspyce.bitstreams import Bitstream
+from dspyce.bitstreams.models import Bundle
+from dspyce.bitstreams.models import Bitstream
 
 
 class BitstreamsTest(unittest.TestCase):
@@ -26,6 +26,7 @@ class BitstreamsTest(unittest.TestCase):
         self.assertEqual(self.bitstream.get_first_metadata_value('dc.description'), 'Hello World')
         self.assertEqual(self.bitstream.get_description(), 'Hello World')
         self.assertEqual(self.bitstream.get_metadata_values('dc.title')[0], 'other')
+        self.assertEqual(self.bitstream.file_name, 'other')
         self.assertEqual(self.bitstream.get_dspace_object_type(), 'Bitstream')
         self.assertEqual(self.bitstream.size_bytes, 9876)
         self.assertEqual(self.bitstream.check_sum, 'md-123')

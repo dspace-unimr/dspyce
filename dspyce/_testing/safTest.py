@@ -3,8 +3,8 @@ import os
 import unittest
 
 from dspyce import saf
-from dspyce import Item, Collection
-from dspyce.metadata import MetaDataValue
+from dspyce.models import Item, Collection
+from dspyce.metadata.models import MetaDataValue
 
 
 class SAFTest(unittest.TestCase):

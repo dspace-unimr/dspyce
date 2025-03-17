@@ -6,9 +6,121 @@ object based on the relationship-types.xml file or a given REST-endpoint and you
 has an entity modell enabled or not.
 """
 from bs4 import BeautifulSoup
+import logging
 import matplotlib.pyplot as plt
 import networkx as nx
-from dspyce.rest import RestAPI
+import requests
+
+
+class Relation:
+    """
+        The class contains the python class Relation representing the Relation between DSpace-Entities.
+        And the following function:
+         - `export_relations(relations: list[Relation])` - Returns a list of relationships in a string.
+        Example:
+        >from saf import export_relations
+        >
+        >export_relations([Relation('any_relation', '123456789/12'), Relation('different_relation', '123456789/13')])
+
+        > relation.any_relation 123456789/12\nrelation.different_relation 123456789/13\n
+    """
+    left_type: str
+    """The left entity type of a relationship."""
+    right_type: str
+    """The right entity type of a relationship."""
+    relation_key: str
+    relation_type: int
+    items: tuple
+
+    def __init__(self, relation_key: str, related_items: tuple = None, relation_type: int = None):
+        """
+            Creates a new object of the class relation, which represents exactly
+            one DSpace-Relation
+
+            :param relation_key: The relation-type, aka the name.
+            :param related_items: The two related entities. Attention: The order will always be preserved.
+            :param relation_type: A DSpace specific relation ID if existing.
+        """
+        self.relation_key = relation_key
+        self.items = related_items if related_items is not None else (None, None)
+        self.relation_type = relation_type
+
+    def __str__(self):
+        id_1 = self.items[0].get_identifier() if self.items[0] is not None else 'None'
+        id_2 = self.items[1].get_identifier() if self.items[1] is not None else 'None'
+        return f'{id_1}:relation.{self.relation_key}:{id_2}'
+
+    def __eq__(self, other):
+        return self.relation_key == other.relation_key and self.relation_type == other.relation_type
+
+    @staticmethod
+    def get_by_type_from_rest(rest_api, entity_type: str):
+        """
+        Parses the given REST API and returns a list of relationships, which have the given entity on the left or right
+        side.
+        """
+        add_url = f'/core/relationshiptypes/search/byEntityType'
+        params = {'type': entity_type}
+        rel_list = []
+        relations = rest_api.get_paginated_objects(add_url, 'relationshiptypes', params)
+        for r in relations:
+            rel_list.append(Relation(r['leftwardType'], relation_type=r['id']))
+            rel_list.append(Relation(r['rightwardType'], relation_type=r['id']))
+            logging.debug(f'Got relation {r} from RestAPI')
+        return rel_list
+
+    def to_rest(self, rest_api):
+        """
+        Adds the current relationship to the given DSpace repository.
+        """
+
+        if not rest_api.authenticated:
+            logging.critical('Could not add object, authentication required!')
+            raise ConnectionRefusedError('Authentication needed.')
+        if self.relation_type is None:
+            logging.info('No relation type specified, trying to find relation-type via the rest endpoint.')
+            left_item_type = self.items[0].get_entity_type()
+            rels = Relation.get_by_type_from_rest(rest_api, left_item_type)
+            rels = list(filter(lambda x: x.relation_key == self.relation_key, rels))
+            if len(rels) != 1:
+                if len(rels) > 1:
+                    logging.critical('Something went wrong with on the rest-endpoint: found more than one relation with'
+                                     f' the name {self.relation_key}')
+                else:
+                    logging.error(f'Didn\'t find relation with name {self.relation_key}')
+            else:
+                self.relation_type = rels[0].relation_type
+                logging.debug(f'Found relationtype "{self.relation_type}" for the name "{self.relation_key}"')
+        add_url = f'{rest_api.api_endpoint}/core/relationships?relationshipType={self.relation_type}'
+        if self.items[0] is None or self.items[1] is None:
+            logging.error(f'Could not create Relation because of missing item information in relation: {self}')
+            raise ValueError(f'Could not create Relation because of missing item information in relation: {self}')
+        uuid_1 = self.items[0].uuid
+        uuid_2 = self.items[1].uuid
+        if uuid_1 == '' or uuid_2 == '':
+            logging.error(f'Relation via RestAPI can only be created by using item-uuids, but found: {self}')
+            raise ValueError(f'Relation via RestAPI can only be created by using item-uuids, but found: {self}')
+        req = rest_api.session.post(add_url)
+        rest_api.update_csrf_token(req)
+        item_url = f'{rest_api.api_endpoint}/core/items'
+        headers = rest_api.session.headers
+        headers.update({'Content-Type': 'text/uri-list', 'User-Agent': rest_api.req_headers['User-Agent']})
+        resp = rest_api.session.post(add_url, f'{item_url}/{uuid_1} \n {item_url}/{uuid_2}', headers=headers)
+
+        if resp.status_code in (201, 200):
+            # Success post request
+            logging.info(f'Created relationship: {self}')
+            return
+
+        raise requests.exceptions.RequestException(f'{resp.status_code}: Could not post relation: \n{self}\n'
+                                                   f'Got headers: {resp.headers}')
+
+    def set_relation_type(self, relation_type: int):
+        """
+        Set a value for the relation_type variable.
+        :param relation_type: The new relation_id value.
+        """
+        self.relation_type = relation_type
 
 
 class EntityModell:
@@ -149,6 +261,7 @@ def from_rest_api(url: str) -> EntityModell:
     :param url: The url of the used RestApi.
     :return: A complete EntityModell object based on the RestAPI provided.
     """
+    from dspyce.rest import RestAPI
     rest = RestAPI(url)
     entity_objects = rest.get_paginated_objects('core/entitytypes', 'entitytypes')
     entity_objects = list(filter(lambda x: x['label'] != 'none', entity_objects))
@@ -175,5 +288,6 @@ def check_entities_rest(url: str) -> bool:
 
     :param url: The url of the rest-API
     """
+    from dspyce.rest import RestAPI
     entity_objects = RestAPI(url).get_paginated_objects('core/entitytypes', 'entitytypes')
     return len(list(filter(lambda x: x['label'] != 'none', entity_objects))) > 0
