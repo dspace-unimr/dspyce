@@ -28,7 +28,7 @@ repository. There is currently no way to set handles via the RestAPI.
 for i in items:
     i.uuid = ''
     i.handle = ''
-    i.collections = ''
+    i.collections = []
 ```
 Now you can connect to the RestAPI of the new repository and add the items.
 ```python
