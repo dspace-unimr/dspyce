@@ -1,3 +1,4 @@
+import logging
 import re
 
 
@@ -148,3 +149,56 @@ class MetaData(dict):
         Returns the metadata including all values as a rest-compatible dictionary.
         """
         return {k: list(map(lambda x: dict(x), self.get(k))) for k in self.keys()}
+
+
+class MetadataSchema:
+    id: int
+    """The ID of the metadata schema."""
+    prefix: str
+    """The prefix of the metadata schema, aka dc, dc-terms, ..."""
+    namespace: str
+    """An url to the namespace of the schema."""
+
+    def __init__(self, prefix: str, namespace: str, id: int = None):
+        """
+        Creates a new object of the  MetadataSchema class.
+        :param prefix: The prefix of the schema.
+        :param namespace: The namespace of the schema.
+        :param id: The id of the schema, optional.
+        """
+        self.prefix = prefix
+        self.namespace = namespace
+        self.id = id
+
+    @staticmethod
+    def get_schemas_from_rest(rest_api):
+        """
+        Retrieves a metadata schema by its id from the given rest API.
+        :param rest_api: The rest API object to use.
+        """
+        """
+        Retrieves all sub communities from the current community.
+        :param rest_api: The rest API object to use.
+        :param in_place: If True, the returned object will be placed into the current community.
+        :return: A list of sub communities if in_place i False, None otherwise.
+        """
+        url = f'/core/metadataschemas'
+        objs = rest_api.get_paginated_objects(url, 'metadataschemas')
+        logging.debug('Retrieved %i metadataschemas.', len(objs))
+        return [MetadataSchema(i['prefix'], i['namespace'], i['id']) for i in objs]
+
+    @staticmethod
+    def get_schema_from_rest(rest_api, id: int):
+        """
+        Retrieves a metadata schema by its id from the given rest API.
+        :param rest_api: The rest API object to use.
+        :param id: The id of the schema to retrieve.
+        """
+        url = f'/core/metadataschemas/{id}'
+        obj = rest_api.get_api(url)
+        if obj is None:
+            logging.error('Could not retrieve metadata schema with id %i.', id)
+            return None
+        schema_obj = MetadataSchema(obj['prefix'], obj['namespace'], obj['id'])
+        logging.debug('Retrieved metadataschema with prefix.', schema_obj.prefix)
+        return schema_obj

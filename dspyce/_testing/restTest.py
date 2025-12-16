@@ -166,6 +166,16 @@ class RestTest(unittest.TestCase):
         self.assertListEqual(['Großartiger Testbereich'], community.get_metadata_values('dc.title'))
         community.delete(rest, True)
 
+    def test_metadata_schemas(self):
+        """
+        Test metadata-schema operations with the restAPI.
+        """
+        rest = self.get_rest()
+        from dspyce.metadata import MetadataSchema
+        schemas = MetadataSchema.get_schemas_from_rest(rest)
+        self.assertGreater(len(schemas), 0)
+        dc_schema = MetadataSchema.get_schema_from_rest(rest, 1)
+        self.assertEqual(dc_schema.prefix, 'dc')
 
 if __name__ == '__main__':
     unittest.main()
