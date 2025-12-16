@@ -2,6 +2,8 @@ import logging
 from json import JSONDecodeError
 
 import requests
+
+from dspyce.metadata import MetadataField, MetadataSchema
 from dspyce.metadata.models import MetaData, MetaDataValue
 
 
@@ -113,8 +115,10 @@ class DSpaceObject:
         :param rest_api: The rest API object to use.
         :raises ConnectionRefusedError: If the rest API object did not provide authentication information.
         :raises TypeError: If the current DSpaceObject type does not exist.
-        :raises ValueError: If the curren DSpaceObject already has a uuid.
+        :raises ValueError: If the curren DSpaceObject already has an uuid.
+        :raises InvalidMetadataException: If the current DSpaceObject does not contain correct metadata.
         """
+        from dspyce.rest.exceptions import InvalidMetadataException
         from dspyce.rest.functions import json_to_object
         if not rest_api.authenticated:
             logging.critical('Could not add object, authentication required!')
@@ -123,6 +127,7 @@ class DSpaceObject:
             raise ValueError(f'The current {self.get_dspace_object_type()} already has an uuid. It might exist already '
                              'in the DSpace repository')
         params = {}
+        add_url = ''
         match self.get_dspace_object_type():
             case 'Item':
                 self: Item
@@ -141,7 +146,28 @@ class DSpaceObject:
                 params = {'parent': self.community.uuid}
             case _:
                 raise TypeError(f'Object type {self.get_dspace_object_type()} is not allowed as a parameter!')
-        obj_json = rest_api.post_api(add_url, data=self.to_dict(), params=params)
+        try:
+            obj_json = rest_api.post_api(add_url, data=self.to_dict(), params=params)
+        except requests.exceptions.RequestException as e:
+            status_code = e.response.status_code
+            logging.error('Could not post object. Got status code %i.' % status_code)
+
+            if status_code == 400:
+                metadata_fields = [m.split('.') for m in self.metadata.keys()]
+                invalid_fields = []
+                for field in metadata_fields:
+                    schema, element, qualifier = field if len(field) == 3 else (field[0], field[1], None)
+                    try:
+                        n = len(MetadataField.search_in_rest(rest_api, schema, element, qualifier))
+                    except KeyError:
+                        n = 0
+                    if n == 0:
+                        error_note = 'The metadata field "%s" does not exist in the given restAPI.' % '.'.join(field)
+                        logging.error(error_note)
+                        invalid_fields.append(MetadataField(MetadataSchema(schema, '', None), element, qualifier))
+                e = InvalidMetadataException()
+                e.invalid_metadata_fields = invalid_fields
+            raise e
         obj = json_to_object(obj_json)
         self.uuid = obj.uuid
         self.handle = obj.handle

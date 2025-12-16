@@ -1,9 +1,9 @@
 import copy
-import logging
+import requests
 import unittest
 
 from dspyce.bitstreams.models import Bundle, Bitstream
-from dspyce.rest.exceptions import RestObjectNotFoundError
+from dspyce.rest.exceptions import RestObjectNotFoundError, InvalidMetadataException
 from dspyce.rest.models import RestAPI
 from dspyce.models import Community, Collection, Item
 
@@ -94,6 +94,12 @@ class RestTest(unittest.TestCase):
         item.move_item(rest, mapped_collection)
         self.assertEqual(mapped_collection, item.get_owning_collection())
         self.assertEqual(item, mapped_collection.get_items(rest)[0])
+        error_item = Item(collections=[collection])
+        error_item.add_metadata('xy.ab.cd', 'Invalid field!', 'NAN')
+        self.assertRaises(InvalidMetadataException, error_item.to_rest, rest)
+        item.track_updates()
+        item.add_metadata('xy.ab.cd', 'Invalid field!', 'NAN')
+        self.assertRaises(InvalidMetadataException, item.update_metadata_rest, rest, True)
         community.delete(rest, True)
 
     def test_metadata(self):
