@@ -187,6 +187,8 @@ class RestTest(unittest.TestCase):
         field = MetadataField.get_metadata_field_from_rest(rest, 1)
         self.assertIsNotNone(field.element)
         self.assertIsNotNone(field.schema)
+        fields = MetadataField.search_in_rest(rest, 'dc', 'contributor', 'author')
+        self.assertEqual(len(fields), 1)
 
 
 if __name__ == '__main__':

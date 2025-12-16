@@ -204,6 +204,7 @@ class MetadataSchema:
         return schema_obj
 
 class MetadataField:
+    """A DSpace Metadata Field."""
     id: int
     """The id of the metadata field."""
     schema: MetadataSchema
@@ -239,6 +240,21 @@ class MetadataField:
         self.schema = MetadataSchema(obj['prefix'], obj['namespace'], obj['id'])
 
     @staticmethod
+    def _get_from_json(json_obj: dict):
+        """
+        Creates a MetadataField object from the given json object.
+        """
+        schema_obj = None
+        if json_obj.get('_embedded') is not None and json_obj['_embedded'].get('schema') is not None:
+            schema_obj = MetadataSchema(json_obj['_embedded']['schema']['prefix'],
+                                        json_obj['_embedded']['schema']['namespace'],
+                                        json_obj['_embedded']['schema']['id'])
+        field_obj = MetadataField(schema_obj, json_obj['element'], json_obj.get('qualifier'),
+                                  json_obj.get('scope_note'), json_obj['id'])
+        return field_obj
+
+
+    @staticmethod
     def get_metadata_field_from_rest(rest_api, id: int):
         """
         Retrieves a specific metadata field from the given rest API.
@@ -251,16 +267,38 @@ class MetadataField:
         if obj is None:
             logging.error('Could not retrieve metadata field with id %i.', id)
             return None
-        schema_obj = None
-        if obj.get('_embedded') is not None and obj['_embedded'].get('schema') is not None:
-            schema_obj = MetadataSchema(obj['_embedded']['schema']['prefix'],
-                                        obj['_embedded']['schema']['namespace'],
-                                        obj['_embedded']['schema']['id'])
-        field_obj = MetadataField(schema_obj, obj['element'], obj.get('qualifier'), obj.get('scope_note'), obj['id'])
-        if schema_obj is None:
+        field_obj = MetadataField._get_from_json(obj)
+        if field_obj.schema is None:
             field_obj.update_schema_from_rest(rest_api)
         logging.debug('Retrieved metadata field "%s".', str(field_obj))
         return field_obj
+
+    @staticmethod
+    def search_in_rest(rest_api, schema: str, element: str = None, qualifier: str = None):
+        """
+        Search a field object by schema, element, qualifier in the given rest API.
+        :param rest_api: The rest API object to use.
+        :param schema: The schema to search for.
+        :param element: The element to search for.
+        :param qualifier: The qualifier to search for.
+        """
+        url = '/core/metadatafields/search/byFieldName'
+        from dspyce.rest import RestAPI
+        rest_api: RestAPI
+        params = {'schema': schema}
+        if element is not None:
+            params['element'] = element
+        if qualifier is not None:
+            params['qualifier'] = qualifier
+        objs = rest_api.get_paginated_objects(url, 'metadatafields', params)
+        field_objs = []
+        for i in objs:
+            field_obj = MetadataField._get_from_json(i)
+            if field_obj.schema is None:
+                field_obj.update_schema_from_rest(rest_api)
+            field_objs.append(field_obj)
+        return field_objs
+
 
     def __str__(self):
         """Creates string representation of the current MetadataField object."""
