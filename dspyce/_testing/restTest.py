@@ -1,4 +1,5 @@
 import copy
+import logging
 import unittest
 
 from dspyce.bitstreams.models import Bundle, Bitstream
@@ -176,6 +177,17 @@ class RestTest(unittest.TestCase):
         self.assertGreater(len(schemas), 0)
         dc_schema = MetadataSchema.get_schema_from_rest(rest, 1)
         self.assertEqual(dc_schema.prefix, 'dc')
+
+    def test_metadata_fields(self):
+        """
+        Test metadata-fields operations with the restAPI.
+        """
+        rest = self.get_rest()
+        from dspyce.metadata import MetadataField
+        field = MetadataField.get_metadata_field_from_rest(rest, 1)
+        self.assertIsNotNone(field.element)
+        self.assertIsNotNone(field.schema)
+
 
 if __name__ == '__main__':
     unittest.main()

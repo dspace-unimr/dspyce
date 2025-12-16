@@ -202,3 +202,67 @@ class MetadataSchema:
         schema_obj = MetadataSchema(obj['prefix'], obj['namespace'], obj['id'])
         logging.debug('Retrieved metadataschema with prefix.', schema_obj.prefix)
         return schema_obj
+
+class MetadataField:
+    id: int
+    """The id of the metadata field."""
+    schema: MetadataSchema
+    """The MetadataSchema of the metadata field."""
+    element: str
+    """The name of the metadata field."""
+    qualifier: str | None
+    """The qualifier of the metadata field."""
+    scope_note: str | None
+    """The scope note of the metadata field."""
+
+    def __init__(self, schema: MetadataSchema, element: str, qualifier: str = None, scope_note: str = None, id: int = None):
+        """
+        Creates a new metadata field object.
+        :param element: The name of the metadata field.
+        :param qualifier: The qualifier of the metadata field.
+        :param scope_note: The scope note of the metadata field.
+        :param id: The id of the metadata field, optional.
+        """
+        self.schema = schema
+        self.element = element
+        self.qualifier = qualifier
+        self.scope_note = scope_note
+        self.id = id
+
+    def update_schema_from_rest(self, rest_api):
+        """
+        Updates the schema information from the given rest API object based on the ID of the current metadata field.
+        :param rest_api: The rest API object to use.
+        """
+        url = f'/core/metadatafields/{id}/schema'
+        obj = rest_api.get_api(url)
+        self.schema = MetadataSchema(obj['prefix'], obj['namespace'], obj['id'])
+
+    @staticmethod
+    def get_metadata_field_from_rest(rest_api, id: int):
+        """
+        Retrieves a specific metadata field from the given rest API.
+        :param rest_api: The rest API object to use.
+        :param id: The id of the metadata field to retrieve.
+        :return: The new MetadataField object.
+        """
+        url = f'/core/metadatafields/{id}'
+        obj = rest_api.get_api(url)
+        if obj is None:
+            logging.error('Could not retrieve metadata field with id %i.', id)
+            return None
+        schema_obj = None
+        if obj.get('_embedded') is not None and obj['_embedded'].get('schema') is not None:
+            schema_obj = MetadataSchema(obj['_embedded']['schema']['prefix'],
+                                        obj['_embedded']['schema']['namespace'],
+                                        obj['_embedded']['schema']['id'])
+        field_obj = MetadataField(schema_obj, obj['element'], obj.get('qualifier'), obj.get('scope_note'), obj['id'])
+        if schema_obj is None:
+            field_obj.update_schema_from_rest(rest_api)
+        logging.debug('Retrieved metadata field "%s".', str(field_obj))
+        return field_obj
+
+    def __str__(self):
+        """Creates string representation of the current MetadataField object."""
+        return f'{self.schema.prefix}.{self.element}' + (f'.{self.qualifier}' if self.qualifier is not None else '')
+
