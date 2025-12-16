@@ -8,7 +8,7 @@ from dspyce.models import Community, Collection, Item
 
 
 class RestTest(unittest.TestCase):
-    rest_url = 'http://localhost:8080/server/api'
+    rest_url = 'https://demo.dspace.org/server/api'
     rest_user = 'dspacedemo+admin@gmail.com'
     rest_pwd = 'dspace'
 
@@ -32,7 +32,7 @@ class RestTest(unittest.TestCase):
         collection.add_metadata('dc.title', 'Test Collection')
         item = Item(collections=collection)
         item.add_metadata('dc.title', 'Test Item')
-        item.add_content('collections', './test_data/saf_item')
+        item.add_content('collections', 'https://demo.dspace.org/server/api')
         community.to_rest(rest)
         collection.to_rest(rest)
         item.to_rest(rest)
@@ -84,7 +84,7 @@ class RestTest(unittest.TestCase):
         item.add_to_mapped_collections(rest, [mapped_collection])
         self.assertEqual(item, mapped_collection.get_items(rest)[0])
         bundle = Bundle('TEXT', 'Bundle containing text items.')
-        bundle.add_bitstream(Bitstream('handle', './test_data/saf_item', bundle, primary=True))
+        bundle.add_bitstream(Bitstream('handle', 'https://demo.dspace.org/server/api', bundle, primary=True))
         item.add_bundle(bundle)
         item.add_bundles_to_rest(rest)
         self.assertNotEqual('', item.get_bundle('TEXT').uuid)
