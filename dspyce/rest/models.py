@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+import threading
 import json
 import logging
 from warnings import warn
@@ -46,6 +47,8 @@ class RestAPI:
     """The password of the user communicating with the endpoint."""
     session: requests.sessions.Session
     """The active session."""
+    session_refresh_timeout: int = (60 * 28)
+    """The session refresh timeout. The time after the session is refreshed. Default is 28 minutes."""
     authenticated: bool = False
     """Provides information about the authentication status."""
     dspace_version: str
@@ -141,17 +144,22 @@ class RestAPI:
                          'Increasing the number of default connections.' % workers)
             self.session.mount(self.api_endpoint, adapter)
 
-    def authenticate_api(self) -> bool:
+    def authenticate_api(self, called_by_keep_alive = False) -> bool:
         """
         Authenticates to the REST-API
 
         :return: True, if the authentication worked.
         """
-        logging.info(f'Trying to authenticate against the REST-API "{self.api_endpoint}", with user {self.username}')
         auth_url = f'{self.api_endpoint}/authn/login'
-        req = self.session.post(auth_url)
-        self.update_csrf_token(req)
-        req = self.session.post(auth_url, data={'user': self.username, 'password': self.password})
+        if not called_by_keep_alive:
+            logging.info(f'Trying to authenticate against the REST-API "{self.api_endpoint}", with user {self.username}')
+            req = self.session.post(auth_url)
+            self.update_csrf_token(req)
+            req = self.session.post(auth_url, data={'user': self.username, 'password': self.password})
+        else:
+            logging.info(f'Trying to refresh the current session against the REST-API "{self.api_endpoint}"')
+            req = self.session.post(auth_url)
+            self.update_csrf_token(req)
         if 'Authorization' in req.headers:
             self.session.headers.update({'Authorization': req.headers.get('Authorization')})
         # Check if authentication was successfully:
@@ -160,6 +168,9 @@ class RestAPI:
             auth_status = auth_session.json()
             if 'authenticated' in auth_status and auth_status['authenticated'] is True:
                 logging.info(f'The authentication as "{self.username}" was successfully')
+                # basic way to wait "session_timeout" seconds in a thread and then refresh login token
+                keep_session_alive = threading.Timer(self.session_refresh_timeout, self.keep_session_alive)
+                keep_session_alive.start()
                 return True
         except requests.exceptions.JSONDecodeError as e:
             logging.error('Problem with authenticating to the api.')
@@ -168,6 +179,10 @@ class RestAPI:
 
         logging.critical('The authentication was unsuccessful.')
         return False
+
+    def keep_session_alive(self):
+        # https://github.com/DSpace/RestContract/blob/main/authentication.md#refresh-authentication
+        self.authenticate_api(called_by_keep_alive=True)
 
     def get_api(self, endpoint: str, params: dict = None) -> dict | None:
         """
