@@ -144,22 +144,24 @@ class RestAPI:
                          'Increasing the number of default connections.' % workers)
             self.session.mount(self.api_endpoint, adapter)
 
-    def authenticate_api(self, called_by_keep_alive = False) -> bool:
+    def authenticate_api(self, refresh_current_session = False) -> bool:
         """
         Authenticates to the REST-API
+
+        :param refresh_current_session: should the current session be refreshed? (Defaults to false)
 
         :return: True, if the authentication worked.
         """
         auth_url = f'{self.api_endpoint}/authn/login'
-        if not called_by_keep_alive:
+        if refresh_current_session:
+            logging.info(f'Trying to refresh the current session against the REST-API "{self.api_endpoint}"')
+            req = self.session.post(auth_url)
+            self.update_csrf_token(req)
+        else:
             logging.info(f'Trying to authenticate against the REST-API "{self.api_endpoint}", with user {self.username}')
             req = self.session.post(auth_url)
             self.update_csrf_token(req)
             req = self.session.post(auth_url, data={'user': self.username, 'password': self.password})
-        else:
-            logging.info(f'Trying to refresh the current session against the REST-API "{self.api_endpoint}"')
-            req = self.session.post(auth_url)
-            self.update_csrf_token(req)
         if 'Authorization' in req.headers:
             self.session.headers.update({'Authorization': req.headers.get('Authorization')})
         # Check if authentication was successfully:
@@ -182,7 +184,7 @@ class RestAPI:
 
     def keep_session_alive(self):
         # https://github.com/DSpace/RestContract/blob/main/authentication.md#refresh-authentication
-        self.authenticate_api(called_by_keep_alive=True)
+        self.authenticate_api(refresh_current_session=True)
 
     def get_api(self, endpoint: str, params: dict = None) -> dict | None:
         """
