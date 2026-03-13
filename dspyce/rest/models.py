@@ -239,7 +239,8 @@ class RestAPI:
         logging.error(f'Statuscode: {resp.status_code}')
         raise requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
                                                    f'Could not post content: \n\t{data}'
-                                                   f'\nWith params: {params}\nOn endpoint:\n\t{url}')
+                                                   f'\nWith params: {params}\nOn endpoint:\n\t{url}',
+                                                 response=resp)
 
     def patch_api(self, url: str, json_data: list, params: dict = None) -> dict | None:
         """
@@ -273,7 +274,8 @@ class RestAPI:
         logging.error(f'Statuscode: {resp.status_code}')
         raise requests.exceptions.RequestException(f'\nStatuscode: {resp.status_code}\n'
                                                    f'Could not put content: \n\t{json_data}'
-                                                   f'\nWith params: {params}\nOn endpoint:\n\t{url}')
+                                                   f'\nWith params: {params}\nOn endpoint:\n\t{url}',
+                                                   response = resp)
 
     def put_api(self, url: str, data: list | dict | str, params: dict = None, content_type: str = None) -> None:
         """
@@ -587,6 +589,8 @@ class RestAPI:
         :return: The updated DSpace object.
         :raises ValueError: If a not existing objectType is used.
         """
+        from dspyce.metadata import MetadataField, MetadataSchema
+        from dspyce.rest.exceptions import InvalidMetadataException
 
         if isinstance(metadata, self.MetaData):
             metadata = {key: [dict(v) for v in metadata[key]] for key in metadata.keys()}
@@ -594,8 +598,26 @@ class RestAPI:
             # Checks if there is only one metadata key with only one value.
             if len(metadata.keys()) == 1 and position_end and len(metadata[list(metadata.keys())[0]]) == 1:
                 metadata = {list(metadata.keys())[0]: metadata[list(metadata.keys())[0]][0]}
-        return self.update_metadata(metadata, object_uuid, obj_type, 'add',
-                                    position='-' if position_end else -1)
+        try:
+            return self.update_metadata(metadata, object_uuid, obj_type, 'add',
+                                        position='-' if position_end else -1)
+        except requests.exceptions.RequestException as e:
+            if e.response.status_code == 415:
+                metadata_fields = [m.split('.') for m in metadata.keys()]
+                invalid_fields = []
+                for field in metadata_fields:
+                    schema, element, qualifier = field if len(field) == 3 else (field[0], field[1], None)
+                    try:
+                        n = len(MetadataField.search_in_rest(self, schema, element, qualifier))
+                    except KeyError:
+                        n = 0
+                    if n == 0:
+                        error_note = 'The metadata field "%s" does not exist in the given restAPI.' % '.'.join(field)
+                        logging.error(error_note)
+                        invalid_fields.append(MetadataField(MetadataSchema(schema, '', None), element, qualifier))
+                e = InvalidMetadataException()
+                e.invalid_metadata_fields = invalid_fields
+            raise e
 
     def replace_metadata(self, metadata: MetaData | dict[str, list[dict] | dict], object_uuid: str,
                          obj_type: str, position: int = -1) -> DSpaceObject:

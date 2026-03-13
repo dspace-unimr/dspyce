@@ -1,14 +1,15 @@
 import copy
+import requests
 import unittest
 
 from dspyce.bitstreams.models import Bundle, Bitstream
-from dspyce.rest.exceptions import RestObjectNotFoundError
+from dspyce.rest.exceptions import RestObjectNotFoundError, InvalidMetadataException
 from dspyce.rest.models import RestAPI
 from dspyce.models import Community, Collection, Item
 
 
 class RestTest(unittest.TestCase):
-    rest_url = 'http://localhost:8080/server/api'
+    rest_url = 'https://demo.dspace.org/server/api'
     rest_user = 'dspacedemo+admin@gmail.com'
     rest_pwd = 'dspace'
 
@@ -32,7 +33,7 @@ class RestTest(unittest.TestCase):
         collection.add_metadata('dc.title', 'Test Collection')
         item = Item(collections=collection)
         item.add_metadata('dc.title', 'Test Item')
-        item.add_content('collections', './test_data/saf_item')
+        item.add_content('collections', 'https://demo.dspace.org/server/api')
         community.to_rest(rest)
         collection.to_rest(rest)
         item.to_rest(rest)
@@ -84,7 +85,7 @@ class RestTest(unittest.TestCase):
         item.add_to_mapped_collections(rest, [mapped_collection])
         self.assertEqual(item, mapped_collection.get_items(rest)[0])
         bundle = Bundle('TEXT', 'Bundle containing text items.')
-        bundle.add_bitstream(Bitstream('handle', './test_data/saf_item', bundle, primary=True))
+        bundle.add_bitstream(Bitstream('handle', 'https://demo.dspace.org/server/api', bundle, primary=True))
         item.add_bundle(bundle)
         item.add_bundles_to_rest(rest)
         self.assertNotEqual('', item.get_bundle('TEXT').uuid)
@@ -93,6 +94,12 @@ class RestTest(unittest.TestCase):
         item.move_item(rest, mapped_collection)
         self.assertEqual(mapped_collection, item.get_owning_collection())
         self.assertEqual(item, mapped_collection.get_items(rest)[0])
+        error_item = Item(collections=[collection])
+        error_item.add_metadata('xy.ab.cd', 'Invalid field!', 'NAN')
+        self.assertRaises(InvalidMetadataException, error_item.to_rest, rest)
+        item.track_updates()
+        item.add_metadata('xy.ab.cd', 'Invalid field!', 'NAN')
+        self.assertRaises(InvalidMetadataException, item.update_metadata_rest, rest, True)
         community.delete(rest, True)
 
     def test_metadata(self):
@@ -165,6 +172,29 @@ class RestTest(unittest.TestCase):
         )
         self.assertListEqual(['Großartiger Testbereich'], community.get_metadata_values('dc.title'))
         community.delete(rest, True)
+
+    def test_metadata_schemas(self):
+        """
+        Test metadata-schema operations with the restAPI.
+        """
+        rest = self.get_rest()
+        from dspyce.metadata import MetadataSchema
+        schemas = MetadataSchema.get_schemas_from_rest(rest)
+        self.assertGreater(len(schemas), 0)
+        dc_schema = MetadataSchema.get_schema_from_rest(rest, 1)
+        self.assertEqual(dc_schema.prefix, 'dc')
+
+    def test_metadata_fields(self):
+        """
+        Test metadata-fields operations with the restAPI.
+        """
+        rest = self.get_rest()
+        from dspyce.metadata import MetadataField
+        field = MetadataField.get_metadata_field_from_rest(rest, 1)
+        self.assertIsNotNone(field.element)
+        self.assertIsNotNone(field.schema)
+        fields = MetadataField.search_in_rest(rest, 'dc', 'contributor', 'author')
+        self.assertEqual(len(fields), 1)
 
 
 if __name__ == '__main__':
