@@ -89,7 +89,7 @@ class RestAPI:
             self.dspace_version = endpoint_info['dspaceVersion']
         self.username = username
         self.password = password
-        self.req_headers = {'Content-type': 'application/json', 'User-Agent': 'Python REST Client'}
+        self.req_headers = {'Content-type': 'application/json', 'User-Agent': 'dspyce/0.2'}
         if username is not None and password is not None:
             self.authenticated = self.authenticate_api()
         self.set_workers(workers)
