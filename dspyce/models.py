@@ -788,7 +788,6 @@ class Item(DSpaceObject):
         :param rest_api: The rest API object to use.
         :raises ValueError: If the collections of this item don't have an uuid yet or no Collection exists.
         """
-        from dspyce.entities.models import Relation
         if len(self.collections) == 0:
             raise ValueError('Can not push an Item into the restAPI without information about the owning collections.')
         for c in self.collections:
@@ -800,16 +799,7 @@ class Item(DSpaceObject):
             self.add_to_mapped_collections(rest_api)
         self.add_bundles_to_rest(rest_api, True)
         if self.is_entity():
-            relation_types = {
-                r.relation_key: r.relation_type for r in Relation.get_by_type_from_rest(rest_api,
-                                                                                        self.get_entity_type())
-            }
             for r in self.relations:
-                try:
-                    r.relation_type = relation_types[r.relation_key]
-                except KeyError as e:
-                    e.add_note(f'Relationship with name "{r.relation_key}" does no exist in the given restAPI!')
-                    raise e
                 r.to_rest(rest_api)
         logging.debug('Successfully created new Item object with uuid "%s".' % self.uuid)
 
