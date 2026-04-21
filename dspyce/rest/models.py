@@ -57,7 +57,8 @@ class RestAPI:
     """The number of worker threads used by the ThreadPoolExecutor."""
 
     def __init__(self, api_endpoint: str, username: str = None, password: str = None,
-                 log_level: int | str = logging.INFO, log_file: str = None, workers: int = 0):
+                 log_level: int | str = logging.INFO, log_file: str = None, workers: int = 0,
+                 session_refresh: bool = False):
         """
         Creates a new object of the RestAPI class using
 
@@ -70,6 +71,7 @@ class RestAPI:
             console.
         :param workers: The number of worker threads to use, if this value equals 0 no ThreadPoolExecutor is used.
             Default is 0.
+        :param session_refresh: Whether to refresh the current session automatically. Default: False.
         """
         log_level_types = {'DEBUG': logging.DEBUG, 'INFO': logging.INFO, 'WARNING': logging.WARNING,
                            'ERROR': logging.ERROR, 'CRITICAL': logging.CRITICAL}
@@ -93,6 +95,8 @@ class RestAPI:
         if username is not None and password is not None:
             self.authenticated = self.authenticate_api()
         self.set_workers(workers)
+        if not session_refresh:
+            self.session_refresh_timeout = -1
 
     @staticmethod
     def get_endpoint_info(api: str) -> dict[str, str] | None:
@@ -170,10 +174,11 @@ class RestAPI:
             auth_status = auth_session.json()
             if 'authenticated' in auth_status and auth_status['authenticated'] is True:
                 logging.info(f'The authentication as "{self.username}" was successfully')
-                # basic way to wait "session_timeout" seconds in a thread and then refresh login token
-                keep_session_alive = threading.Timer(self.session_refresh_timeout, self.keep_session_alive)
-                keep_session_alive.start()
-                return True
+                if self.session_refresh_timeout > 0:
+                    # basic way to wait "session_timeout" seconds in a thread and then refresh login token
+                    keep_session_alive = threading.Timer(self.session_refresh_timeout, self.keep_session_alive)
+                    keep_session_alive.start()
+                    return True
         except requests.exceptions.JSONDecodeError as e:
             logging.error('Problem with authenticating to the api.')
             logging.error(auth_session)
