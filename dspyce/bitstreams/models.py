@@ -29,9 +29,11 @@ class Bitstream(DSpaceObject):
     """The size of the Bitstream in bytes."""
     check_sum: str
     """The checksum of the Bitstream."""
+    user_agent: str
+    """A possible user agent to send for the get request of remote resources."""
 
     def __init__(self, name: str, path: str, bundle: any = None, uuid: str = '', primary: bool = False,
-                 size_bytes: int = None, check_sum: str = None):
+                 size_bytes: int = None, check_sum: str = None, user_agent='dspyce/0.2'):
         """
         Creates a new Bitstream object.
         :param name: The name of the bitstream.
@@ -41,6 +43,7 @@ class Bitstream(DSpaceObject):
         :param primary: Primary is used to specify the primary bitstream.
         :param size_bytes: The size of the bitstream in bytes.
         :param check_sum: The checksum of the bitstream.
+        :param user_agent: A possible user-agent to send for the get request of remote resources.
         """
         self.file_name = name
         self.path = path
@@ -51,6 +54,7 @@ class Bitstream(DSpaceObject):
         self.primary = primary
         self.size_bytes = size_bytes
         self.check_sum = check_sum
+        self.user_agent = user_agent
         super().__init__(uuid, '', name)
         if name != '':
             self.add_metadata('dc.title', name)
@@ -180,7 +184,7 @@ class Bitstream(DSpaceObject):
         :param timeout: The connection timeout for reading bitstreams from remote resources.
         """
         if self.is_remote_resource():
-            return requests.get(self.path, timeout=timeout).content
+            return requests.get(self.path, timeout=timeout, headers={'User-Agent': self.user_agent}).content
         with open(self.path + self.file_name, 'rb') as f:
             return f.read()
 
