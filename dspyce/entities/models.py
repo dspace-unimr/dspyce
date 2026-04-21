@@ -12,6 +12,140 @@ import networkx as nx
 import requests
 
 
+class EntityType:
+    """Represents an DSpace EntityType object."""
+    id: int
+    """The id of the entity type"""
+    label: str
+    """The label aka the name of the entity type."""
+    endpoint: str = 'core/entitytypes/'
+    """The DSpace rest endpoint."""
+
+    def __init__(self, id: int, label: str):
+        """
+        Creates a new entityType object.
+        """
+        self.id = id
+        self.label = label
+
+    @staticmethod
+    def from_dict(entity_type: dict):
+        """
+        Creates a new entity type object from a given dict.
+        """
+        return EntityType(entity_type['id'], entity_type.get['label'])
+
+    @staticmethod
+    def from_rest(rest, entity_type_id: int) -> str:
+        """
+        Retrieves the string representation of an Entity type based on the given entity_type_id.
+        :param entity_type_id: The id of the entity type to look for.
+        :return: The name of the entity type.
+        """
+        endpoint = EntityType.endpoint + str(entity_type_id)
+        json_resp = rest.get_api(endpoint)
+        if json_resp is not None:
+            return json_resp['label']
+        else:
+            raise KeyError(f'No entityType found with id "{entity_type_id}"')
+
+
+class RelationType:
+    relation_type_id: int
+    """The id of the current relationship."""
+    left_type: str
+    """The left entity type of a relationship."""
+    right_type: str
+    """The right entity type of a relationship."""
+    leftward_type: str
+    """The name of the leftwardType"""
+    rightward_type: str
+    """The name of the rightwardType"""
+    endpoint: str = '/core/relationshiptypes/'
+
+    def __init__(self, relation_type_id: int, left_type: str, right_type: str, leftward_type: str, rightward_type: str):
+        """
+        Creates a new relationshipType object with the provide attributes.
+        :param relation_type_id: The id of the current relationship.
+        :param left_type: The left entity type of relationship.
+        :param right_type: The right entity type of relationship.
+        :param leftward_type: The name of the leftwardType
+        :param rightward_type: The name of the rightwardType
+        """
+        self.relation_type_id = relation_type_id
+        self.left_type = left_type
+        self.right_type = right_type
+        self.left_type = left_type
+        self.leftward_type = leftward_type
+        self.rightward_type = rightward_type
+
+    def __str__(self):
+        """Returns a string representation of the current object."""
+        return str(self.to_dict())
+
+    def __eq__(self, other):
+        """Checks if two RelationType objects are equal based on their id."""
+        return self.relation_type_id == other.relation_type_id
+
+    def to_dict(self) -> dict:
+        """
+        Returns the current relationType as a dict object.
+        """
+        return {
+            'id': self.relation_type_id,
+            'leftwardType': self.leftward_type,
+            'rightwardType': self.rightward_type,
+            'rightType': self.right_type,
+            'leftType': self.left_type,
+        }
+
+    @staticmethod
+    def from_dict(relationship_type: dict):
+        """
+        Creates a new RelationshipType object based on a given dict.
+        :param relationship_type: The dict value to process.
+        :return: A RelationType object containing the relevant information.
+        :raises KeyError: If a necessary Key does not exist.
+        """
+        return RelationType(relationship_type['id'], relationship_type['leftType'], relationship_type['rightType'],
+                            relationship_type['leftwardType'], relationship_type['rightwardType'])
+
+
+    @staticmethod
+    def from_rest(rest, relation_type_id: int):
+        """
+        Creates a new RelationType based on the information of a given restAPI.
+        :param rest: The restAPI to use.
+        :param relation_type_id: The relation_type_id to retrieve the information for.
+        :return: A new relationType object.
+        """
+        endpoint = RelationType.endpoint + str(relation_type_id)
+        json_resp = rest.get_api(endpoint)
+        if json_resp is not None:
+            json_resp['leftType'] = EntityType.from_rest(rest, int(json_resp['_links']['leftType']['href'].split('/')[-1]))
+            json_resp['rightType'] = EntityType.from_rest(rest, int(json_resp['_links']['rightType']['href'].split('/')[-1]))
+            return RelationType.from_dict(json_resp)
+        else:
+            raise KeyError(f'No relationType found with id "{relation_type_id}"')
+
+    @staticmethod
+    def get_by_type_from_rest(rest_api, entity_type: str):
+        """
+        Parses the given REST API and returns a list of relationshipTypes, which have the given entity on the left or right
+        side.
+        """
+        add_url = f'/core/relationshiptypes/search/byEntityType'
+        params = {'type': entity_type}
+        rel_list = []
+        relations = rest_api.get_paginated_objects(add_url, 'relationshiptypes', params)
+        for r in relations:
+            r['leftType'] = EntityType.from_rest(rest_api, int(r['_links']['leftType']['href'].split('/')[-1]))
+            r['rightType'] = EntityType.from_rest(rest_api, int(r['_links']['rightType']['href'].split('/')[-1]))
+            rel_list.append(RelationType.from_dict(r))
+            logging.debug(f'Got relation {r} from RestAPI')
+        return rel_list
+
+
 class Relation:
     """
         The class contains the python class Relation representing the Relation between DSpace-Entities.
@@ -24,15 +158,12 @@ class Relation:
 
         > relation.any_relation 123456789/12\nrelation.different_relation 123456789/13\n
     """
-    left_type: str
-    """The left entity type of a relationship."""
-    right_type: str
-    """The right entity type of a relationship."""
     relation_key: str
-    relation_type: int
+    relation_type: RelationType | None
+    """The type of the current Relation as a RelationType object."""
     items: tuple
 
-    def __init__(self, relation_key: str, related_items: tuple = None, relation_type: int = None):
+    def __init__(self, relation_key: str, related_items: tuple = None, relation_type: RelationType = None):
         """
             Creates a new object of the class relation, which represents exactly
             one DSpace-Relation
@@ -51,23 +182,11 @@ class Relation:
         return f'{id_1}:relation.{self.relation_key}:{id_2}'
 
     def __eq__(self, other):
-        return self.relation_key == other.relation_key and self.relation_type == other.relation_type
+        try:
+            return self.relation_key == other.relation_key and self.relation_type == other.relation_type
+        except AttributeError:
+            return False
 
-    @staticmethod
-    def get_by_type_from_rest(rest_api, entity_type: str):
-        """
-        Parses the given REST API and returns a list of relationships, which have the given entity on the left or right
-        side.
-        """
-        add_url = f'/core/relationshiptypes/search/byEntityType'
-        params = {'type': entity_type}
-        rel_list = []
-        relations = rest_api.get_paginated_objects(add_url, 'relationshiptypes', params)
-        for r in relations:
-            rel_list.append(Relation(r['leftwardType'], relation_type=r['id']))
-            rel_list.append(Relation(r['rightwardType'], relation_type=r['id']))
-            logging.debug(f'Got relation {r} from RestAPI')
-        return rel_list
 
     def to_rest(self, rest_api):
         """
@@ -80,23 +199,28 @@ class Relation:
         if self.relation_type is None:
             logging.info('No relation type specified, trying to find relation-type via the rest endpoint.')
             left_item_type = self.items[0].get_entity_type()
-            rels = Relation.get_by_type_from_rest(rest_api, left_item_type)
-            rels = list(filter(lambda x: x.relation_key == self.relation_key, rels))
+            rels = RelationType.get_by_type_from_rest(rest_api, left_item_type)
+            rels: list[RelationType] = list(filter(lambda x: x.leftward_type == self.relation_key or x.rightward_type == self.relation_key, rels))
             if len(rels) != 1:
                 if len(rels) > 1:
                     logging.critical('Something went wrong with on the rest-endpoint: found more than one relation with'
-                                     f' the name {self.relation_key}')
+                                     f' the name {self.relation_key}: {", ".join(map(lambda x: str(x), rels))}')
                 else:
                     logging.error(f'Didn\'t find relation with name {self.relation_key}')
+                raise ValueError('Could not create object with the specified relationship(s).')
             else:
-                self.relation_type = rels[0].relation_type
+                self.relation_type = rels[0]
                 logging.debug(f'Found relationtype "{self.relation_type}" for the name "{self.relation_key}"')
-        add_url = f'{rest_api.api_endpoint}/core/relationships?relationshipType={self.relation_type}'
+        add_url = f'{rest_api.api_endpoint}/core/relationships?relationshipType={self.relation_type.relation_type_id}'
         if self.items[0] is None or self.items[1] is None:
             logging.error(f'Could not create Relation because of missing item information in relation: {self}')
             raise ValueError(f'Could not create Relation because of missing item information in relation: {self}')
-        uuid_1 = self.items[0].uuid
-        uuid_2 = self.items[1].uuid
+        if self.items[0].get_entity_type() == self.relation_type.left_type:
+            uuid_1 = self.items[0].uuid
+            uuid_2 = self.items[1].uuid
+        else:
+            uuid_1 = self.items[1].uuid
+            uuid_2 = self.items[0].uuid
         if uuid_1 == '' or uuid_2 == '':
             logging.error(f'Relation via RestAPI can only be created by using item-uuids, but found: {self}')
             raise ValueError(f'Relation via RestAPI can only be created by using item-uuids, but found: {self}')
@@ -115,7 +239,7 @@ class Relation:
         raise requests.exceptions.RequestException(f'{resp.status_code}: Could not post relation: \n{self}\n'
                                                    f'Got headers: {resp.headers}')
 
-    def set_relation_type(self, relation_type: int):
+    def set_relation_type(self, relation_type: RelationType):
         """
         Set a value for the relation_type variable.
         :param relation_type: The new relation_id value.

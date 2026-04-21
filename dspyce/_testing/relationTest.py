@@ -1,6 +1,7 @@
 import unittest
 
 import dspyce as ds
+from dspyce.entities.models import RelationType
 
 
 class RelationTest(unittest.TestCase):
@@ -9,7 +10,9 @@ class RelationTest(unittest.TestCase):
     """
     relation = ds.Relation('isAuthorOfPublication',
                            (ds.Item('abc'),
-                            ds.Item('dfg')), 2)
+                            ds.Item('dfg')),
+                           RelationType(2, 'Publication', 'Author', 'isAuthorOfPublication', 'isPublicationOfAuthor')
+                           )
 
     def test_str(self):
         """
@@ -22,7 +25,8 @@ class RelationTest(unittest.TestCase):
         Tests __eq__ method.
         """
         self.assertEqual(ds.Relation('isAuthorOfPublication', (ds.Item(), ds.Item()),
-                                     2), self.relation)
+                                     RelationType(2, 'Publication', 'Author', 'isAuthorOfPublication', 'isPublicationOfAuthor')),
+                         self.relation)
         self.assertNotEqual(ds.Relation('isAuthorOfPublication', (ds.Item(), ds.Item())),
                             self.relation)
 
@@ -30,8 +34,10 @@ class RelationTest(unittest.TestCase):
         """
         Tests set_relation_type method.
         """
-        self.relation.set_relation_type(1)
-        self.assertEqual(1, self.relation.relation_type)
+        self.relation.set_relation_type(
+            RelationType(1, 'Publication', 'Author', 'isAuthorOfPublication', 'isPublicationOfAuthor')
+        )
+        self.assertEqual(1, self.relation.relation_type.relation_type_id)
 
 
 if __name__ == '__main__':
