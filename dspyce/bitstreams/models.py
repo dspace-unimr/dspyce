@@ -123,6 +123,8 @@ class Bitstream(DSpaceObject):
         req = rest_api.session.post(add_url)
         rest_api.update_csrf_token(req)
         headers = rest_api.session.headers
+        if 'Content-Type' in headers.keys():
+            headers.pop('Content-Type')
         headers.update({'Content-Encoding': 'gzip', 'User-Agent': rest_api.req_headers['User-Agent']})
         req = requests.Request('POST', add_url,
                                data={'properties': json.dumps(obj_json) + ';type=application/json'}, headers=headers,
