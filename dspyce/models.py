@@ -428,10 +428,11 @@ class Community(DSpaceObject):
     sub_collections: list[DSpaceObject]
 
     def __init__(self, uuid: str = '', handle: str = '', name: str = '', parent_community: DSpaceObject = None,
-                 sub_communities: list[DSpaceObject] = None):
+                 sub_communities: list[DSpaceObject] = None, sub_collections: list[DSpaceObject] = None):
         super().__init__(uuid, handle, name)
         self.sub_communities = sub_communities if sub_communities is not None else []
         self.parent_community = parent_community
+        self.sub_collections = sub_collections if sub_collections is not None else []
 
     @staticmethod
     def get_from_rest(rest_api, uuid: str, obj_type: str='community', identifier: str = None):
