@@ -4,8 +4,8 @@ unittests:
     stage: test
     before_script:
       - python3 -m venv ./venv
-      - ./venv/bin/pip install --proxy http://www-proxy2.hrz.uni-marburg.de:3128 --upgrade pip
-      - ./venv/bin/pip install --proxy http://www-proxy2.hrz.uni-marburg.de:3128 -r ./requirements.txt
+      - ./venv/bin/pip install  --upgrade pip
+      - ./venv/bin/pip install -r ./requirements.txt
       - cp -r ./dspyce ./venv/lib/python3.10/site-packages/
     script:
       - ./venv/bin/python3 dspyce/_testing/__init__.py
